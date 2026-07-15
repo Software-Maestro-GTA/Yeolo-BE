@@ -28,11 +28,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException e) {
+        ErrorCode code = ErrorCode.INVALID_REQUEST;
         String message = e.getBindingResult().getFieldError() != null
                 ? e.getBindingResult().getFieldError().getDefaultMessage()
-                : ErrorCode.INVALID_REQUEST.getMessage();
-        return ResponseEntity.status(ErrorCode.INVALID_GOOGLE_CODE.getHttpStatus())
-                .body(ApiResponse.error(ErrorCode.INVALID_GOOGLE_CODE.getHttpStatus().value(), message));
+                : code.getMessage();
+        return ResponseEntity.status(code.getHttpStatus())
+                .body(ApiResponse.error(code.getHttpStatus().value(), message));
     }
 
     @ExceptionHandler(Exception.class)
