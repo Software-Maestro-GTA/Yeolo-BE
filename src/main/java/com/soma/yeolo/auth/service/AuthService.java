@@ -29,6 +29,10 @@ public class AuthService {
     public GoogleLoginResponse loginWithGoogle(GoogleLoginRequest request) {
         // 1. Google 인증 (외부 호출 — 트랜잭션 밖)
         GoogleUserInfo google = googleOAuthClient.authenticate(request.code(), request.redirectUri());
+        if (google.emailVerified() == null || !google.emailVerified()) {
+            throw new com.soma.yeolo.global.exception.BusinessException(
+                    com.soma.yeolo.global.exception.ErrorCode.INVALID_GOOGLE_CODE);
+        }
 
         // 2. 사용자 생성/조회
         User user = userService.upsertOnOAuthLogin(new OAuthUserInfo(
