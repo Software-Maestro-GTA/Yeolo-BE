@@ -39,8 +39,7 @@ public class AuthService {
         GeneratedToken refresh = jwtTokenProvider.createRefreshToken(user.getId());
         refreshTokenService.issue(user.getId(), refresh.token(), refresh.expiresAt());
 
-        // 4. 응답 구성 (hasTasteProfile은 성향 프로필 연동 시 조회 — TODO(#5))
-        boolean hasTasteProfile = false;
-        return GoogleLoginResponse.from(user, hasTasteProfile, accessToken, refresh.token());
+        // 4. 응답 구성
+        return GoogleLoginResponse.from(user, accessToken, refresh.token());
     }
 }
