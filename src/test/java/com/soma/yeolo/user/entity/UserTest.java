@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 /**
  * 순수 도메인 테스트 — 프레임워크/외부 의존성 없이 엔티티 행위만 검증한다(테스트 더블 미사용).
  */
-class 현UserTest {
+class UserTest {
 
     @Test
     void 신규_OAuth_사용자는_active_상태로_로그인_시각을_기록하며_생성된다() {
