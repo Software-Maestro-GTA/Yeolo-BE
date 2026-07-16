@@ -31,19 +31,23 @@ class AuthControllerTest {
     @Test
     void 구글_로그인_성공시_200과_명세_봉투로_응답한다() throws Exception {
         GoogleLoginResponse response = new GoogleLoginResponse(
-                new UserSummary("550e8400-e29b-41d4-a716-446655440000", "u@gmail.com", "홍길동", "http://img", false),
+                new UserSummary("550e8400-e29b-41d4-a716-446655440000", "google", "u@gmail.com",
+                        "홍길동", "http://img", "active", "2026-07-16T00:00:00Z"),
                 "access-token", "refresh-token");
         when(authService.loginWithGoogle(any())).thenReturn(response);
 
         mockMvc.perform(post("/api/auth/google")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"code\":\"auth-code\"}"))
+                        .content("{\"code\":\"auth-code\",\"redirectUri\":\"http://localhost/callback\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.message").value("로그인 성공"))
                 .andExpect(jsonPath("$.data.user.userId").value("550e8400-e29b-41d4-a716-446655440000"))
-                .andExpect(jsonPath("$.data.user.nickname").value("홍길동"))
-                .andExpect(jsonPath("$.data.user.hasTasteProfile").value(false))
+                .andExpect(jsonPath("$.data.user.provider").value("google"))
+                .andExpect(jsonPath("$.data.user.displayName").value("홍길동"))
+                .andExpect(jsonPath("$.data.user.profileImageUrl").value("http://img"))
+                .andExpect(jsonPath("$.data.user.status").value("active"))
+                .andExpect(jsonPath("$.data.user.lastLoginAt").value("2026-07-16T00:00:00Z"))
                 .andExpect(jsonPath("$.data.accessToken").value("access-token"))
                 .andExpect(jsonPath("$.data.refreshToken").value("refresh-token"));
     }

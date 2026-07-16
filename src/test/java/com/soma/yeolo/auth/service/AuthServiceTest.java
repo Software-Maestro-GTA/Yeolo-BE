@@ -48,22 +48,25 @@ class AuthServiceTest {
         User user = User.createOAuthUser(Provider.GOOGLE, "sub-1", "u@gmail.com", "홍길동", "http://img");
         ReflectionTestUtils.setField(user, "id", userId);
 
-        when(googleOAuthClient.authenticate("auth-code", null))
+        when(googleOAuthClient.authenticate("auth-code", "http://localhost/callback"))
                 .thenReturn(new GoogleUserInfo("sub-1", "u@gmail.com", "홍길동", "http://img", true));
         when(userService.upsertOnOAuthLogin(any(OAuthUserInfo.class))).thenReturn(user);
         when(jwtTokenProvider.createAccessToken(userId)).thenReturn("access-token");
         when(jwtTokenProvider.createRefreshToken(userId))
                 .thenReturn(new GeneratedToken("refresh-token", refreshExpiry));
 
-        GoogleLoginResponse response = authService.loginWithGoogle(new GoogleLoginRequest("auth-code", null));
+        GoogleLoginResponse response =
+                authService.loginWithGoogle(new GoogleLoginRequest("auth-code", "http://localhost/callback"));
 
         assertThat(response.accessToken()).isEqualTo("access-token");
         assertThat(response.refreshToken()).isEqualTo("refresh-token");
         assertThat(response.user().userId()).isEqualTo(userId.toString());
+        assertThat(response.user().provider()).isEqualTo("google");
         assertThat(response.user().email()).isEqualTo("u@gmail.com");
-        assertThat(response.user().nickname()).isEqualTo("홍길동");
-        assertThat(response.user().profileImage()).isEqualTo("http://img");
-        assertThat(response.user().hasTasteProfile()).isFalse();
+        assertThat(response.user().displayName()).isEqualTo("홍길동");
+        assertThat(response.user().profileImageUrl()).isEqualTo("http://img");
+        assertThat(response.user().status()).isEqualTo("active");
+        assertThat(response.user().lastLoginAt()).isNotNull();
 
         verify(refreshTokenService).issue(eq(userId), eq("refresh-token"), eq(refreshExpiry));
     }
