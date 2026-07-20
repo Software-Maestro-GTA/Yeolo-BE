@@ -1,0 +1,38 @@
+# ============================================================================
+# 로컬 개발용 설정 템플릿 (추적됨). 이 파일을 복사해 실제 값을 채운 뒤 사용한다:
+#
+#   cp application-local.properties.example application-local.properties
+#
+# 실제 파일(application-local.properties)은 .gitignore로 커밋되지 않는다.
+# 활성화: 앱 실행 시 local 프로파일을 켠다.
+#   ./gradlew bootRun --args='--spring.profiles.active=local'
+#   또는  export SPRING_PROFILES_ACTIVE=local
+# (환경변수로 직접 주입해도 되며, 그 경우 이 파일 없이도 동작한다. docs/architecture.md §6)
+# ============================================================================
+
+# ===== DataSource (MySQL) =====
+spring.datasource.url=jdbc:mysql://localhost:3306/yeolo
+spring.datasource.username=root
+spring.datasource.password=
+
+# ===== Google OAuth (API-FB-1) =====
+# https://console.cloud.google.com → OAuth 2.0 클라이언트 ID에서 발급
+google.oauth.client-id=
+google.oauth.client-secret=
+google.oauth.redirect-uri=http://localhost:8080/login/oauth2/code/google
+
+# ===== JWT =====
+# HS256 서명용. 최소 32바이트(32자) 이상의 임의 문자열.
+jwt.secret=CHANGE_ME_to_a_long_random_secret_at_least_32_bytes
+
+# ===== AI 내부 API (API-BA-6) =====
+# AI 엔진 서버 주소와 내부 인증 키(X-Internal-Api-Key)
+ai.internal.base-url=http://localhost:8000
+ai.internal.api-key=
+
+# ===== Reverse Geocode (DOM-5) =====
+# provider: stub(기본, 키 불필요) | google(실 API, 키 필요)
+# google 선택 시 Google Cloud에서 'Geocoding API'와 'Places API'를 모두 활성화해야 한다.
+geocode.provider=stub
+geocode.google.api-key=
+geocode.google.nearby-radius=100

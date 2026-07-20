@@ -15,6 +15,14 @@ public enum ErrorCode {
     INVALID_GOOGLE_CODE(HttpStatus.BAD_REQUEST, "인가 코드가 유효하지 않습니다."),
     GOOGLE_AUTH_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Google 인증 처리 중 오류가 발생했습니다."),
 
+    // Auth / JWT (보호 리소스 공통)
+    UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요하거나 토큰이 만료되었습니다."),
+
+    // Taste Profile - Behavior 분석 (API-FB-2 / API-BA-6)
+    INSUFFICIENT_IMAGE_METADATA(HttpStatus.BAD_REQUEST, "분석 가능한 이미지 메타데이터가 부족합니다."),
+    REVERSE_GEOCODE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "위치 정보 전처리 중 오류가 발생했습니다."),
+    AI_ANALYSIS_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "성향 분석 처리 중 오류가 발생했습니다."),
+
     // Common
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "내부 처리 오류가 발생했습니다."),
     INVALID_REQUEST(HttpStatus.BAD_REQUEST, "요청이 유효하지 않습니다.");
