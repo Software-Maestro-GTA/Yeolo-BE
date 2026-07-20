@@ -26,6 +26,8 @@ public class TasteProfileController {
     private static final long SSE_TIMEOUT_MS = 120_000L;
 
     private final BehaviorTasteProfileService behaviorTasteProfileService;
+
+    @org.springframework.beans.factory.annotation.Qualifier("sseTaskExecutor")
     private final AsyncTaskExecutor sseTaskExecutor;
 
     /**
