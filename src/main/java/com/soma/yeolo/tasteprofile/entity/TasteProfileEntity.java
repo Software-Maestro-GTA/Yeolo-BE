@@ -1,6 +1,7 @@
 package com.soma.yeolo.tasteprofile.entity;
 
 import com.soma.yeolo.global.entity.BaseTimeEntity;
+import com.soma.yeolo.tasteprofile.domain.SavedTasteProfile;
 import com.soma.yeolo.tasteprofile.domain.SourceType;
 import com.soma.yeolo.tasteprofile.domain.TasteProfile;
 import jakarta.persistence.Column;
@@ -81,5 +82,10 @@ public class TasteProfileEntity extends BaseTimeEntity {
                 .companionType(profile.companionType())
                 .seasonalEnvironmentPreference(profile.seasonalEnvironmentPreference())
                 .build();
+    }
+
+    /** 영속 엔티티 → 조회용 읽기 모델 매핑 (API-FB-8). 부여된 식별자·갱신 시각을 함께 담는다. */
+    public SavedTasteProfile toSavedProfile() {
+        return new SavedTasteProfile(id, userId, sourceType, getUpdatedAt(), profile);
     }
 }
