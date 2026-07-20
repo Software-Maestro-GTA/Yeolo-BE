@@ -25,8 +25,13 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
         response.setStatus(code.getHttpStatus().value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
-        String body = "{\"status\":%d,\"message\":\"%s\",\"data\":null}"
-                .formatted(code.getHttpStatus().value(), code.getMessage());
+        String safeMessage = code.getMessage()
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r");
+        String body = "{\"status\":%d,\"message\":\"%s\",\"data\":null}".formatted(
+                code.getHttpStatus().value(), safeMessage);
         response.getWriter().write(body);
     }
 }
