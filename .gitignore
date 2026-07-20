@@ -35,3 +35,12 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Local secrets / overrides (커밋 금지) ###
+# 로컬 비밀값·오버라이드는 커밋하지 않는다. 템플릿(*.example)만 추적한다. (docs/architecture.md §6)
+application-local.properties
+application-local.yml
+application-local.yaml
+!application-local.properties.example
+.env
+.env.local
