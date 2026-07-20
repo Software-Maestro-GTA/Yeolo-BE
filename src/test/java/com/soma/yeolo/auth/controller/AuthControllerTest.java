@@ -10,6 +10,9 @@ import com.soma.yeolo.auth.dto.GoogleLoginResponse;
 import com.soma.yeolo.auth.dto.GoogleLoginResponse.UserSummary;
 import com.soma.yeolo.auth.service.AuthService;
 import com.soma.yeolo.global.config.SecurityConfig;
+import com.soma.yeolo.global.security.JwtAuthenticationFilter;
+import com.soma.yeolo.global.security.JwtTokenProvider;
+import com.soma.yeolo.global.security.RestAuthenticationEntryPoint;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -19,7 +22,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(AuthController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, RestAuthenticationEntryPoint.class})
 class AuthControllerTest {
 
     @Autowired
@@ -27,6 +30,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private AuthService authService;
+
+    @MockitoBean
+    private JwtTokenProvider jwtTokenProvider;
 
     @Test
     void 구글_로그인_성공시_200과_명세_봉투로_응답한다() throws Exception {

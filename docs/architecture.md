@@ -26,6 +26,27 @@ com.soma.yeolo.global/            공통: 예외/응답/설정/보안/BaseEntity
 - 계층 간 객체 변환은 정적 팩토리 메서드로 수동 매핑: `Entity.from(domain)`,
   `entity.toDomain()`, `Response.from(domain)`. (MapStruct 등 별도 라이브러리 미도입)
 
+### 1-2. 의존성 역전 (DIP) — service ↔ repository/외부 격리
+
+**원칙: 서비스(응용 계층)는 프레임워크·인프라 세부를 몰라야 한다.** 서비스는 자신이
+**소유한 포트(인터페이스)** 에만 의존하고, 영속성·외부 호출은 그 포트를 구현한 어댑터가 담당한다.
+의존 방향은 항상 바깥(web·JPA·외부 API) → 안(service·domain)으로 향한다.
+
+- **저장 포트:** 서비스는 `JpaRepository`나 `@Entity`를 직접 주입/import하지 않는다. 대신
+  서비스 쪽이 소유한 **저장 포트**(예: `service/port/TasteProfileStore`)에 의존하고, 순수 도메인만
+  주고받는다(`save(Domain) → id`). 포트의 JPA 구현 어댑터(예: `repository/…StoreJpaAdapter`)가
+  `Entity.from(domain)` 매핑·`save`·id 추출을 **경계에 격리**한다. Spring Data
+  `JpaRepository` 인터페이스는 어댑터 내부에서만 사용한다.
+- **외부 호출 포트:** AI 내부 API·지오코딩 등 외부 연동은 `<domain>.client/`에 **포트 인터페이스**를
+  두고(예: `ReverseGeocodeClient`), 구현 어댑터를 교체 가능하게 한다. (§5)
+- **표현 계층은 안으로 내려가지 않는다:** 컨트롤러가 소유한 웹 객체(`SseEmitter` 등)를 서비스로
+  넘기는 방식은 지양하되, SSE처럼 스트리밍 수명주기를 서비스가 책임져야 하는 경우는 예외로
+  허용한다(이때도 저장·외부호출은 포트 뒤에 둔다).
+- **효과:** 서비스는 web·JPA import 0 → 순수 자바 단위 테스트가 가능해진다(§8).
+- **병합형 예외:** §1-1에서 "엔티티=도메인" 병합을 택한 얇은 CRUD 도메인(예: User)은 별도 저장
+  포트 없이 `JpaRepository`를 서비스에서 직접 써도 된다. 완전 분리 도메인(TasteProfile·Course)은
+  위 저장 포트 규칙을 따른다.
+
 ### 1-1. 도메인 분리 정책 (완전 분리 vs 병합)
 
 - **원칙:** DTO ↔ Domain ↔ Entity 3계층 분리 (필요 시 리포지토리 포트/어댑터 포함).
@@ -109,16 +130,21 @@ com.soma.yeolo.global/            공통: 예외/응답/설정/보안/BaseEntity
 | 계층 | 방식 | 외부 의존성 | 도구 |
 | :--- | :--- | :--- | :--- |
 | `domain/` (순수 모델·규칙) | 순수 단위 테스트 | 없음 | JUnit 5 |
-| `service/` (오케스트레이션) | 단위 테스트, 협력자 목킹 | 없음(repository·client mock) | JUnit 5 + Mockito |
-| `repository/` | 슬라이스 | DB | `@DataJpaTest` |
-| `controller/` | 슬라이스 | 없음(service mock) | `@WebMvcTest` |
-| `client/` (AI 호출) | 어댑터 | 없음(실 AI 미호출) | `MockRestServiceServer` |
+| `service/` (오케스트레이션) | **순수 자바 단위 테스트** | 없음(포트는 손수 짠 fake/stub) | JUnit 5 (필요 시에만 Mockito) |
+| `repository/` | **기본 미작성**(CRUD) | DB | (커스텀 쿼리만) `@DataJpaTest` |
+| `controller/` | **기본 미작성**(배관) | — | (필요 시) `@WebMvcTest` |
+| `client/` (외부 호출) | 어댑터 | 없음(실 호출 미발생) | `MockRestServiceServer` |
 
 - 예: JWT 만료·refresh 회전 규칙, 코스 소유자 권한 검증, 성향 프로필 유효성 →
   도메인/서비스 단위 테스트에서 시간·DB·네트워크 없이 검증.
 - 전 계층 통합이 꼭 필요할 때만 `@SpringBootTest`.
-- **기본 정책:** 도메인=순수(더블 0), 서비스=Mockito, 컨트롤러=`@WebMvcTest`.
-  리포지토리 전용 `@DataJpaTest`는 **커스텀 쿼리 검증이 필요할 때만** 작성한다(기본 필수 아님).
+- **기본 정책 — 서비스에 집중한다:** 비즈니스 규칙은 **서비스 단위 테스트**로 검증한다.
+  - **서비스=순수 자바 우선:** DIP 포트(§1-2)는 **손수 짠 fake/stub**으로 대체해 JUnit만으로 검증한다.
+    Mockito·`ReflectionTestUtils` 등 프레임워크 더블은 **대체가 어려운 협력자에 한해** 쓴다
+    (예: SSE 스트리밍 검증의 `SseEmitter`). 저장 포트는 fake로, 리플렉션 id 주입은 쓰지 않는다.
+  - **컨트롤러·리포지토리=기본 미테스트:** 얇은 배관/단순 CRUD이므로 별도 테스트를 **작성하지 않는다.**
+    `@WebMvcTest`(컨트롤러)·`@DataJpaTest`(리포지토리)는 **커스텀 검증·쿼리가 있을 때만** 예외로 작성한다.
+  - 도메인=순수(더블 0).
 - 리포지토리/컨텍스트 테스트 DB는 **H2(MySQL 호환 모드)**로 확정. 설정은
   `src/test/resources/application.properties`.
 - 실행: `./gradlew test` (자세한 명령은 CLAUDE.md).
