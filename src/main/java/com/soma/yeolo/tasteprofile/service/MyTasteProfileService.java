@@ -51,8 +51,11 @@ public class MyTasteProfileService {
 
     private ObjectNode parseProfile(String profileJson) {
         try {
-            JsonNode parsed = OBJECT_MAPPER.readTree(profileJson);
-            return parsed instanceof ObjectNode object ? object : OBJECT_MAPPER.createObjectNode();
+JsonNode parsed = OBJECT_MAPPER.readTree(profileJson);
+if (!(parsed instanceof ObjectNode object)) {
+    throw new IllegalStateException("tasteProfile must be a JSON object");
+}
+return object;
         } catch (Exception e) {
             // 저장된 성향 JSON이 손상된 예외적 상황 — 500으로 노출한다.
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, e);
