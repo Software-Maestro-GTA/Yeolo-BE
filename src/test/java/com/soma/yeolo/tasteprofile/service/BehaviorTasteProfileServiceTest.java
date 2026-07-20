@@ -18,7 +18,7 @@ import com.soma.yeolo.tasteprofile.domain.TasteProfile;
 import com.soma.yeolo.tasteprofile.domain.TimeContext;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisRequest;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisRequest.ImageMetadata;
-import com.soma.yeolo.tasteprofile.service.port.TasteProfileStore;
+import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -41,8 +41,8 @@ class BehaviorTasteProfileServiceTest {
     @Mock
     private SseEmitter emitter;
 
-    /** 저장 포트 fake: 저장된 도메인을 기록하고 미리 정해둔 id를 돌려준다(JPA·리플렉션 불필요). */
-    private static final class FakeTasteProfileStore implements TasteProfileStore {
+    /** 영속 포트 fake: 저장된 도메인을 기록하고 미리 정해둔 id를 돌려준다(JPA·리플렉션 불필요). */
+    private static final class FakeTasteProfileRepository implements TasteProfileRepository {
         private final UUID assignedId = UUID.randomUUID();
         private final List<TasteProfile> saved = new ArrayList<>();
 
@@ -51,9 +51,14 @@ class BehaviorTasteProfileServiceTest {
             saved.add(profile);
             return assignedId;
         }
+
+        @Override
+        public java.util.Optional<com.soma.yeolo.tasteprofile.domain.SavedTasteProfile> findLatestByUserId(UUID userId) {
+            throw new UnsupportedOperationException("행동 분석 테스트에서는 조회를 사용하지 않는다.");
+        }
     }
 
-    private final FakeTasteProfileStore store = new FakeTasteProfileStore();
+    private final FakeTasteProfileRepository store = new FakeTasteProfileRepository();
 
     private BehaviorTasteProfileService service() {
         return new BehaviorTasteProfileService(preprocessor, aiClient, assembler, store);

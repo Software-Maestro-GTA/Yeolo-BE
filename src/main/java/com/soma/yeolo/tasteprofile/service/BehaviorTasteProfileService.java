@@ -12,7 +12,7 @@ import com.soma.yeolo.tasteprofile.domain.TasteProfile;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisEvents.CompleteData;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisEvents.Progress;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisRequest;
-import com.soma.yeolo.tasteprofile.service.port.TasteProfileStore;
+import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
@@ -41,7 +41,7 @@ public class BehaviorTasteProfileService {
     private final ImageMetadataPreprocessor preprocessor;
     private final AiTasteProfileClient aiClient;
     private final TasteProfileAssembler assembler;
-    private final TasteProfileStore tasteProfileStore;
+    private final TasteProfileRepository tasteProfileRepository;
 
     /** 전처리 → AI 분석 → 저장 파이프라인을 실행하고 진행 상황을 SSE로 중계한다. */
     public void analyzeAndStream(UUID userId, BehaviorAnalysisRequest request, SseEmitter emitter) {
@@ -70,7 +70,7 @@ public class BehaviorTasteProfileService {
 
     private UUID persist(UUID userId, JsonNode tasteProfileNode) {
         TasteProfile domain = assembler.toDomain(userId, tasteProfileNode);
-        return tasteProfileStore.save(domain);
+        return tasteProfileRepository.save(domain);
     }
 
     private void emit(SseEmitter emitter, String eventName, Object payload) throws IOException {
