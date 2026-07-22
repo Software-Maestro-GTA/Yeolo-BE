@@ -44,7 +44,10 @@ public class TasteProfileController {
             log.warn("SSE 타임아웃 - taste-profile 스트림 (userId={})", userId);
             emitter.complete();
         });
-        emitter.onError(e -> log.warn("SSE 에러 - taste-profile 스트림 (userId={}): {}", userId, e.toString()));
+emitter.onError(e -> {
+    log.warn("SSE 에러 - taste-profile 스트림 (userId={})", userId, e);
+    emitter.complete();
+});
         emitter.onCompletion(() -> log.debug("SSE 종료 - taste-profile 스트림 (userId={})", userId));
         sseTaskExecutor.execute(() -> behaviorTasteProfileService.analyzeAndStream(userId, request, emitter));
         return emitter;
