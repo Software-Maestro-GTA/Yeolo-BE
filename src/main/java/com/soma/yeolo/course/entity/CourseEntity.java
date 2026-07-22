@@ -1,6 +1,7 @@
 package com.soma.yeolo.course.entity;
 
 import com.soma.yeolo.course.domain.Course;
+import com.soma.yeolo.course.domain.SavedCourse;
 import com.soma.yeolo.global.entity.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -93,5 +94,11 @@ public class CourseEntity extends BaseTimeEntity {
                 .recommendationReason(course.recommendationReason())
                 .itinerary(course.itineraryJson())
                 .build();
+    }
+
+    /** 영속 엔티티 → 조회용 읽기 모델 매핑 (API-FB-7 / API-FB-10). 부여된 식별자·생성 시각을 함께 담는다. */
+    public SavedCourse toSavedCourse() {
+        return new SavedCourse(id, userId, title, destinationCountry, destinationCity,
+                startDate, totalDays, tags, recommendationReason, itinerary, getCreatedAt());
     }
 }

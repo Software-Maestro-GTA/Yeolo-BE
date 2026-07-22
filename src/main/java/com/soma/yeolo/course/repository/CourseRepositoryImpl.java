@@ -1,8 +1,11 @@
 package com.soma.yeolo.course.repository;
 
 import com.soma.yeolo.course.domain.Course;
+import com.soma.yeolo.course.domain.SavedCourse;
 import com.soma.yeolo.course.entity.CourseEntity;
 import com.soma.yeolo.course.service.port.CourseRepository;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -21,5 +24,17 @@ class CourseRepositoryImpl implements CourseRepository {
     @Override
     public UUID save(Course course) {
         return jpaRepository.save(CourseEntity.from(course)).getId();
+    }
+
+    @Override
+    public List<SavedCourse> findByUserIdLatestFirst(UUID userId) {
+        return jpaRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(CourseEntity::toSavedCourse)
+                .toList();
+    }
+
+    @Override
+    public Optional<SavedCourse> findById(UUID courseId) {
+        return jpaRepository.findById(courseId).map(CourseEntity::toSavedCourse);
     }
 }
