@@ -15,7 +15,6 @@ import java.util.UUID;
  * @param destinationCity      여행 도시/지역
  * @param startDate            여행 시작일
  * @param totalDays            총 여행 일수
- * @param totalCost            추정 총 비용
  * @param tags                 코스 태그 (필터용)
  * @param recommendationReason AI 추천 요약 이유
  * @param itineraryJson        일자·방문지·순서 전체 (itinerary 원본 JSON)
@@ -27,7 +26,6 @@ public record Course(
         String destinationCity,
         LocalDate startDate,
         int totalDays,
-        int totalCost,
         List<String> tags,
         String recommendationReason,
         String itineraryJson

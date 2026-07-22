@@ -104,7 +104,6 @@ class CourseCreationServiceTest {
                   "destinationCity": "제주",
                   "startDate": "2026-08-01",
                   "totalDays": 3,
-                  "totalCost": 480000,
                   "tags": ["힐링"],
                   "recommendationReason": "여유로운 일정",
                   "itinerary": {"days": [{"day": 1, "stops": []}]}

@@ -24,10 +24,8 @@ class CourseAssemblerTest {
                   "title": "2박 3일 제주 힐링 코스",
                   "destinationCountry": "대한민국",
                   "destinationCity": "제주",
-                  "region": "서귀포",
                   "startDate": "2026-08-01",
                   "totalDays": 3,
-                  "totalCost": 480000,
                   "tags": ["힐링", "카페"],
                   "recommendationReason": "여유로운 일정",
                   "itinerary": {"days": [{"day": 1, "stops": []}]}
@@ -47,7 +45,6 @@ class CourseAssemblerTest {
         assertThat(course.destinationCity()).isEqualTo("제주");
         assertThat(course.startDate()).isEqualTo(LocalDate.of(2026, 8, 1));
         assertThat(course.totalDays()).isEqualTo(3);
-        assertThat(course.totalCost()).isEqualTo(480000);
         assertThat(course.tags()).containsExactly("힐링", "카페");
         assertThat(course.recommendationReason()).isEqualTo("여유로운 일정");
         assertThat(MAPPER.readTree(course.itineraryJson()).get("days")).hasSize(1);
@@ -57,7 +54,7 @@ class CourseAssemblerTest {
     void 필수값이_없으면_AI_생성_오류로_노출한다() throws Exception {
         JsonNode noTitle = MAPPER.readTree("""
                 {"destinationCountry":"대한민국","destinationCity":"제주","startDate":"2026-08-01",
-                 "totalDays":3,"totalCost":1,"itinerary":{"days":[]}}
+                 "totalDays":3,"itinerary":{"days":[]}}
                 """);
 
         assertThatThrownBy(() -> assembler.toDomain(UUID.randomUUID(), noTitle))
@@ -70,7 +67,7 @@ class CourseAssemblerTest {
     void itinerary가_없으면_AI_생성_오류로_노출한다() throws Exception {
         JsonNode noItinerary = MAPPER.readTree("""
                 {"title":"t","destinationCountry":"대한민국","destinationCity":"제주",
-                 "startDate":"2026-08-01","totalDays":3,"totalCost":1}
+                 "startDate":"2026-08-01","totalDays":3}
                 """);
 
         assertThatThrownBy(() -> assembler.toDomain(UUID.randomUUID(), noItinerary))

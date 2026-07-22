@@ -39,10 +39,8 @@ public class StubAiCourseClient implements AiCourseClient {
         course.put("title", "%d일 %s 추천 코스".formatted(trip.totalDays(), trip.destinationCity()));
         course.put("destinationCountry", trip.destinationCountry());
         course.put("destinationCity", trip.destinationCity());
-        course.put("region", trip.destinationCity());
         course.put("startDate", trip.startDate());
         course.put("totalDays", trip.totalDays());
-        course.put("totalCost", 100_000 * trip.totalDays());
 
         ArrayNode tags = course.putArray("tags");
         tags.add("추천").add(trip.budgetType());

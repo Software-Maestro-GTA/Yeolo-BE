@@ -56,7 +56,7 @@ class InternalAiCourseClientTest {
                 data: {"step":"GENERATING_ROUTE","message":"구성 중"}
 
                 event: complete
-                data: {"course":{"title":"2박 3일 제주 힐링 코스","totalCost":480000}}
+                data: {"course":{"title":"2박 3일 제주 힐링 코스","totalDays":3}}
 
                 """;
         server.expect(requestTo(URL))
@@ -67,7 +67,7 @@ class InternalAiCourseClientTest {
         JsonNode course = client.generateCourse(request());
 
         assertThat(course.get("title").asText()).isEqualTo("2박 3일 제주 힐링 코스");
-        assertThat(course.get("totalCost").asInt()).isEqualTo(480000);
+        assertThat(course.get("totalDays").asInt()).isEqualTo(3);
         server.verify();
     }
 

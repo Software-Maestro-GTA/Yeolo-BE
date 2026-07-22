@@ -33,7 +33,6 @@ public class CourseAssembler {
                 requireText(course, "destinationCity"),
                 parseDate(requireText(course, "startDate")),
                 intValue(course, "totalDays"),
-                intValue(course, "totalCost"),
                 stringList(course, "tags"),
                 text(course, "recommendationReason"),
                 itineraryJson(course)
