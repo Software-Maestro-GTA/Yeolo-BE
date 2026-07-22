@@ -18,6 +18,10 @@ public class SseTaskExecutorConfig {
         executor.setMaxPoolSize(16);
         executor.setQueueCapacity(64);
         executor.setThreadNamePrefix("sse-taste-");
+        // 종료 시 진행 중인 파이프라인(전처리 → AI 호출 → 저장)이 유실되지 않도록 완료를 기다린다.
+        // 대기 상한은 파드 grace(90s) - preStop(15s) = 75s 안쪽으로 두되 graceful shutdown과 맞춘다.
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
         executor.initialize();
         return executor;
     }

@@ -5,6 +5,7 @@ import com.soma.yeolo.tasteprofile.service.BehaviorTasteProfileService;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -17,6 +18,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 /**
  * 성향 프로필 API. 이미지 메타데이터 기반 성향 분석을 SSE로 스트리밍한다. (API-FB-2)
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/taste-profile")
 @RequiredArgsConstructor
@@ -38,6 +40,17 @@ public class TasteProfileController {
     public SseEmitter analyzeBehavior(@AuthenticationPrincipal UUID userId,
                                       @Valid @RequestBody BehaviorAnalysisRequest request) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
+        // emitter 참조가 방치되지 않도록 종료/타임아웃/에러 수명주기 콜백을 등록한다.
+        // (블로킹 AI 호출은 도중 취소가 불가하므로, 콜백은 정리·로깅까지만 책임진다.)
+        emitter.onTimeout(() -> {
+            log.warn("SSE 타임아웃 - taste-profile 스트림 (userId={})", userId);
+            emitter.complete();
+        });
+emitter.onError(e -> {
+    log.warn("SSE 에러 - taste-profile 스트림 (userId={})", userId, e);
+    emitter.complete();
+});
+        emitter.onCompletion(() -> log.debug("SSE 종료 - taste-profile 스트림 (userId={})", userId));
         sseTaskExecutor.execute(() -> behaviorTasteProfileService.analyzeAndStream(userId, request, emitter));
         return emitter;
     }
