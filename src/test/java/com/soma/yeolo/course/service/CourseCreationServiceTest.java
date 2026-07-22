@@ -63,6 +63,16 @@ class CourseCreationServiceTest {
             saved.add(course);
             return assignedId;
         }
+
+        @Override
+        public java.util.List<com.soma.yeolo.course.domain.SavedCourse> findByUserIdLatestFirst(UUID userId) {
+            throw new UnsupportedOperationException("코스 생성 테스트에서는 조회를 사용하지 않는다.");
+        }
+
+        @Override
+        public java.util.Optional<com.soma.yeolo.course.domain.SavedCourse> findById(UUID courseId) {
+            throw new UnsupportedOperationException("코스 생성 테스트에서는 조회를 사용하지 않는다.");
+        }
     }
 
     /** AI 코스 생성 포트 fake: 정해둔 노드를 반환하거나, 설정 시 예외를 던진다. */

@@ -1,6 +1,9 @@
 package com.soma.yeolo.course.service.port;
 
 import com.soma.yeolo.course.domain.Course;
+import com.soma.yeolo.course.domain.SavedCourse;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -19,4 +22,13 @@ public interface CourseRepository {
      * @return 저장된 코스의 id
      */
     UUID save(Course course);
+
+    /**
+     * 사용자가 생성한 코스를 최신 생성순으로 조회한다. 없으면 빈 목록을 반환한다. (API-FB-10)
+     * (페이지네이션은 현재 명세에 없으며, 필요 시 파라미터 추가로 확장한다. FUN-7)
+     */
+    List<SavedCourse> findByUserIdLatestFirst(UUID userId);
+
+    /** 코스를 식별자로 조회한다. 없으면 빈 값을 반환한다. 소유권 판정은 호출자가 수행한다. (API-FB-7) */
+    Optional<SavedCourse> findById(UUID courseId);
 }
