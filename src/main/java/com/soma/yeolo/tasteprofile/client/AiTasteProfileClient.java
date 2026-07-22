@@ -2,6 +2,8 @@ package com.soma.yeolo.tasteprofile.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.soma.yeolo.global.client.AiClientProperties;
+import com.soma.yeolo.global.client.SseStreamParser;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.tasteprofile.client.dto.AiBehaviorAnalysisRequest;

@@ -1,10 +1,12 @@
-package com.soma.yeolo.tasteprofile.client;
+package com.soma.yeolo.global.client;
 
 /**
  * 최소 SSE 스트림 파서. AI 내부 API의 짧은 완결 스트림을 통째로 받아, 특정 이벤트명의
  * {@code data:} 페이로드를 추출하는 용도로만 사용한다(무한 스트림 미대상).
+ *
+ * <p>여러 도메인 클라이언트(성향 분석·코스 생성 등)가 공유하는 인프라 유틸이므로 {@code global}에 둔다.
  */
-final class SseStreamParser {
+public final class SseStreamParser {
 
     private static final String EVENT_PREFIX = "event:";
     private static final String DATA_PREFIX = "data:";
@@ -16,7 +18,7 @@ final class SseStreamParser {
      * 스트림에서 주어진 이벤트명 블록의 data 페이로드를 반환한다. 없으면 {@code null}.
      * 한 이벤트에 여러 {@code data:} 라인이 있으면 개행으로 이어 붙인다(SSE 규격).
      */
-    static String dataOfEvent(String stream, String eventName) {
+    public static String dataOfEvent(String stream, String eventName) {
         if (stream == null) {
             return null;
         }

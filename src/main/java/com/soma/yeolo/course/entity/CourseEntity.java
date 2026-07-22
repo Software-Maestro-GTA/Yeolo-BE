@@ -52,9 +52,6 @@ public class CourseEntity extends BaseTimeEntity {
     @Column(name = "total_days", nullable = false)
     private int totalDays;
 
-    @Column(name = "total_cost", nullable = false)
-    private int totalCost;
-
     @Lob
     @Convert(converter = StringListJsonConverter.class)
     @Column(name = "tags")
@@ -70,7 +67,7 @@ public class CourseEntity extends BaseTimeEntity {
 
     @Builder
     private CourseEntity(UUID userId, String title, String destinationCountry, String destinationCity,
-                         LocalDate startDate, int totalDays, int totalCost, List<String> tags,
+                         LocalDate startDate, int totalDays, List<String> tags,
                          String recommendationReason, String itinerary) {
         this.userId = userId;
         this.title = title;
@@ -78,7 +75,6 @@ public class CourseEntity extends BaseTimeEntity {
         this.destinationCity = destinationCity;
         this.startDate = startDate;
         this.totalDays = totalDays;
-        this.totalCost = totalCost;
         this.tags = tags;
         this.recommendationReason = recommendationReason;
         this.itinerary = itinerary;
@@ -93,7 +89,6 @@ public class CourseEntity extends BaseTimeEntity {
                 .destinationCity(course.destinationCity())
                 .startDate(course.startDate())
                 .totalDays(course.totalDays())
-                .totalCost(course.totalCost())
                 .tags(course.tags())
                 .recommendationReason(course.recommendationReason())
                 .itinerary(course.itineraryJson())

@@ -1,4 +1,4 @@
-package com.soma.yeolo.tasteprofile.client;
+package com.soma.yeolo.global.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
