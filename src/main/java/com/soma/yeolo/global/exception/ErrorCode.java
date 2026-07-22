@@ -26,6 +26,10 @@ public enum ErrorCode {
     // Taste Profile - 조회 (API-FB-8)
     TASTE_PROFILE_NOT_FOUND(HttpStatus.NOT_FOUND, "저장된 성향 프로필이 없습니다."),
 
+    // Course - 생성 (API-FB-4 / API-BA-1)
+    INVALID_COURSE_CONDITION(HttpStatus.BAD_REQUEST, "여행 조건 입력값이 올바르지 않습니다."),
+    AI_COURSE_GENERATION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "코스 생성 처리 중 오류가 발생했습니다."),
+
     // Common
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "내부 처리 오류가 발생했습니다."),
     INVALID_REQUEST(HttpStatus.BAD_REQUEST, "요청이 유효하지 않습니다.");
