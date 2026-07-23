@@ -31,8 +31,11 @@ ai.internal.base-url=http://localhost:8000
 ai.internal.api-key=
 
 # ===== Reverse Geocode (DOM-5) =====
-# provider: stub(기본, 키 불필요) | google(실 API, 키 필요)
+# provider: stub(기본, 키 불필요) | google(실 API, 키 필요) | osm(OpenStreetMap, 키 불필요)
 # google 선택 시 Google Cloud에서 'Geocoding API'와 'Places API'를 모두 활성화해야 한다.
+# osm 선택 시 키는 필요 없으나, Nominatim 이용 정책상 앱/연락처를 식별하는 user-agent가 필요하다.
+# 연락처(이메일/전화)는 커밋하지 말고 GEOCODE_OSM_USER_AGENT 환경변수로 주입한다.
+#   예) export GEOCODE_OSM_USER_AGENT='Yeolo-BE/1.0 (contact: you@example.com)'
 geocode.provider=stub
 geocode.google.api-key=
 geocode.google.nearby-radius=100
