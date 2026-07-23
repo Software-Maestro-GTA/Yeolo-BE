@@ -89,20 +89,9 @@ jobs:
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER"
 
-      # 앱 소유 env ConfigMap(was-env). repo 에 매니페스트가 있을 때만 반영.
-      # envFrom 으로 로드되므로 값만 바뀌어도 파드는 자동 재시작되지 않는다.
-      # 아래 set image 로 이미지도 함께 바뀌면 새 파드가 뜨며 자연히 반영된다.
-      # (이미지 변경 없이 env 만 바꾸는 경우엔 rollout restart 가 필요 — 이 파이프라인은
-      #  항상 새 SHA 이미지를 배포하므로 해당 안 됨)
-      - name: Apply env ConfigMap (if present)
-        run: |
-          if [ -f k8s/was-env.yaml ]; then
-            kubectl -n "$K8S_NAMESPACE" apply -f k8s/was-env.yaml
-          elif [ -f was-env.yaml ]; then
-            kubectl -n "$K8S_NAMESPACE" apply -f was-env.yaml
-          else
-            echo "no env ConfigMap manifest in repo — skipping"
-          fi
+      # 앱 env 는 repo 에 두지 않는다. was-secrets Secret(비커밋, out-of-band)으로 클러스터에
+      # 직접 주입하며 CD 는 관여하지 않는다. 값 변경은 kubectl 로 was-secrets 를 재적용 후
+      # rollout restart 로 반영한다(이 파이프라인은 항상 새 SHA 이미지를 배포하므로 배포 시엔 자동 반영).
 
       # CD 는 이미지 태그만 교체한다. apply -k / 전체 매니페스트 재apply 금지(:bootstrap 회귀).
       - name: Set image
