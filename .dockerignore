@@ -1,0 +1,17 @@
+# Keep the build context small & deterministic.
+.git
+.github
+.gradle
+build/
+.idea
+*.iml
+docs
+specs
+HELP.md
+README.md
+# Never ship local secrets/overrides into the image context.
+application-local.properties
+application-local.yml
+application-local.yaml
+.env
+.env.local
