@@ -6,12 +6,17 @@ import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.tasteprofile.domain.GeoLocation;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.OptionalLong;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -36,6 +41,11 @@ public class OsmReverseGeocodeClient implements ReverseGeocodeClient {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+    /** 429 응답에 대한 최대 재시도 횟수(레이트리밋으로도 새는 순간적 초과에 대한 안전망). */
+    private static final int MAX_RETRIES = 2;
+    /** 캐시 키의 좌표 정밀도: 소수 4자리(약 11m) 단위로 뭉쳐 같은 장소의 재조회를 흡수한다. */
+    private static final double COORD_SCALE = 10_000.0;
+
     /** 광역 행정구역(region) 후보 키 — 우선순위 순. */
     private static final List<String> REGION_KEYS = List.of("state", "province", "region");
     /** 도시(city) 후보 키 — 우선순위 순. */
@@ -48,15 +58,32 @@ public class OsmReverseGeocodeClient implements ReverseGeocodeClient {
 
     private final RestClient restClient;
     private final OsmGeocodeProperties properties;
+    private final IntervalRateLimiter rateLimiter;
+    /** 좌표(반올림)→위치 결과 LRU 캐시. 동시 접근을 위해 동기화 래핑한다. */
+    private final Map<String, GeoLocation> cache;
 
     public OsmReverseGeocodeClient(@Qualifier("restClient") RestClient restClient,
                                    OsmGeocodeProperties properties) {
         this.restClient = restClient;
         this.properties = properties;
+        this.rateLimiter = new IntervalRateLimiter(properties.minIntervalMs());
+        this.cache = newLruCache(properties.cacheMaxSize());
     }
 
     @Override
     public GeoLocation reverseGeocode(double latitude, double longitude) {
+        String key = cacheKey(latitude, longitude);
+        GeoLocation cached = cache.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        GeoLocation location = fetch(latitude, longitude);
+        cache.put(key, location);
+        return location;
+    }
+
+    /** 실제 Nominatim 호출. 호출 전 레이트리밋을 걸고, 429는 백오프 후 제한 횟수만큼 재시도한다. */
+    private GeoLocation fetch(double latitude, double longitude) {
         String uri = UriComponentsBuilder.fromUriString(properties.reverseUrl())
                 .queryParam("lat", latitude)
                 .queryParam("lon", longitude)
@@ -66,22 +93,73 @@ public class OsmReverseGeocodeClient implements ReverseGeocodeClient {
                 .queryParam("accept-language", properties.language())
                 .build()
                 .toUriString();
+        int attempt = 0;
+        while (true) {
+            rateLimiter.acquire();
+            try {
+                String body = restClient.get()
+                        .uri(uri)
+                        .header(HttpHeaders.USER_AGENT, properties.userAgent())
+                        .retrieve()
+                        .body(String.class);
+                return parse(body);
+            } catch (RestClientResponseException e) {
+                if (e.getStatusCode().value() == HttpStatus.TOO_MANY_REQUESTS.value() && attempt < MAX_RETRIES) {
+                    attempt++;
+                    long backoffMs = retryAfterMillis(e).orElse(properties.minIntervalMs());
+                    log.warn("Nominatim 429 - {}번째 재시도까지 {}ms 대기", attempt, backoffMs);
+                    sleep(backoffMs);
+                    continue;
+                }
+                log.error("Nominatim reverse rejected: {} {}", e.getStatusCode(), e.getResponseBodyAsString());
+                throw new BusinessException(ErrorCode.REVERSE_GEOCODE_FAILED, e);
+            } catch (BusinessException e) {
+                throw e;
+            } catch (Exception e) {
+                log.error("Nominatim reverse call failed (connectivity)", e);
+                throw new BusinessException(ErrorCode.REVERSE_GEOCODE_FAILED, e);
+            }
+        }
+    }
+
+    /** 좌표를 정밀도 단위로 반올림해 캐시 키를 만든다. 근접 좌표를 같은 키로 뭉쳐 적중률을 높인다. */
+    private String cacheKey(double latitude, double longitude) {
+        return Math.round(latitude * COORD_SCALE) + "," + Math.round(longitude * COORD_SCALE);
+    }
+
+    /** {@code Retry-After}(초 단위)가 있으면 ms로 환산해 백오프에 사용한다. */
+    private OptionalLong retryAfterMillis(RestClientResponseException e) {
+        String header = e.getResponseHeaders() != null ? e.getResponseHeaders().getFirst("Retry-After") : null;
+        if (header != null) {
+            try {
+                return OptionalLong.of(Long.parseLong(header.trim()) * 1000L);
+            } catch (NumberFormatException ignored) {
+                // HTTP-date 형식 등은 무시하고 기본 백오프로 폴백한다.
+            }
+        }
+        return OptionalLong.empty();
+    }
+
+    private void sleep(long millis) {
+        if (millis <= 0L) {
+            return;
+        }
         try {
-            String body = restClient.get()
-                    .uri(uri)
-                    .header(HttpHeaders.USER_AGENT, properties.userAgent())
-                    .retrieve()
-                    .body(String.class);
-            return parse(body);
-        } catch (RestClientResponseException e) {
-            log.error("Nominatim reverse rejected: {} {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new BusinessException(ErrorCode.REVERSE_GEOCODE_FAILED, e);
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Nominatim reverse call failed (connectivity)", e);
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new BusinessException(ErrorCode.REVERSE_GEOCODE_FAILED, e);
         }
+    }
+
+    private static Map<String, GeoLocation> newLruCache(int maxSize) {
+        int capacity = Math.max(1, maxSize);
+        return Collections.synchronizedMap(new LinkedHashMap<>(16, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, GeoLocation> eldest) {
+                return size() > capacity;
+            }
+        });
     }
 
     private GeoLocation parse(String body) {

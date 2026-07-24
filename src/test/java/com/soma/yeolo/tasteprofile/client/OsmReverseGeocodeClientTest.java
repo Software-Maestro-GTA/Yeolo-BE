@@ -7,6 +7,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.soma.yeolo.global.exception.BusinessException;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -32,8 +34,9 @@ class OsmReverseGeocodeClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
+        // 테스트에서는 호출 간격(minIntervalMs)을 0으로 둬 레이트리밋 대기 없이 검증한다.
         client = new OsmReverseGeocodeClient(builder.build(),
-                new OsmGeocodeProperties(REVERSE_URL, USER_AGENT, 18, "ko"));
+                new OsmGeocodeProperties(REVERSE_URL, USER_AGENT, 18, "ko", 0L, 4096));
     }
 
     @Test
@@ -129,5 +132,50 @@ class OsmReverseGeocodeClientTest {
         assertThatThrownBy(() -> client.reverseGeocode(1.0, 2.0))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.REVERSE_GEOCODE_FAILED);
+    }
+
+    @Test
+    void 같은_좌표_재조회는_캐시로_HTTP_호출을_생략한다() {
+        // 서버 응답은 단 한 번만 준비한다. 두 번째 조회가 캐시를 쓰지 않으면
+        // "No further requests expected"로 실패한다.
+        server.expect(requestTo(containsString("/reverse")))
+                .andRespond(withSuccess("{\"name\":\"성산일출봉\",\"address\":{\"country\":\"대한민국\"}}",
+                        MediaType.APPLICATION_JSON));
+
+        GeoLocation first = client.reverseGeocode(33.4587, 126.9426);
+        GeoLocation second = client.reverseGeocode(33.4587, 126.9426);
+
+        assertThat(second.placeName()).isEqualTo("성산일출봉");
+        assertThat(second).isEqualTo(first);
+        server.verify();
+    }
+
+    @Test
+    void HTTP_429면_백오프후_재시도해_성공한다() {
+        server.expect(requestTo(containsString("/reverse")))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+        server.expect(requestTo(containsString("/reverse")))
+                .andRespond(withSuccess("{\"name\":\"성산일출봉\",\"address\":{\"country\":\"대한민국\"}}",
+                        MediaType.APPLICATION_JSON));
+
+        GeoLocation location = client.reverseGeocode(33.45, 126.94);
+
+        assertThat(location.placeName()).isEqualTo("성산일출봉");
+        assertThat(location.country()).isEqualTo("대한민국");
+        server.verify();
+    }
+
+    @Test
+    void HTTP_429가_재시도_한도까지_계속되면_REVERSE_GEOCODE_FAILED를_던진다() {
+        // 최초 1회 + 재시도 2회 = 총 3회 모두 429.
+        for (int i = 0; i < 3; i++) {
+            server.expect(requestTo(containsString("/reverse")))
+                    .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+        }
+
+        assertThatThrownBy(() -> client.reverseGeocode(1.0, 2.0))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.REVERSE_GEOCODE_FAILED);
+        server.verify();
     }
 }
