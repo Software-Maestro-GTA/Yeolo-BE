@@ -2,6 +2,7 @@ package com.soma.yeolo.global.config;
 
 import com.soma.yeolo.global.security.JwtAuthenticationFilter;
 import com.soma.yeolo.global.security.RestAuthenticationEntryPoint;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -34,6 +35,11 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
+                        // SSE/async 응답은 완료 시 컨테이너가 필터체인으로 ASYNC(에러 시 ERROR)
+                        // 재디스패치를 한다. STATELESS + OncePerRequestFilter(ASYNC 미실행) 조합상
+                        // 이 재디스패치에는 인증이 없어 AuthorizationFilter가 Access Denied를 던진다.
+                        // 최초 REQUEST 디스패치에서 이미 인가된 내부 재디스패치이므로 허용한다.
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         // k8s readiness/liveness probe 경로는 인증 없이 허용.
                         .requestMatchers("/actuator/health/**").permitAll()
