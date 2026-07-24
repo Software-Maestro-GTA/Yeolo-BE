@@ -5,6 +5,7 @@ name: deploy
 # (확장하려면 인프라 repo github-oidc.tf:51-55 의 sub 조건을 먼저 넓혀야 함)
 on:
   push:
+
     branches: [main]
   workflow_dispatch: {}
 
@@ -89,9 +90,42 @@ jobs:
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER"
 
-      # 앱 env 는 repo 에 두지 않는다. was-secrets Secret(비커밋, out-of-band)으로 클러스터에
-      # 직접 주입하며 CD 는 관여하지 않는다. 값 변경은 kubectl 로 was-secrets 를 재적용 후
-      # rollout restart 로 반영한다(이 파이프라인은 항상 새 SHA 이미지를 배포하므로 배포 시엔 자동 반영).
+      # 앱 env/비밀은 Yeolo-BE 가 소유한다. GitHub Secrets/Variables 값을 was-secrets
+      # Secret 으로 만들어 클러스터에 주입한다(인프라 미관여). Deployment 가
+      # envFrom(secretRef: was-secrets)으로 로드한다. 비밀은 Environment(dev) secrets 에,
+      # 비밀 아닌 값은 repo Variables 에 둔다. 값이 빈 키는 env-file 에서 제외한다.
+      - name: Sync app secrets (was-secrets)
+        env:
+          # ── 비밀: GitHub → Settings → Environments(dev) → secrets ──
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
+          AI_INTERNAL_API_KEY: ${{ secrets.AI_INTERNAL_API_KEY }}
+          # ── 비밀 아님: repo Variables (없으면 기본값) ──
+          JPA_DDL_AUTO: ${{ vars.JPA_DDL_AUTO || 'validate' }}
+          AI_BASE_URL: ${{ vars.AI_BASE_URL || 'http://ai.app.svc.cluster.local:8000' }}
+          AI_COURSE_PROVIDER: ${{ vars.AI_COURSE_PROVIDER || 'internal' }}
+          GEOCODE_PROVIDER: ${{ vars.GEOCODE_PROVIDER || 'osm' }}
+          GEOCODE_OSM_USER_AGENT: ${{ vars.GEOCODE_OSM_USER_AGENT }}
+          JWT_ACCESS_TTL: ${{ vars.JWT_ACCESS_TTL || '3600000' }}
+          JWT_REFRESH_TTL: ${{ vars.JWT_REFRESH_TTL || '1209600000' }}
+        run: |
+          umask 077
+          : > was.env
+          for k in DB_URL DB_USERNAME DB_PASSWORD JWT_SECRET JWT_ACCESS_TTL JWT_REFRESH_TTL \
+                   GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REDIRECT_URI \
+                   AI_BASE_URL AI_INTERNAL_API_KEY AI_COURSE_PROVIDER \
+                   JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT; do
+            v="${!k}"
+            [ -n "$v" ] && printf '%s=%s\n' "$k" "$v" >> was.env
+          done
+          kubectl -n "$K8S_NAMESPACE" create secret generic was-secrets \
+            --from-env-file=was.env --dry-run=client -o yaml | kubectl apply -f -
+          rm -f was.env
 
       # CD 는 이미지 태그만 교체한다. apply -k / 전체 매니페스트 재apply 금지(:bootstrap 회귀).
       - name: Set image
