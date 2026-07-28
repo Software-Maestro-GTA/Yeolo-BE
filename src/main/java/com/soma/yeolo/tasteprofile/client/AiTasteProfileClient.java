@@ -56,13 +56,26 @@ public class AiTasteProfileClient {
                     .body(String.class);
             return extractTasteProfile(stream);
         } catch (RestClientResponseException e) {
-            log.error("AI behavior analysis rejected: {} {}", e.getStatusCode(), e.getResponseBodyAsString());
+            log.error("AI behavior analysis rejected: {} {} | request={}",
+                    e.getStatusCode(), e.getResponseBodyAsString(), toJsonForLog(request));
             throw new BusinessException(ErrorCode.AI_ANALYSIS_ERROR, e);
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
             log.error("AI behavior analysis call failed (connectivity)", e);
             throw new BusinessException(ErrorCode.AI_ANALYSIS_ERROR, e);
+        }
+    }
+
+    /**
+     * 진단용 요청 본문 직렬화. AI 400(전처리 메타데이터 부족/형식 오류) 원인 추적을 위해 실제 전송한
+     * payload를 로그에 남긴다. 직렬화 자체가 실패해도 원래 예외 흐름을 가리지 않도록 삼켜서 표식만 반환한다.
+     */
+    private String toJsonForLog(AiBehaviorAnalysisRequest request) {
+        try {
+            return OBJECT_MAPPER.writeValueAsString(request);
+        } catch (Exception e) {
+            return "<unserializable request: " + e.getMessage() + ">";
         }
     }
 
