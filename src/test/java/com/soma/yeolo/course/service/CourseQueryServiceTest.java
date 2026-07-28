@@ -80,7 +80,7 @@ class CourseQueryServiceTest {
 
         assertThat(response.course().courseId()).isEqualTo(courseId.toString());
         assertThat(response.course().userId()).isEqualTo(me.toString());
-        assertThat(response.course().itinerary().get("days")).hasSize(1);
+        assertThat(response.course().itinerary().days()).hasSize(1);
     }
 
     @Test

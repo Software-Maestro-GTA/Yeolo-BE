@@ -3,13 +3,13 @@ package com.soma.yeolo.tasteprofile.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.tasteprofile.domain.SavedTasteProfile;
 import com.soma.yeolo.tasteprofile.domain.SourceType;
 import com.soma.yeolo.tasteprofile.domain.TasteProfile;
 import com.soma.yeolo.tasteprofile.dto.MyTasteProfileResponse;
+import com.soma.yeolo.tasteprofile.dto.TasteProfilePayload;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
 import java.time.Instant;
 import java.util.Optional;
@@ -65,15 +65,15 @@ class MyTasteProfileServiceTest {
         repository.stored = new SavedTasteProfile(profileId, userId, SourceType.BEHAVIOR, updatedAt, profileJson);
 
         MyTasteProfileResponse response = service.getMyTasteProfile(userId);
-        JsonNode node = response.tasteProfile();
+        TasteProfilePayload profile = response.tasteProfile();
 
         // 권위 값으로 덮어써짐
-        assertThat(node.get("tasteProfileId").asText()).isEqualTo(profileId.toString());
-        assertThat(node.get("userId").asText()).isEqualTo(userId.toString());
-        assertThat(node.get("sourceType").asText()).isEqualTo("behavior");
-        assertThat(node.get("updatedAt").asText()).isEqualTo("2026-07-14");
+        assertThat(profile.tasteProfileId()).isEqualTo(profileId.toString());
+        assertThat(profile.userId()).isEqualTo(userId.toString());
+        assertThat(profile.sourceType()).isEqualTo("behavior");
+        assertThat(profile.updatedAt()).isEqualTo("2026-07-14");
         // 세부 지표는 원본 그대로 보존
-        assertThat(node.get("travelPurpose").get("gourmet").asInt()).isEqualTo(5);
-        assertThat(node.get("seasonalEnvironmentPreference").get(0).asText()).isEqualTo("warm_region");
+        assertThat(profile.travelPurpose().gourmet()).isEqualTo(5);
+        assertThat(profile.seasonalEnvironmentPreference()).containsExactly("warm_region");
     }
 }
