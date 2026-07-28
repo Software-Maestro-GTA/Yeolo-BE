@@ -7,8 +7,8 @@ import com.soma.yeolo.course.client.dto.AiCourseGenerationRequest;
  * 성향 프로필·여행 조건 → AI 코스 생성 포트 (API-BA-1). 서비스(응용 계층)가 소유하는 아웃바운드
  * 인터페이스로, AI 내부 API 호출 세부는 알지 못한다(DIP, docs/architecture.md §5).
  *
- * <p>구현체 교체만으로 실 provider를 붙일 수 있도록 한다. 기본은 {@code StubAiCourseClient}이며,
- * 실제 {@code /internal/ai/courses}(SSE) 연동 어댑터는 TSK-7(#4)에서 제공한다.
+ * <p>구현체는 {@link InternalAiCourseClient} 하나로, 실제 {@code /internal/ai/courses}(SSE) 연동
+ * 어댑터가 이 포트를 구현한다(TSK-7 #4).
  */
 public interface AiCourseClient {
 

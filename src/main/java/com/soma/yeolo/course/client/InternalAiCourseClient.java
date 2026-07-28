@@ -10,7 +10,6 @@ import com.soma.yeolo.global.exception.ErrorCode;
 import java.nio.charset.StandardCharsets;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -19,14 +18,13 @@ import org.springframework.web.client.RestClientResponseException;
 /**
  * AI 코스 생성 내부 API(API-BA-1) 호출 어댑터. 성향 프로필·여행 조건을 SSE로 처리하는 AI 서버에
  * POST하고, {@code complete} 이벤트의 {@code course} 페이로드를 추출해 반환한다.
- * ({@code ai.course.provider=internal}일 때 활성화, 기본은 {@link StubAiCourseClient})
+ * ({@link AiCourseClient}의 유일한 구현체 — 항상 실제 AI 서버를 호출한다.)
  *
  * <p>AI 호출 실패(연결/4xx/5xx)는 사용자에게 {@code AI_COURSE_GENERATION_ERROR}(500)로 노출한다
  * (API-FB-4 §4: 500 — 서버 또는 AI 코스 생성 오류). (docs/architecture.md §5)
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "ai.course.provider", havingValue = "internal")
 public class InternalAiCourseClient implements AiCourseClient {
 
     private static final String COURSES_PATH = "/internal/ai/courses";
