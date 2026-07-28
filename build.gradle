@@ -29,8 +29,7 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
     compileOnly 'org.projectlombok:lombok'
-    runtimeOnly 'com.mysql:mysql-connector-j'      // local 프로파일용
-    runtimeOnly 'org.postgresql:postgresql'        // dev/prod: RDS PostgreSQL
+    runtimeOnly 'org.postgresql:postgresql'        // local·dev·prod: PostgreSQL
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client-test'

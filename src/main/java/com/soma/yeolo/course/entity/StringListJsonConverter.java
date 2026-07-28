@@ -7,7 +7,7 @@ import jakarta.persistence.Converter;
 import java.util.List;
 
 /**
- * {@code List<String>} ↔ JSON 문자열 매핑. MySQL에 배열 타입이 없어 문자열 컬럼(JSON)로 저장한다.
+ * {@code List<String>} ↔ JSON 문자열 매핑. DB 배열 타입에 의존하지 않도록 문자열 컬럼(JSON)로 저장한다.
  * (DOM-2 {@code tags TEXT[]} 근사)
  */
 @Converter

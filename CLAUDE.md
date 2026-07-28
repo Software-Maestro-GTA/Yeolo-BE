@@ -20,7 +20,7 @@ AI 엔진은 별도 서비스이며 BE는 내부 API(`/internal/ai/*`)로 **호�
 | 언어 | Java 26 (toolchain) |
 | 프레임워크 | Spring Boot 4.1.0 (Web MVC) |
 | 빌드 | Gradle (Groovy DSL, `build.gradle`) |
-| 영속성 | Spring Data JPA + MySQL (`mysql-connector-j`) |
+| 영속성 | Spring Data JPA + PostgreSQL (`postgresql`) — local·dev·prod 공통 |
 | 인증 | Spring Security OAuth2 Client (Google), JWT(Access/Refresh) 발급 |
 | 보일러플레이트 | Lombok |
 | 테스트 | JUnit 5 (`spring-boot-starter-*-test`) |

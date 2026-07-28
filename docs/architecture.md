@@ -88,7 +88,7 @@ com.soma.yeolo.global/            공통: 예외/응답/설정/보안/BaseEntity
   - `dev`/`prod`: `validate` (자동 변경 금지, 스키마 드리프트 감지용)
 - **엔티티 관례**
   - `@NoArgsConstructor(access = PROTECTED)`, 세터 지양(도메인 메서드로 상태 변경).
-  - PK: `@GeneratedValue(strategy = IDENTITY)` (MySQL auto-increment).
+  - PK: `@GeneratedValue(strategy = IDENTITY)` (DB 네이티브 auto-increment/identity).
   - Enum: `@Enumerated(EnumType.STRING)` 강제. 값·라벨은 도메인 명세(DOM) 그대로.
   - 컬럼/테이블명·타입은 **DOM 명세를 근거**로 매핑.
 - **BaseEntity:** `@MappedSuperclass` + JPA Auditing(`@EnableJpaAuditing`)으로
@@ -158,6 +158,6 @@ com.soma.yeolo.global/            공통: 예외/응답/설정/보안/BaseEntity
   - **컨트롤러·리포지토리=기본 미테스트:** 얇은 배관/단순 CRUD이므로 별도 테스트를 **작성하지 않는다.**
     `@WebMvcTest`(컨트롤러)·`@DataJpaTest`(리포지토리)는 **커스텀 검증·쿼리가 있을 때만** 예외로 작성한다.
   - 도메인=순수(더블 0).
-- 리포지토리/컨텍스트 테스트 DB는 **H2(MySQL 호환 모드)**로 확정. 설정은
+- 리포지토리/컨텍스트 테스트 DB는 **H2(PostgreSQL 호환 모드)**로 확정(dev·prod과 정렬). 설정은
   `src/test/resources/application.properties`.
 - 실행: `./gradlew test` (자세한 명령은 CLAUDE.md).
