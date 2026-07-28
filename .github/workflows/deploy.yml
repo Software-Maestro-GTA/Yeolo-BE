@@ -123,6 +123,18 @@ jobs:
             v="${!k}"
             [ -n "$v" ] && printf '%s=%s\n' "$k" "$v" >> was.env
           done
+          # 필수 키가 비어 있으면(예: dev Environment secrets 미설정) 여기서 즉시 중단한다.
+          # 이 가드가 없으면 was-secrets 가 DB 자격증명 없이 만들어져 새 파드가 기동에
+          # 실패하고, 그 사실이 'Verify rollout' 5분 타임아웃→롤백으로만 드러난다(#27 인시던트).
+          missing=""
+          for req in DB_URL DB_USERNAME DB_PASSWORD JWT_SECRET; do
+            grep -q "^${req}=" was.env || missing="$missing $req"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::필수 시크릿 누락 →$missing. GitHub → Settings → Environments(dev) → Secrets 에 설정 후 재실행하세요."
+            rm -f was.env
+            exit 1
+          fi
           kubectl -n "$K8S_NAMESPACE" create secret generic was-secrets \
             --from-env-file=was.env --dry-run=client -o yaml | kubectl apply -f -
           rm -f was.env
