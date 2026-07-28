@@ -127,7 +127,7 @@ jobs:
           # 이 가드가 없으면 was-secrets 가 DB 자격증명 없이 만들어져 새 파드가 기동에
           # 실패하고, 그 사실이 'Verify rollout' 5분 타임아웃→롤백으로만 드러난다(#27 인시던트).
           missing=""
-          for req in DB_URL DB_USERNAME DB_PASSWORD JWT_SECRET; do
+          for req in DB_URL DB_USERNAME DB_PASSWORD JWT_SECRET INTERNAL_API_KEY; do
             grep -q "^${req}=" was.env || missing="$missing $req"
           done
           if [ -n "$missing" ]; then
