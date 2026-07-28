@@ -104,7 +104,7 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
-          AI_INTERNAL_API_KEY: ${{ secrets.AI_INTERNAL_API_KEY }}
+          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
           # ── 비밀 아님: repo Variables (없으면 기본값) ──
           JPA_DDL_AUTO: ${{ vars.JPA_DDL_AUTO || 'validate' }}
           AI_BASE_URL: ${{ vars.AI_BASE_URL || 'http://ai.app.svc.cluster.local:8000' }}
@@ -118,7 +118,7 @@ jobs:
           : > was.env
           for k in DB_URL DB_USERNAME DB_PASSWORD JWT_SECRET JWT_ACCESS_TTL JWT_REFRESH_TTL \
                    GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REDIRECT_URI \
-                   AI_BASE_URL AI_INTERNAL_API_KEY AI_COURSE_PROVIDER \
+                   AI_BASE_URL INTERNAL_API_KEY AI_COURSE_PROVIDER \
                    JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT; do
             v="${!k}"
             [ -n "$v" ] && printf '%s=%s\n' "$k" "$v" >> was.env
