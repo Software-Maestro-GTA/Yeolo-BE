@@ -10,6 +10,7 @@ import com.soma.yeolo.user.domain.Provider;
 import com.soma.yeolo.user.entity.User;
 import com.soma.yeolo.user.service.OAuthUserInfo;
 import com.soma.yeolo.user.service.UserService;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -45,5 +46,10 @@ public class AuthService {
 
         // 4. 응답 구성
         return GoogleLoginResponse.from(user, accessToken, refresh.token());
+    }
+
+    /** 로그아웃 (API-FB-11): 사용자의 Refresh Token을 무효화해 세션을 종료한다. */
+    public void logout(UUID userId) {
+        refreshTokenService.revoke(userId);
     }
 }
