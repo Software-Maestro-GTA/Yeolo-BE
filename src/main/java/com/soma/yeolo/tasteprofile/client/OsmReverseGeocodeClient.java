@@ -46,16 +46,6 @@ public class OsmReverseGeocodeClient implements ReverseGeocodeClient {
     /** 캐시 키의 좌표 정밀도: 소수 4자리(약 11m) 단위로 뭉쳐 같은 장소의 재조회를 흡수한다. */
     private static final double COORD_SCALE = 10_000.0;
 
-    /** 광역 행정구역(region) 후보 키 — 우선순위 순. */
-    private static final List<String> REGION_KEYS = List.of("state", "province", "region");
-    /** 도시(city) 후보 키 — 우선순위 순. */
-    private static final List<String> CITY_KEYS =
-            List.of("city", "town", "municipality", "county", "village");
-    /** 세부 행정구역(district) 후보 키 — 우선순위 순. */
-    private static final List<String> DISTRICT_KEYS = List.of(
-            "city_district", "borough", "district", "suburb", "quarter",
-            "neighbourhood", "town", "village", "hamlet");
-
     private final RestClient restClient;
     private final OsmGeocodeProperties properties;
     private final IntervalRateLimiter rateLimiter;
@@ -170,15 +160,22 @@ public class OsmReverseGeocodeClient implements ReverseGeocodeClient {
                 log.debug("Nominatim reverse has no result: {}", root.path("error").asText());
                 return emptyLocation();
             }
-            JsonNode address = root.path("address");
+            // display_name은 '구체적 → 광역' 순으로 콤마 구분되며 항상 country로 끝난다. 형식이 일정한
+            // 이 문자열을 뒤에서부터 훑어 행정구역을 매핑한다(address 블록은 특별시/도 지역에 따라 키가
+            // 달라 서울 등에서 region이 비므로 사용하지 않는다).
+            List<String> segments = splitDisplayName(text(root, "display_name"));
 
-            String country = text(address, "country");
-            String region = firstOf(address, REGION_KEYS, null);
-            String city = firstOf(address, CITY_KEYS, null);
-            // district는 city와 같은 값을 다시 넣지 않는다.
-            String district = firstOf(address, DISTRICT_KEYS, city);
+            String country = at(segments, segments.size() - 1);
+            // country 바로 앞이 우편번호(숫자)면 건너뛰고, 그 앞을 광역 행정구역(시·도)으로 본다.
+            int regionIndex = segments.size() - 2;
+            if (isNumericCode(at(segments, regionIndex))) {
+                regionIndex--;
+            }
+            String region = at(segments, regionIndex);          // 시·도 (서울특별시, 경상북도 ...)
+            String city = at(segments, regionIndex - 1);        // 시·군·구 (마포구, 구미시 ...)
+            String district = at(segments, regionIndex - 2);    // 읍·면·동 (아현동, 송정동 ...)
 
-            String placeName = placeName(root);
+            String placeName = placeName(root, segments);
             List<String> placeTypes = placeTypes(root);
 
             return new GeoLocation(country, city, region, district, placeName, placeTypes);
@@ -190,21 +187,43 @@ public class OsmReverseGeocodeClient implements ReverseGeocodeClient {
         }
     }
 
-    /** 후보 키를 우선순위대로 훑어 첫 유효 값을 반환하되, {@code exclude}와 같은 값은 건너뛴다. */
-    private String firstOf(JsonNode address, List<String> keys, String exclude) {
-        for (String key : keys) {
-            String value = text(address, key);
-            if (value != null && !value.equals(exclude)) {
-                return value;
+    /** display_name을 콤마로 나눠 각 조각의 공백을 제거한 목록으로 만든다. 빈 조각은 버린다. */
+    private List<String> splitDisplayName(String displayName) {
+        if (displayName == null || displayName.isBlank()) {
+            return List.of();
+        }
+        List<String> segments = new ArrayList<>();
+        for (String part : displayName.split(",")) {
+            String trimmed = part.strip();
+            if (!trimmed.isEmpty()) {
+                segments.add(trimmed);
             }
         }
-        return null;
+        return segments;
     }
 
-    /** 대표 장소명: {@code name}이 있으면 사용하고, 없으면 {@code display_name}으로 폴백한다. */
-    private String placeName(JsonNode root) {
+    /** 인덱스가 범위를 벗어나면 null을 반환하는 안전 접근자. */
+    private String at(List<String> segments, int index) {
+        return (index >= 0 && index < segments.size()) ? segments.get(index) : null;
+    }
+
+    /** 우편번호처럼 숫자로만 이루어진 조각인지 판별한다(행정구역명은 숫자만으로 이뤄지지 않는다). */
+    private boolean isNumericCode(String value) {
+        if (value == null || value.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (!Character.isDigit(value.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** 대표 장소명: POI {@code name}이 있으면 쓰고, 없으면 display_name의 최상세(첫) 조각으로 폴백한다. */
+    private String placeName(JsonNode root, List<String> segments) {
         String name = text(root, "name");
-        return name != null ? name : text(root, "display_name");
+        return name != null ? name : at(segments, 0);
     }
 
     /** 장소 유형: Nominatim의 {@code category}/{@code type}(예: tourism/attraction)을 소문자로 담는다. */
