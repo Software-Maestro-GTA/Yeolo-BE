@@ -13,6 +13,7 @@ import com.soma.yeolo.global.config.SecurityConfig;
 import com.soma.yeolo.global.security.JwtAuthenticationFilter;
 import com.soma.yeolo.global.security.JwtTokenProvider;
 import com.soma.yeolo.global.security.RestAuthenticationEntryPoint;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -66,6 +67,43 @@ class AuthControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.message").value("인가 코드가 유효하지 않습니다."))
+                .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
+    void 로그아웃_성공시_200과_명세_봉투로_응답한다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(jwtTokenProvider.parseUserId("valid-token")).thenReturn(userId);
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .header("Authorization", "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"refresh-token\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("로그아웃 성공"))
+                .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
+    void 로그아웃_바디_없이도_200으로_응답한다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(jwtTokenProvider.parseUserId("valid-token")).thenReturn(userId);
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .header("Authorization", "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("로그아웃 성공"));
+    }
+
+    @Test
+    void 미인증_로그아웃은_401과_명세_봉투로_응답한다() throws Exception {
+        mockMvc.perform(post("/api/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.nullValue()));
     }
 }

@@ -25,4 +25,10 @@ public class RefreshTokenService {
                         () -> refreshTokenRepository.save(RefreshToken.create(userId, hash, expiresAt))
                 );
     }
+
+    /** 로그아웃: 사용자의 Refresh Token을 삭제해 무효화한다. 없으면 무시(멱등). (API-FB-11) */
+    @Transactional
+    public void revoke(UUID userId) {
+        refreshTokenRepository.deleteByUserId(userId);
+    }
 }
