@@ -3,6 +3,7 @@ package com.soma.yeolo.course.client;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
@@ -62,6 +63,10 @@ class InternalAiCourseClientTest {
         server.expect(requestTo(URL))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Api-Key", "internal-key"))
+                // tasteProfile은 원본 JSON 트리 그대로 전송돼야 한다(JsonNode의 boolean getter가
+                // 필드로 새어 나가면 AI 서버가 실제 성향 필드를 못 받아 400을 낸다).
+                .andExpect(jsonPath("$.tasteProfile.sourceType").value("behavior"))
+                .andExpect(jsonPath("$.tasteProfile.array").doesNotExist())
                 .andRespond(withSuccess(sse, MediaType.TEXT_EVENT_STREAM));
 
         JsonNode course = client.generateCourse(request());
