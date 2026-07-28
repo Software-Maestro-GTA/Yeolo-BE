@@ -9,7 +9,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.util.List;
@@ -37,8 +36,7 @@ public class CourseEntity extends BaseTimeEntity {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    @Lob
-    @Column(name = "title", nullable = false)
+    @Column(name = "title", nullable = false, columnDefinition = "text")
     private String title;
 
     @Column(name = "destination_country", nullable = false)
@@ -53,17 +51,14 @@ public class CourseEntity extends BaseTimeEntity {
     @Column(name = "total_days", nullable = false)
     private int totalDays;
 
-    @Lob
     @Convert(converter = StringListJsonConverter.class)
-    @Column(name = "tags")
+    @Column(name = "tags", columnDefinition = "text")
     private List<String> tags;
 
-    @Lob
-    @Column(name = "recommendation_reason")
+    @Column(name = "recommendation_reason", columnDefinition = "text")
     private String recommendationReason;
 
-    @Lob
-    @Column(name = "itinerary", nullable = false)
+    @Column(name = "itinerary", nullable = false, columnDefinition = "text")
     private String itinerary;
 
     @Builder

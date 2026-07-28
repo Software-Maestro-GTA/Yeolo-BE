@@ -12,6 +12,7 @@ import com.soma.yeolo.global.exception.ErrorCode;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 이전 생성 코스 조회 (API-FB-10 목록 / API-FB-7 상세 / FUN-7).
@@ -30,6 +31,7 @@ public class CourseQueryService {
     private final CourseRepository courseRepository;
 
     /** 사용자의 이전 생성 코스를 최신순 요약 목록으로 반환한다. 없으면 빈 목록. (API-FB-10) */
+    @Transactional(readOnly = true)
     public CourseListResponse getMyCourses(UUID userId) {
         return CourseListResponse.from(courseRepository.findByUserIdLatestFirst(userId));
     }
@@ -37,6 +39,7 @@ public class CourseQueryService {
     /**
      * 코스 상세를 반환한다. 코스가 없으면 404, 소유자가 아니면 403으로 응답한다. (API-FB-7)
      */
+    @Transactional(readOnly = true)
     public CourseDetailResponse getCourse(UUID userId, UUID courseId) {
         SavedCourse course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COURSE_NOT_FOUND));
