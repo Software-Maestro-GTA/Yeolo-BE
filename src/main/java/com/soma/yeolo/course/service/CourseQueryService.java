@@ -1,10 +1,11 @@
 package com.soma.yeolo.course.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.soma.yeolo.course.domain.SavedCourse;
 import com.soma.yeolo.course.dto.CourseDetailResponse;
 import com.soma.yeolo.course.dto.CourseListResponse;
+import com.soma.yeolo.course.dto.Itinerary;
 import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
@@ -22,7 +23,9 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class CourseQueryService {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    // 저장된 원본 itinerary JSON에 명세에 없는 필드가 섞일 수 있으므로 미지 필드는 무시하고 역직렬화한다.
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private final CourseRepository courseRepository;
 
@@ -43,9 +46,9 @@ public class CourseQueryService {
         return CourseDetailResponse.from(course, parseItinerary(course.itineraryJson()));
     }
 
-    private JsonNode parseItinerary(String itineraryJson) {
+    private Itinerary parseItinerary(String itineraryJson) {
         try {
-            return OBJECT_MAPPER.readTree(itineraryJson);
+            return OBJECT_MAPPER.readValue(itineraryJson, Itinerary.class);
         } catch (Exception e) {
             // 저장된 itinerary JSON이 손상된 예외적 상황 — 500으로 노출한다.
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, e);
