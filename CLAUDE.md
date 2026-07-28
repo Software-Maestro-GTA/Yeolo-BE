@@ -71,6 +71,12 @@ git submodule update --remote specs   # 최신 명세로 갱신 후, 커밋으�
 - 응답 포맷: 임의 공통 래퍼 강제 없이 **엔드포인트별 명세의 Response 스키마를 그대로** 따름.
 - Controller는 얇게, 비즈니스 로직은 Service에. DB 접근은 Repository로.
 - 요청/응답은 별도 DTO로 매핑하고 JPA 엔티티를 API로 직접 노출하지 않습니다.
+- **FE 응답에 `JsonNode`(`ObjectNode`/`ArrayNode`)를 필드 타입으로 노출하지 않습니다.** AI 원본
+  JSON이라도 FE로 나가는 응답은 명세의 스키마대로 **DTO(record)로 타입을 명시**합니다. `JsonNode`를
+  그대로 반환하면 응답 스키마가 불투명해지고(FE 타입 생성 시 `array`·`bigDecimal` 등 `JsonNode`의 내부
+  getter가 필드로 새어 나옴) 계약이 무너집니다. 저장된 JSON은 `ObjectMapper.readValue(..., Dto.class)`로
+  역직렬화해 반환하되(미지 필드는 `FAIL_ON_UNKNOWN_PROPERTIES=false`로 무시), AI 파싱·저장 등 **내부
+  파이프라인은 무손실 보존을 위해 `JsonNode` 유지** 가능. 경계는 "FE로 나가는 응답"입니다.
 - Enum·필드명·라벨은 **도메인 명세의 값을 그대로** 따릅니다(임의 변경 금지).
 - Lombok 사용. 엔티티는 `@NoArgsConstructor(access = PROTECTED)` 등 JPA 관례 준수.
 - 예외는 명세의 Error Code/HTTP status에 맞춰 처리(전역 예외 핸들러 권장).
