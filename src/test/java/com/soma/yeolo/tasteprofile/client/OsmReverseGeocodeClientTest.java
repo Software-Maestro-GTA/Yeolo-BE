@@ -77,6 +77,79 @@ class OsmReverseGeocodeClientTest {
     }
 
     @Test
+    void 특별시는_display_name으로_region까지_채운다() {
+        // 서울같은 특별시는 address 블록에 state/province가 없어 예전엔 region이 null이었다.
+        // display_name(뒤에서부터: 대한민국, 우편번호, 시·도, 구, 동 ...)으로 region을 채운다.
+        String reverse = """
+                {
+                  "name": "키친인큐베이터",
+                  "display_name": "키친인큐베이터, 21, 백범로31길, 아현동, 마포구, 서울특별시, 04147, 대한민국",
+                  "category": "amenity",
+                  "type": "restaurant",
+                  "address": { "city": "서울특별시", "borough": "마포구", "country": "대한민국" }
+                }
+                """;
+        server.expect(requestTo(containsString("/reverse")))
+                .andRespond(withSuccess(reverse, MediaType.APPLICATION_JSON));
+
+        GeoLocation location = client.reverseGeocode(37.5465, 126.9498);
+
+        assertThat(location.country()).isEqualTo("대한민국");
+        assertThat(location.region()).isEqualTo("서울특별시");   // 예전엔 null
+        assertThat(location.city()).isEqualTo("마포구");
+        assertThat(location.district()).isEqualTo("아현동");
+        assertThat(location.placeName()).isEqualTo("키친인큐베이터");
+        server.verify();
+    }
+
+    @Test
+    void 도_지역은_시도와_시를_구분해_채운다() {
+        // 도(道) 있는 지역은 한 단계 더 깊다: 대한민국 · 우편번호 · 경상북도(시·도) · 구미시(시) · 송정동.
+        String reverse = """
+                {
+                  "name": "구미시청",
+                  "display_name": "구미시청, 송원동로, 송정동, 구미시, 경상북도, 39280, 대한민국",
+                  "category": "office",
+                  "type": "government",
+                  "address": { "city": "구미시", "province": "경상북도", "country": "대한민국" }
+                }
+                """;
+        server.expect(requestTo(containsString("/reverse")))
+                .andRespond(withSuccess(reverse, MediaType.APPLICATION_JSON));
+
+        GeoLocation location = client.reverseGeocode(36.1195, 128.3446);
+
+        assertThat(location.country()).isEqualTo("대한민국");
+        assertThat(location.region()).isEqualTo("경상북도");
+        assertThat(location.city()).isEqualTo("구미시");
+        assertThat(location.district()).isEqualTo("송정동");
+        assertThat(location.placeName()).isEqualTo("구미시청");
+        server.verify();
+    }
+
+    @Test
+    void 우편번호가_없어도_행정구역을_매핑한다() {
+        // display_name 끝이 곧바로 country면 우편번호 건너뛰기 없이 그 앞을 region으로 본다.
+        String reverse = """
+                {
+                  "name": "성산일출봉",
+                  "display_name": "성산일출봉, 성산읍, 서귀포시, 제주특별자치도, 대한민국",
+                  "category": "tourism",
+                  "type": "attraction"
+                }
+                """;
+        server.expect(requestTo(containsString("/reverse")))
+                .andRespond(withSuccess(reverse, MediaType.APPLICATION_JSON));
+
+        GeoLocation location = client.reverseGeocode(33.45, 126.94);
+
+        assertThat(location.region()).isEqualTo("제주특별자치도");
+        assertThat(location.city()).isEqualTo("서귀포시");
+        assertThat(location.district()).isEqualTo("성산읍");
+        server.verify();
+    }
+
+    @Test
     void name이_없으면_display_name으로_장소명을_폴백한다() {
         String reverse = """
                 {
@@ -96,7 +169,8 @@ class OsmReverseGeocodeClientTest {
 
         GeoLocation location = client.reverseGeocode(33.45, 126.94);
 
-        assertThat(location.placeName()).isEqualTo("일출로, 성산읍, 서귀포시, 제주특별자치도, 대한민국");
+        // name이 없으면 display_name의 최상세(첫) 조각을 장소명으로 쓴다.
+        assertThat(location.placeName()).isEqualTo("일출로");
         assertThat(location.placeTypes()).containsExactly("highway", "residential");
         server.verify();
     }
@@ -139,7 +213,7 @@ class OsmReverseGeocodeClientTest {
         // 서버 응답은 단 한 번만 준비한다. 두 번째 조회가 캐시를 쓰지 않으면
         // "No further requests expected"로 실패한다.
         server.expect(requestTo(containsString("/reverse")))
-                .andRespond(withSuccess("{\"name\":\"성산일출봉\",\"address\":{\"country\":\"대한민국\"}}",
+                .andRespond(withSuccess("{\"name\":\"성산일출봉\",\"display_name\":\"성산일출봉, 성산읍, 서귀포시, 제주특별자치도, 대한민국\"}",
                         MediaType.APPLICATION_JSON));
 
         GeoLocation first = client.reverseGeocode(33.4587, 126.9426);
@@ -155,7 +229,7 @@ class OsmReverseGeocodeClientTest {
         server.expect(requestTo(containsString("/reverse")))
                 .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
         server.expect(requestTo(containsString("/reverse")))
-                .andRespond(withSuccess("{\"name\":\"성산일출봉\",\"address\":{\"country\":\"대한민국\"}}",
+                .andRespond(withSuccess("{\"name\":\"성산일출봉\",\"display_name\":\"성산일출봉, 성산읍, 서귀포시, 제주특별자치도, 대한민국\"}",
                         MediaType.APPLICATION_JSON));
 
         GeoLocation location = client.reverseGeocode(33.45, 126.94);
