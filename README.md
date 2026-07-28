@@ -21,7 +21,7 @@ kubectl -n app create secret generic was-secrets \
   --from-literal=DB_URL='jdbc:postgresql://<RDS_ENDPOINT>:5432/yeolo' \
   --from-literal=JPA_DDL_AUTO='update' \
   --from-literal=AI_BASE_URL='http://ai.app.svc.cluster.local:80' \
-  --from-literal=AI_INTERNAL_API_KEY='' \
+  --from-literal=INTERNAL_API_KEY='' \
   --from-literal=AI_COURSE_PROVIDER='stub' \
   --from-literal=GEOCODE_PROVIDER='stub' \
   --dry-run=client -o yaml | kubectl apply -f -
