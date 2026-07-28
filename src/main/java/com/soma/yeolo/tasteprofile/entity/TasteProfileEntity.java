@@ -10,7 +10,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.util.List;
 import java.util.UUID;
@@ -40,8 +39,7 @@ public class TasteProfileEntity extends BaseTimeEntity {
     @Column(name = "source_type", nullable = false)
     private SourceType sourceType;
 
-    @Lob
-    @Column(name = "profile", nullable = false)
+    @Column(name = "profile", nullable = false, columnDefinition = "text")
     private String profile;
 
     @Column(name = "travel_pace_density")
@@ -53,9 +51,8 @@ public class TasteProfileEntity extends BaseTimeEntity {
     @Column(name = "companion_type")
     private String companionType;
 
-    @Lob
     @Convert(converter = StringListJsonConverter.class)
-    @Column(name = "seasonal_environment_preference")
+    @Column(name = "seasonal_environment_preference", columnDefinition = "text")
     private List<String> seasonalEnvironmentPreference;
 
     @Builder

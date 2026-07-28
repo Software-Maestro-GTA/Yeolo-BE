@@ -10,9 +10,9 @@
 # (환경변수로 직접 주입해도 되며, 그 경우 이 파일 없이도 동작한다. docs/architecture.md §6)
 # ============================================================================
 
-# ===== DataSource (MySQL) =====
-spring.datasource.url=jdbc:mysql://localhost:3306/yeolo
-spring.datasource.username=root
+# ===== DataSource (PostgreSQL) =====
+spring.datasource.url=jdbc:postgresql://localhost:5432/yeolo
+spring.datasource.username=postgres
 spring.datasource.password=
 
 # ===== Google OAuth (API-FB-1) =====
