@@ -3,6 +3,7 @@ package com.soma.yeolo.auth.service;
 import com.soma.yeolo.auth.entity.RefreshToken;
 import com.soma.yeolo.auth.repository.RefreshTokenRepository;
 import com.soma.yeolo.global.security.TokenHasher;
+import com.soma.yeolo.user.service.port.RefreshTokenRevoker;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -11,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class RefreshTokenService {
+public class RefreshTokenService implements RefreshTokenRevoker {
 
     private final RefreshTokenRepository refreshTokenRepository;
 
@@ -26,7 +27,11 @@ public class RefreshTokenService {
                 );
     }
 
-    /** 로그아웃: 사용자의 Refresh Token을 삭제해 무효화한다. 없으면 무시(멱등). (API-FB-11) */
+    /**
+     * 사용자의 Refresh Token을 삭제해 무효화한다. 없으면 무시(멱등).
+     * 로그아웃(API-FB-11)·회원탈퇴(API-FB-12) 공통 세션 종료 경로.
+     */
+    @Override
     @Transactional
     public void revoke(UUID userId) {
         refreshTokenRepository.deleteByUserId(userId);

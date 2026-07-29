@@ -41,4 +41,28 @@ class UserTest {
         assertThat(user.getProvider()).isEqualTo(Provider.GOOGLE);
         assertThat(user.getProviderUserId()).isEqualTo("sub-1");
     }
+
+    @Test
+    void 탈퇴하면_deleted_상태로_전환하고_탈퇴시각을_기록한다() {
+        User user = User.createOAuthUser(Provider.GOOGLE, "sub-1",
+                "u@gmail.com", "홍길동", "http://img");
+
+        user.withdraw();
+
+        assertThat(user.getStatus()).isEqualTo(UserStatus.DELETED);
+        assertThat(user.getDeletedAt()).isNotNull();
+    }
+
+    @Test
+    void 이미_탈퇴한_계정을_다시_탈퇴해도_상태와_탈퇴시각은_유지된다() {
+        User user = User.createOAuthUser(Provider.GOOGLE, "sub-1",
+                "u@gmail.com", "홍길동", "http://img");
+        user.withdraw();
+        var firstDeletedAt = user.getDeletedAt();
+
+        user.withdraw();
+
+        assertThat(user.getStatus()).isEqualTo(UserStatus.DELETED);
+        assertThat(user.getDeletedAt()).isEqualTo(firstDeletedAt);
+    }
 }

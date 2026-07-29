@@ -90,4 +90,16 @@ public class User extends BaseTimeEntity {
         this.profileImageUrl = profileImageUrl;
         this.lastLoginAt = Instant.now();
     }
+
+    /**
+     * 회원탈퇴 (API-FB-12): 계정을 {@code deleted} 상태로 전환하고 탈퇴 시각을 기록한다.
+     * 소프트 삭제 — 로우는 유지하되 상태로 비활성화한다. 이미 탈퇴한 계정이면 멱등하게 무시한다.
+     */
+    public void withdraw() {
+        if (this.status == UserStatus.DELETED) {
+            return;
+        }
+        this.status = UserStatus.DELETED;
+        this.deletedAt = Instant.now();
+    }
 }
