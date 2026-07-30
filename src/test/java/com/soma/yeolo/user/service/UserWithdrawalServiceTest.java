@@ -34,7 +34,7 @@ class UserWithdrawalServiceTest {
     private UserWithdrawalService userWithdrawalService;
 
     @Test
-    void 탈퇴하면_계정을_deleted로_전환하고_세션을_무효화한다() {
+    void 탈퇴하면_개인정보를_파기하고_세션을_무효화한다() {
         UUID userId = UUID.randomUUID();
         User user = User.createOAuthUser(Provider.GOOGLE, "sub-1",
                 "u@gmail.com", "홍길동", "http://img");
@@ -44,6 +44,11 @@ class UserWithdrawalServiceTest {
 
         assertThat(user.getStatus()).isEqualTo(UserStatus.DELETED);
         assertThat(user.getDeletedAt()).isNotNull();
+        // 개인정보 영구 파기
+        assertThat(user.getEmail()).isNull();
+        assertThat(user.getDisplayName()).isNull();
+        assertThat(user.getProfileImageUrl()).isNull();
+        // 세션 무효화
         verify(refreshTokenRevoker).revoke(userId);
     }
 
