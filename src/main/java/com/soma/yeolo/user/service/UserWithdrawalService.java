@@ -11,8 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 회원탈퇴 오케스트레이션 (API-FB-12): 계정을 소프트 삭제(status=deleted)하고,
- * 발급된 Refresh Token을 무효화해 세션을 종료한다.
+ * 회원탈퇴 오케스트레이션 (API-FB-12): 계정을 소프트 삭제(status=deleted)하며 개인정보(이메일·
+ * 이름·프로필 이미지)와 OAuth 식별자를 파기한 뒤, Refresh Token을 무효화해 세션을 종료한다.
+ * 코스·성향 데이터는 파기하지 않고 삭제된 소유자를 참조한 채 남겨 둔다.
  */
 @Service
 @RequiredArgsConstructor
@@ -23,7 +24,7 @@ public class UserWithdrawalService {
 
     /**
      * 사용자를 탈퇴 처리한다. 사용자가 없으면 {@link ErrorCode#USER_NOT_FOUND}(404).
-     * 소프트 삭제(상태 전환)이므로 세션 무효화까지 한 트랜잭션으로 처리한다.
+     * 개인정보 파기·세션 무효화까지 한 트랜잭션으로 처리한다.
      */
     @Transactional
     public void withdraw(UUID userId) {
