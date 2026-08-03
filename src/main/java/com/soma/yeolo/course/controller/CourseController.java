@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * 코스 API. 지역/날짜/예산 조건 기반 코스 생성을 SSE로 스트리밍한다. (API-FB-4 / FUN-6)
+ * 코스 API. 지역/날짜/예산 조건 기반 코스 생성을 SSE로 스트리밍한다. (API-COURSE-1 / FUN-6)
  */
 @Slf4j
 @RestController
@@ -31,7 +31,7 @@ public class CourseController {
     private final AsyncTaskExecutor sseTaskExecutor;
 
     /**
-     * 코스 생성 요청 (API-FB-4). 요청 검증 실패(누락/형식 오류)는 스트림 시작 전 400 JSON으로
+     * 코스 생성 요청 (API-COURSE-1). 요청 검증 실패(누락/형식 오류)는 스트림 시작 전 400 JSON으로
      * 응답한다(전역 핸들러).
      */
     @PostMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)

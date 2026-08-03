@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 
 /**
- * 코스 생성 요청 (API-FB-4 Request Body). 지역·날짜·예산 조건을 입력받는다. (FUN-6)
+ * 코스 생성 요청 (API-COURSE-1 Request Body). 지역·날짜·예산 조건을 입력받는다. (FUN-6)
  *
  * <p>형식 검증은 Bean Validation으로 스트림 시작 전에 수행하며, 위반 시 명세의 400 응답
  * ("여행 조건 입력값이 올바르지 않습니다.")으로 반환한다. 값의 정규화(날짜 파싱·예산 매핑)는
@@ -16,7 +16,7 @@ import jakarta.validation.constraints.Positive;
  * @param destinationCity    여행 도시/지역 (필수)
  * @param startDate          여행 시작일 (YYYY-MM-DD)
  * @param totalDays          총 여행 일수 (1 이상)
- * @param budgetType         예산 성향 — {@code cost_effective | standard | luxury}
+ * @param budgetType         예산 성향 — {@code cost_effective | moderate | luxury}
  */
 public record CourseCreationRequest(
         @NotBlank(message = "여행 조건 입력값이 올바르지 않습니다.")
@@ -34,7 +34,7 @@ public record CourseCreationRequest(
         Integer totalDays,
 
         @NotBlank(message = "여행 조건 입력값이 올바르지 않습니다.")
-        @Pattern(regexp = "cost_effective|standard|luxury", message = "여행 조건 입력값이 올바르지 않습니다.")
+        @Pattern(regexp = "cost_effective|moderate|luxury", message = "여행 조건 입력값이 올바르지 않습니다.")
         String budgetType
 ) {
 }

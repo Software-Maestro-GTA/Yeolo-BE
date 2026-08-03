@@ -21,12 +21,15 @@ public record Itinerary(List<Day> days) {
     ) {
     }
 
-    /** 일자 내 방문지. */
+    /** 일자 내 방문지. {@code placeId}·{@code latitude}·{@code longitude}는 BE 장소 정규화 결과이며,
+     * 미해결 시 {@code null}로 응답에서 생략된다(NON_NULL). (DOM-3 장소 정보 처리 기준) */
     public record Stop(
             Integer sequence,
             String placeId,
             String placeName,
             String category,
+            Double latitude,
+            Double longitude,
             String arrivalTime,
             Integer stayMinutes,
             String memo,

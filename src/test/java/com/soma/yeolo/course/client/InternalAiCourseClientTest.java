@@ -47,7 +47,7 @@ class InternalAiCourseClientTest {
         JsonNode tasteProfile = MAPPER.readTree("{\"sourceType\":\"behavior\"}");
         TripCondition condition = new TripCondition("대한민국", "제주",
                 LocalDate.of(2026, 8, 1), 3, BudgetType.COST_EFFECTIVE);
-        return AiCourseGenerationRequest.of(UUID.randomUUID(), tasteProfile, condition);
+        return AiCourseGenerationRequest.of(UUID.randomUUID(), "ENFP", tasteProfile, condition);
     }
 
     @Test
