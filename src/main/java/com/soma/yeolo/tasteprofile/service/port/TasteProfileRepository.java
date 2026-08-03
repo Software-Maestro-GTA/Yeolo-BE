@@ -27,4 +27,7 @@ public interface TasteProfileRepository {
      * (사용자는 재분석 시마다 새 프로필을 저장하므로 가장 최근 갱신본을 "내 성향 프로필"로 본다.)
      */
     Optional<SavedTasteProfile> findLatestByUserId(UUID userId);
+
+    /** 사용자가 저장한 성향 프로필이 하나라도 있는지 여부. (온보딩 완료 판정에 사용) */
+    boolean existsByUserId(UUID userId);
 }

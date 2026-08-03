@@ -31,4 +31,9 @@ class TasteProfileRepositoryImpl implements TasteProfileRepository {
         return jpaRepository.findFirstByUserIdOrderByUpdatedAtDesc(userId)
                 .map(TasteProfileEntity::toSavedProfile);
     }
+
+    @Override
+    public boolean existsByUserId(UUID userId) {
+        return jpaRepository.existsByUserId(userId);
+    }
 }

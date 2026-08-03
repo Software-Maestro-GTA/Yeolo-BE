@@ -51,6 +51,11 @@ class CourseCreationServiceTest {
         public Optional<SavedTasteProfile> findLatestByUserId(UUID userId) {
             return latest;
         }
+
+        @Override
+        public boolean existsByUserId(UUID userId) {
+            return latest.isPresent();
+        }
     }
 
     /** 코스 영속 포트 fake: 저장된 도메인을 기록하고 미리 정해둔 id를 돌려준다. */
@@ -72,6 +77,11 @@ class CourseCreationServiceTest {
         @Override
         public java.util.Optional<com.soma.yeolo.course.domain.SavedCourse> findById(UUID courseId) {
             throw new UnsupportedOperationException("코스 생성 테스트에서는 조회를 사용하지 않는다.");
+        }
+
+        @Override
+        public boolean existsByUserId(UUID userId) {
+            throw new UnsupportedOperationException("코스 생성 테스트에서는 존재 조회를 사용하지 않는다.");
         }
     }
 
