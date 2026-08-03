@@ -71,7 +71,7 @@ class BehaviorTasteProfileServiceTest {
 
     private BehaviorAnalysisRequest request() {
         return new BehaviorAnalysisRequest(List.of(
-                new ImageMetadata("img-1", "2026-07-14T10:00:00+09:00", 33.45, 126.94, "Asia/Seoul")));
+                new ImageMetadata("img-1", "2026-07-14T10:00:00+09:00", 33.45, 126.94)));
     }
 
     private PreprocessedImage preprocessed() {
@@ -87,7 +87,7 @@ class BehaviorTasteProfileServiceTest {
 
         when(preprocessor.preprocess(any())).thenReturn(List.of(preprocessed()));
         when(aiClient.analyzeBehavior(any()))
-                .thenReturn(new ObjectMapper().readTree("{\"sourceType\":\"behavior\"}"));
+                .thenReturn(new ObjectMapper().readTree("{\"travelPaceDensity\":\"balanced\"}"));
         when(assembler.toDomain(any(), any())).thenReturn(domain);
 
         service().analyzeAndStream(userId, request(), emitter);
