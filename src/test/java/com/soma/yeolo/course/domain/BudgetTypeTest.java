@@ -10,13 +10,20 @@ class BudgetTypeTest {
     @Test
     void 명세_전송값으로_enum을_찾는다() {
         assertThat(BudgetType.fromValue("cost_effective")).isEqualTo(BudgetType.COST_EFFECTIVE);
-        assertThat(BudgetType.fromValue("standard")).isEqualTo(BudgetType.STANDARD);
+        assertThat(BudgetType.fromValue("moderate")).isEqualTo(BudgetType.MODERATE);
         assertThat(BudgetType.fromValue("luxury")).isEqualTo(BudgetType.LUXURY);
     }
 
     @Test
     void enum은_명세_소문자_값을_그대로_노출한다() {
+        assertThat(BudgetType.MODERATE.getValue()).isEqualTo("moderate");
         assertThat(BudgetType.LUXURY.getValue()).isEqualTo("luxury");
+    }
+
+    @Test
+    void 명세_개정으로_제거된_standard는_거부된다() {
+        assertThatThrownBy(() -> BudgetType.fromValue("standard"))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

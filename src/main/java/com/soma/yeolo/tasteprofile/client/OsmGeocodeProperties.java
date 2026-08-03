@@ -12,6 +12,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * 자체 호스팅 서버를 쓸 경우 {@code reverseUrl}만 바꾸고 간격을 0으로 낮추면 된다.
  *
  * @param reverseUrl    Reverse Geocoding 엔드포인트 URL (Nominatim {@code /reverse})
+ * @param searchUrl     Forward Geocoding(장소명→좌표) 엔드포인트 URL (Nominatim {@code /search})
  * @param userAgent     호출 주체를 식별하는 User-Agent 값 (Nominatim 이용 정책상 필수)
  * @param zoom          주소 상세 수준(0~18). 값이 클수록 건물/장소 단위로 상세해진다.
  * @param language      결과 언어 (예: ko) — {@code accept-language} 파라미터로 전달
@@ -21,6 +22,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 @ConfigurationProperties(prefix = "geocode.osm")
 public record OsmGeocodeProperties(
         String reverseUrl,
+        @DefaultValue("https://nominatim.openstreetmap.org/search") String searchUrl,
         String userAgent,
         Integer zoom,
         String language,
