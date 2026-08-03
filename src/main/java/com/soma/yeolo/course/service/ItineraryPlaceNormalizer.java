@@ -57,7 +57,7 @@ public class ItineraryPlaceNormalizer {
     /** 한 방문지에 내부 placeId·좌표를 주입한다. 실패해도 예외를 던지지 않고 원본을 유지한다. */
     private void normalizeStop(ObjectNode stop, String city, String country) {
         String placeName = text(stop, "placeName");
-        if (placeName == null) {
+        if (placeName == null || placeName.isBlank()) {
             return;
         }
         try {
