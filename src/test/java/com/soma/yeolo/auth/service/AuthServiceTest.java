@@ -1,17 +1,23 @@
 package com.soma.yeolo.auth.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.soma.yeolo.auth.client.GoogleOAuthClient;
 import com.soma.yeolo.auth.client.dto.GoogleUserInfo;
 import com.soma.yeolo.auth.dto.GoogleLoginRequest;
 import com.soma.yeolo.auth.dto.GoogleLoginResponse;
+import com.soma.yeolo.course.service.port.CourseRepository;
+import com.soma.yeolo.global.exception.BusinessException;
+import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.security.JwtTokenProvider;
 import com.soma.yeolo.global.security.JwtTokenProvider.GeneratedToken;
+import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
 import com.soma.yeolo.user.domain.Provider;
 import com.soma.yeolo.user.entity.User;
 import com.soma.yeolo.user.service.OAuthUserInfo;
@@ -36,15 +42,16 @@ class AuthServiceTest {
     private JwtTokenProvider jwtTokenProvider;
     @Mock
     private RefreshTokenService refreshTokenService;
+    @Mock
+    private TasteProfileRepository tasteProfileRepository;
+    @Mock
+    private CourseRepository courseRepository;
 
     @InjectMocks
     private AuthService authService;
 
-    @Test
-    void 구글_로그인은_사용자를_upsert하고_토큰을_발급한다() {
-        UUID userId = UUID.randomUUID();
-        Instant refreshExpiry = Instant.now().plusSeconds(1000);
-
+    /** 구글 인증 성공 흐름을 스텁한다. onboarding 신호(취향/코스 보유 여부)는 인자로 제어한다. */
+    private User stubGoogleLoginSuccess(UUID userId, boolean hasTasteProfile, boolean hasCourse) {
         User user = User.createOAuthUser(Provider.GOOGLE, "sub-1", "u@gmail.com", "홍길동", "http://img");
         ReflectionTestUtils.setField(user, "id", userId);
 
@@ -53,10 +60,25 @@ class AuthServiceTest {
         when(userService.upsertOnOAuthLogin(any(OAuthUserInfo.class))).thenReturn(user);
         when(jwtTokenProvider.createAccessToken(userId)).thenReturn("access-token");
         when(jwtTokenProvider.createRefreshToken(userId))
-                .thenReturn(new GeneratedToken("refresh-token", refreshExpiry));
+                .thenReturn(new GeneratedToken("refresh-token", Instant.now().plusSeconds(1000)));
+        when(tasteProfileRepository.existsByUserId(userId)).thenReturn(hasTasteProfile);
+        // 코스 조회는 취향 프로필이 있을 때만 도달한다(doOnboarding의 && 단락 평가).
+        if (hasTasteProfile) {
+            when(courseRepository.existsByUserId(userId)).thenReturn(hasCourse);
+        }
+        return user;
+    }
 
-        GoogleLoginResponse response =
-                authService.loginWithGoogle(new GoogleLoginRequest("auth-code", "http://localhost/callback"));
+    private GoogleLoginResponse login() {
+        return authService.loginWithGoogle(new GoogleLoginRequest("auth-code", "http://localhost/callback"));
+    }
+
+    @Test
+    void 구글_로그인은_사용자를_upsert하고_토큰을_발급한다() {
+        UUID userId = UUID.randomUUID();
+        stubGoogleLoginSuccess(userId, false, false);
+
+        GoogleLoginResponse response = login();
 
         assertThat(response.accessToken()).isEqualTo("access-token");
         assertThat(response.refreshToken()).isEqualTo("refresh-token");
@@ -68,7 +90,45 @@ class AuthServiceTest {
         assertThat(response.user().status()).isEqualTo("active");
         assertThat(response.user().lastLoginAt()).isNotNull();
 
-        verify(refreshTokenService).issue(eq(userId), eq("refresh-token"), eq(refreshExpiry));
+        verify(refreshTokenService).issue(eq(userId), eq("refresh-token"), any(Instant.class));
+    }
+
+    @Test
+    void 취향프로필과_코스가_모두_없으면_doOnboarding은_true다() {
+        UUID userId = UUID.randomUUID();
+        stubGoogleLoginSuccess(userId, false, false);
+
+        assertThat(login().doOnboarding()).isTrue();
+    }
+
+    @Test
+    void 취향프로필만_있고_코스가_없으면_doOnboarding은_true다() {
+        UUID userId = UUID.randomUUID();
+        stubGoogleLoginSuccess(userId, true, false);
+
+        assertThat(login().doOnboarding()).isTrue();
+    }
+
+    @Test
+    void 취향프로필과_코스를_모두_보유하면_doOnboarding은_false다() {
+        UUID userId = UUID.randomUUID();
+        stubGoogleLoginSuccess(userId, true, true);
+
+        assertThat(login().doOnboarding()).isFalse();
+    }
+
+    @Test
+    void 이메일_미검증이면_인증실패_401로_처리하고_사용자를_생성하지_않는다() {
+        when(googleOAuthClient.authenticate("auth-code", "http://localhost/callback"))
+                .thenReturn(new GoogleUserInfo("sub-1", "u@gmail.com", "홍길동", "http://img", false));
+
+        assertThatThrownBy(this::login)
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.GOOGLE_AUTH_FAILED);
+
+        verifyNoInteractions(userService, jwtTokenProvider, refreshTokenService,
+                tasteProfileRepository, courseRepository);
     }
 
     @Test

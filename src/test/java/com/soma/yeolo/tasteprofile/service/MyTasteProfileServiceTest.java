@@ -32,6 +32,11 @@ class MyTasteProfileServiceTest {
             return Optional.ofNullable(stored)
                     .filter(profile -> profile.userId().equals(userId));
         }
+
+        @Override
+        public boolean existsByUserId(UUID userId) {
+            return findLatestByUserId(userId).isPresent();
+        }
     }
 
     private final FakeTasteProfileRepository repository = new FakeTasteProfileRepository();

@@ -13,4 +13,7 @@ public interface TasteProfileJpaRepository extends JpaRepository<TasteProfileEnt
 
     /** 사용자의 최신 성향 프로필(갱신 시각 내림차순 첫 건)을 조회한다. (API-FB-8) */
     Optional<TasteProfileEntity> findFirstByUserIdOrderByUpdatedAtDesc(UUID userId);
+
+    /** 사용자가 저장한 성향 프로필 존재 여부. (온보딩 완료 판정) */
+    boolean existsByUserId(UUID userId);
 }

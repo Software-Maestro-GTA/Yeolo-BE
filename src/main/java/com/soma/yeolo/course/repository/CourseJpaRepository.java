@@ -13,4 +13,7 @@ public interface CourseJpaRepository extends JpaRepository<CourseEntity, UUID> {
 
     /** 사용자의 코스를 최신 생성순으로 조회한다. (API-FB-10) */
     List<CourseEntity> findByUserIdOrderByCreatedAtDesc(UUID userId);
+
+    /** 사용자가 생성한 코스 존재 여부. (온보딩 완료 판정) */
+    boolean existsByUserId(UUID userId);
 }

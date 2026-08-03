@@ -14,8 +14,9 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
- * Google OAuth 호출 어댑터. 인가 코드로 토큰을 교환하고 사용자 프로필을 조회한다. (API-FB-1)
- * 4xx(코드 오류)는 {@code INVALID_GOOGLE_CODE}, 그 외 통신/서버 오류는 {@code GOOGLE_AUTH_SERVER_ERROR}.
+ * Google OAuth 호출 어댑터. 인가 코드로 토큰을 교환하고 사용자 프로필을 조회한다. (API-AUTH-1)
+ * 토큰이 거부되는 인증 실패(401/403)는 {@code GOOGLE_AUTH_FAILED}(401), 그 외 4xx(잘못된 인가 코드)는
+ * {@code INVALID_GOOGLE_CODE}(400), 통신/서버 오류는 {@code GOOGLE_AUTH_SERVER_ERROR}(500)로 매핑한다.
  */
 @Slf4j
 @Component
@@ -87,6 +88,11 @@ public class GoogleOAuthClient {
 
     private BusinessException toBusinessException(String phase, RestClientResponseException e) {
         if (e.getStatusCode().is4xxClientError()) {
+            // 401/403은 토큰/자격증명 거부 = 인증 실패(401), 그 외 4xx는 잘못된 인가 코드(400).
+            if (e.getStatusCode().value() == 401 || e.getStatusCode().value() == 403) {
+                log.warn("Google {} auth failed: {} {}", phase, e.getStatusCode(), e.getResponseBodyAsString());
+                return new BusinessException(ErrorCode.GOOGLE_AUTH_FAILED, e);
+            }
             log.warn("Google {} rejected request: {} {}", phase, e.getStatusCode(), e.getResponseBodyAsString());
             return new BusinessException(ErrorCode.INVALID_GOOGLE_CODE, e);
         }

@@ -37,4 +37,9 @@ class CourseRepositoryImpl implements CourseRepository {
     public Optional<SavedCourse> findById(UUID courseId) {
         return jpaRepository.findById(courseId).map(CourseEntity::toSavedCourse);
     }
+
+    @Override
+    public boolean existsByUserId(UUID userId) {
+        return jpaRepository.existsByUserId(userId);
+    }
 }

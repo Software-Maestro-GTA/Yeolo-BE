@@ -56,6 +56,11 @@ class BehaviorTasteProfileServiceTest {
         public java.util.Optional<com.soma.yeolo.tasteprofile.domain.SavedTasteProfile> findLatestByUserId(UUID userId) {
             throw new UnsupportedOperationException("행동 분석 테스트에서는 조회를 사용하지 않는다.");
         }
+
+        @Override
+        public boolean existsByUserId(UUID userId) {
+            throw new UnsupportedOperationException("행동 분석 테스트에서는 존재 조회를 사용하지 않는다.");
+        }
     }
 
     private final FakeTasteProfileRepository store = new FakeTasteProfileRepository();

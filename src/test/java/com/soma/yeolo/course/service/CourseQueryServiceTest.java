@@ -38,6 +38,11 @@ class CourseQueryServiceTest {
         public Optional<SavedCourse> findById(UUID courseId) {
             return store.stream().filter(c -> c.courseId().equals(courseId)).findFirst();
         }
+
+        @Override
+        public boolean existsByUserId(UUID userId) {
+            return store.stream().anyMatch(c -> c.userId().equals(userId));
+        }
     }
 
     private final FakeCourseRepository courses = new FakeCourseRepository();

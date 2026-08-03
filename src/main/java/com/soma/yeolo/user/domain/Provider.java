@@ -5,13 +5,14 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * OAuth 제공자. DB 저장값은 DOM-3 명세의 소문자 값을 그대로 사용한다. (예: {@code google})
+ * OAuth 제공자. DB 저장값은 DOM-1 명세의 소문자 값을 그대로 사용한다. (예: {@code google}, {@code apple})
  */
 @Getter
 @RequiredArgsConstructor
 public enum Provider {
 
-    GOOGLE("google");
+    GOOGLE("google"),
+    APPLE("apple");
 
     private final String value;
 

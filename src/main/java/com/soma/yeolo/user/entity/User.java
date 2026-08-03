@@ -99,7 +99,7 @@ public class User extends BaseTimeEntity {
      * <p>{@code provider_user_id}는 익명 토큰({@code deleted:<id>})으로 치환한다. 그 결과
      * (1) 동일 OAuth 계정으로 재가입해도 탈퇴 계정과 매칭되지 않아 새 사용자로 생성되고,
      * (2) {@code (provider, provider_user_id)} 유니크 제약과 충돌하지 않으며,
-     * (3) 원본 OAuth 식별자(구글 sub)가 저장소에서 제거된다.
+     * (3) 원본 OAuth 제공자 식별자(provider_user_id)가 저장소에서 제거된다.
      * 이미 탈퇴한 계정이면 멱등하게 무시한다.
      */
     public void withdraw() {

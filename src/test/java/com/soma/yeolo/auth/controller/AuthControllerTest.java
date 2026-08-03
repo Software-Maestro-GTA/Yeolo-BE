@@ -40,7 +40,7 @@ class AuthControllerTest {
         GoogleLoginResponse response = new GoogleLoginResponse(
                 new UserSummary("550e8400-e29b-41d4-a716-446655440000", "google", "u@gmail.com",
                         "홍길동", "http://img", "active", "2026-07-16T00:00:00Z"),
-                "access-token", "refresh-token");
+                true, "access-token", "refresh-token");
         when(authService.loginWithGoogle(any())).thenReturn(response);
 
         mockMvc.perform(post("/api/auth/google")
@@ -55,6 +55,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.data.user.profileImageUrl").value("http://img"))
                 .andExpect(jsonPath("$.data.user.status").value("active"))
                 .andExpect(jsonPath("$.data.user.lastLoginAt").value("2026-07-16T00:00:00Z"))
+                .andExpect(jsonPath("$.data.doOnboarding").value(true))
                 .andExpect(jsonPath("$.data.accessToken").value("access-token"))
                 .andExpect(jsonPath("$.data.refreshToken").value("refresh-token"));
     }
