@@ -20,7 +20,7 @@ public record BehaviorAnalysisRequest(
      * 사진 한 장의 EXIF 기반 메타데이터 (DOM-5 §4-2).
      *
      * @param sourceImageId 클라이언트 이미지 식별자
-     * @param capturedAt    ISO-8601 촬영 시각(UTC)
+     * @param capturedAt    ISO-8601 촬영 시각(오프셋 포함)
      * @param latitude      촬영 위도
      * @param longitude     촬영 경도
      */
