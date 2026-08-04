@@ -53,7 +53,9 @@ public class CourseCreationService {
     /** 정규화 → 성향 로딩 → AI 생성 → 저장 파이프라인을 실행하고 진행 상황을 SSE로 중계한다. */
     public void createAndStream(UUID userId, CourseCreationRequest request, SseEmitter emitter) {
         SseStream stream = new SseStream(emitter);
-        try {
+        // 성향 로딩과 AI 생성(수십 초) 모두 응답 바이트가 나가지 않는 구간이다.
+        // 프록시가 연결을 idle로 보고 끊지 않도록 전 구간 heartbeat를 유지한다.
+        try (SseHeartbeat.Handle beat = heartbeat.start(stream)) {
             TripCondition condition = normalize(request);
 
             stream.send(EVENT_PROGRESS,
@@ -63,10 +65,8 @@ public class CourseCreationService {
 
             stream.send(EVENT_PROGRESS,
                     new Progress("GENERATING_COURSE", "개인 맞춤형 여행 코스를 생성 중입니다."));
-            // AI 코스 생성은 수십 초 블로킹이라 그동안 응답이 한 바이트도 안 나간다.
-            // 프록시가 연결을 idle로 보고 끊지 않도록 heartbeat를 유지한다.
-            JsonNode courseNode = heartbeat.runWithHeartbeat(stream, () -> aiCourseClient.generateCourse(
-                    AiCourseGenerationRequest.of(userId, parseProfile(profile.profileJson()), condition)));
+            JsonNode courseNode = aiCourseClient.generateCourse(
+                    AiCourseGenerationRequest.of(userId, parseProfile(profile.profileJson()), condition));
 
             // 클라이언트가 이미 떠났어도 생성은 끝났으므로 저장은 진행한다(목록 조회로 확인 가능).
             Course course = courseAssembler.toDomain(userId, courseNode);

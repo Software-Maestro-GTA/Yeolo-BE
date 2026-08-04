@@ -47,17 +47,17 @@ public class BehaviorTasteProfileService {
     /** 전처리 → AI 분석 → 저장 파이프라인을 실행하고 진행 상황을 SSE로 중계한다. */
     public void analyzeAndStream(UUID userId, BehaviorAnalysisRequest request, SseEmitter emitter) {
         SseStream stream = new SseStream(emitter);
-        try {
+        // 전처리(이미지당 Reverse Geocode, 호출 간 최소 간격)와 AI 분석(수십 초) 모두 응답 바이트가
+        // 나가지 않는 구간이다. 프록시가 연결을 idle로 보고 끊지 않도록 전 구간 heartbeat를 유지한다.
+        try (SseHeartbeat.Handle beat = heartbeat.start(stream)) {
             stream.send(EVENT_PROGRESS,
                     new Progress("PREPROCESSING_IMAGE_METADATA", "이미지 위치·시간 정보를 전처리 중입니다."));
             List<PreprocessedImage> items = preprocessor.preprocess(request.images());
 
             stream.send(EVENT_PROGRESS,
                     new Progress("ANALYZING_PREFERENCE", "여행 성향을 분석 중입니다."));
-            // AI 분석은 수십 초 블로킹이라 그동안 응답이 한 바이트도 안 나간다.
-            // 프록시가 연결을 idle로 보고 끊지 않도록 heartbeat를 유지한다.
-            JsonNode tasteProfileNode = heartbeat.runWithHeartbeat(stream,
-                    () -> aiClient.analyzeBehavior(AiBehaviorAnalysisRequest.of(userId, items)));
+            JsonNode tasteProfileNode =
+                    aiClient.analyzeBehavior(AiBehaviorAnalysisRequest.of(userId, items));
 
             // 클라이언트가 이미 떠났어도 분석은 끝났으므로 저장은 진행한다(재요청 시 재분석 불필요).
             UUID tasteProfileId = persist(userId, tasteProfileNode);
