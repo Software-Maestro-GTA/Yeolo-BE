@@ -89,4 +89,9 @@ public class AuthService {
     private boolean resolveDoOnboarding(UUID userId) {
         return !(tasteProfileRepository.existsByUserId(userId) && courseRepository.existsByUserId(userId));
     }
+
+    /** 로그아웃 (API-AUTH-4): 사용자의 Refresh Token을 무효화해 세션을 종료한다. */
+    public void logout(UUID userId) {
+        refreshTokenService.revoke(userId);
+    }
 }
