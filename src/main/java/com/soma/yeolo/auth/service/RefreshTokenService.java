@@ -25,4 +25,10 @@ public class RefreshTokenService {
                         () -> refreshTokenRepository.save(RefreshToken.create(userId, hash, expiresAt))
                 );
     }
+
+    /** 사용자의 Refresh Token을 삭제해 무효화한다. 없으면 무시(멱등). 로그아웃(API-AUTH-4) 세션 종료 경로. */
+    @Transactional
+    public void revoke(UUID userId) {
+        refreshTokenRepository.deleteByUserId(userId);
+    }
 }

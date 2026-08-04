@@ -2,6 +2,7 @@ package com.soma.yeolo.tasteprofile.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
+import com.soma.yeolo.global.sse.TestSseHeartbeat;
 import com.soma.yeolo.tasteprofile.client.AiTasteProfileClient;
 import com.soma.yeolo.tasteprofile.domain.GeoLocation;
 import com.soma.yeolo.tasteprofile.domain.PreprocessedImage;
@@ -19,6 +21,7 @@ import com.soma.yeolo.tasteprofile.domain.TimeContext;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisRequest;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisRequest.ImageMetadata;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -66,7 +69,8 @@ class BehaviorTasteProfileServiceTest {
     private final FakeTasteProfileRepository store = new FakeTasteProfileRepository();
 
     private BehaviorTasteProfileService service() {
-        return new BehaviorTasteProfileService(preprocessor, aiClient, assembler, store);
+        return new BehaviorTasteProfileService(preprocessor, aiClient, assembler, store,
+                TestSseHeartbeat.create());
     }
 
     private BehaviorAnalysisRequest request() {
@@ -111,5 +115,42 @@ class BehaviorTasteProfileServiceTest {
         verify(aiClient, never()).analyzeBehavior(any());
         assertThat(store.saved).isEmpty();
         verify(emitter).complete();
+    }
+
+    @Test
+    void 클라이언트가_먼저_끊겨도_분석_결과는_저장하고_예외를_던지지_않는다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        TasteProfile domain = new TasteProfile(userId, SourceType.BEHAVIOR, "{}", null, null, null, List.of());
+
+        // 첫 progress 전송 시점에 이미 클라이언트가 떠난 상황(프록시 idle timeout 등).
+        doThrow(new IOException("Broken pipe")).when(emitter).send(any(SseEventBuilder.class));
+        when(preprocessor.preprocess(any())).thenReturn(List.of(preprocessed()));
+        when(aiClient.analyzeBehavior(any()))
+                .thenReturn(new ObjectMapper().readTree("{\"sourceType\":\"behavior\"}"));
+        when(assembler.toDomain(any(), any())).thenReturn(domain);
+
+        service().analyzeAndStream(userId, request(), emitter);
+
+        // 끊긴 뒤로는 emitter를 더 건드리지 않는다. 재전송하면 IllegalStateException →
+        // completeWithError → 서블릿 재디스패치 → 전역 핸들러 500 경로로 번진다.
+        verify(emitter, times(1)).send(any(SseEventBuilder.class));
+        verify(emitter, never()).completeWithError(any());
+        // 분석은 이미 끝났으므로 저장은 그대로 진행한다.
+        assertThat(store.saved).containsExactly(domain);
+    }
+
+    @Test
+    void 이미_완료된_스트림에_error를_보내려다_실패해도_전파하지_않는다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        // onError 콜백이 먼저 emitter를 완료 처리한 뒤 워커가 error 이벤트를 시도하는 상황.
+        doThrow(new IllegalStateException("ResponseBodyEmitter has already completed"))
+                .when(emitter).send(any(SseEventBuilder.class));
+        when(preprocessor.preprocess(any()))
+                .thenThrow(new BusinessException(ErrorCode.INSUFFICIENT_IMAGE_METADATA));
+
+        service().analyzeAndStream(userId, request(), emitter);
+
+        verify(emitter, times(1)).send(any(SseEventBuilder.class));
+        verify(emitter, never()).completeWithError(any());
     }
 }

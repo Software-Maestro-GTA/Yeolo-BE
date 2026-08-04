@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.response.ApiResponse;
+import com.soma.yeolo.global.sse.SseHeartbeat;
+import com.soma.yeolo.global.sse.SseStream;
 import com.soma.yeolo.tasteprofile.client.AiTasteProfileClient;
 import com.soma.yeolo.tasteprofile.client.dto.AiBehaviorAnalysisRequest;
 import com.soma.yeolo.tasteprofile.domain.PreprocessedImage;
@@ -13,12 +15,10 @@ import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisEvents.CompleteData;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisEvents.Progress;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisRequest;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
-import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -42,29 +42,38 @@ public class BehaviorTasteProfileService {
     private final AiTasteProfileClient aiClient;
     private final TasteProfileAssembler assembler;
     private final TasteProfileRepository tasteProfileRepository;
+    private final SseHeartbeat heartbeat;
 
     /** 전처리 → AI 분석 → 저장 파이프라인을 실행하고 진행 상황을 SSE로 중계한다. */
     public void analyzeAndStream(UUID userId, BehaviorAnalysisRequest request, SseEmitter emitter) {
+        SseStream stream = new SseStream(emitter);
         try {
-            emit(emitter, EVENT_PROGRESS,
+            stream.send(EVENT_PROGRESS,
                     new Progress("PREPROCESSING_IMAGE_METADATA", "이미지 위치·시간 정보를 전처리 중입니다."));
             List<PreprocessedImage> items = preprocessor.preprocess(request.images());
 
-            emit(emitter, EVENT_PROGRESS,
+            stream.send(EVENT_PROGRESS,
                     new Progress("ANALYZING_PREFERENCE", "여행 성향을 분석 중입니다."));
-            JsonNode tasteProfileNode = aiClient.analyzeBehavior(AiBehaviorAnalysisRequest.of(userId, items));
+            // AI 분석은 수십 초 블로킹이라 그동안 응답이 한 바이트도 안 나간다.
+            // 프록시가 연결을 idle로 보고 끊지 않도록 heartbeat를 유지한다.
+            JsonNode tasteProfileNode = heartbeat.runWithHeartbeat(stream,
+                    () -> aiClient.analyzeBehavior(AiBehaviorAnalysisRequest.of(userId, items)));
 
+            // 클라이언트가 이미 떠났어도 분석은 끝났으므로 저장은 진행한다(재요청 시 재분석 불필요).
             UUID tasteProfileId = persist(userId, tasteProfileNode);
 
-            emit(emitter, EVENT_COMPLETE, ApiResponse.success("행동 데이터 기반 성향 분석 생성 성공",
-                    new CompleteData(tasteProfileId.toString(), SourceType.BEHAVIOR.getValue())));
-            emitter.complete();
+            if (!stream.send(EVENT_COMPLETE, ApiResponse.success("행동 데이터 기반 성향 분석 생성 성공",
+                    new CompleteData(tasteProfileId.toString(), SourceType.BEHAVIOR.getValue())))) {
+                log.warn("성향 분석 완료 이벤트를 전달하지 못했다(클라이언트 이탈). userId={}, tasteProfileId={}",
+                        userId, tasteProfileId);
+            }
+            stream.complete();
         } catch (BusinessException e) {
             log.warn("Behavior analysis failed: {}", e.getErrorCode());
-            completeWithError(emitter, e.getErrorCode());
+            completeWithError(stream, e.getErrorCode());
         } catch (Exception e) {
             log.error("Unexpected error during behavior analysis", e);
-            completeWithError(emitter, ErrorCode.INTERNAL_ERROR);
+            completeWithError(stream, ErrorCode.INTERNAL_ERROR);
         }
     }
 
@@ -73,20 +82,13 @@ public class BehaviorTasteProfileService {
         return tasteProfileRepository.save(domain);
     }
 
-    private void emit(SseEmitter emitter, String eventName, Object payload) throws IOException {
-        emitter.send(SseEmitter.event()
-                .name(eventName)
-                .data(payload, MediaType.APPLICATION_JSON));
-    }
-
-    /** 진행 중 오류를 명세 봉투로 담은 {@code error} 이벤트로 전송하고 스트림을 종료한다. */
-    private void completeWithError(SseEmitter emitter, ErrorCode code) {
-        try {
-            emit(emitter, EVENT_ERROR, ApiResponse.error(code.getHttpStatus().value(), code.getMessage()));
-            emitter.complete();
-        } catch (Exception sendFailure) {
-            log.debug("Failed to send SSE error event: {}", sendFailure.getMessage());
-            emitter.completeWithError(sendFailure);
-        }
+    /**
+     * 진행 중 오류를 명세 봉투로 담은 {@code error} 이벤트로 전송하고 스트림을 종료한다.
+     * 이미 끊긴 스트림이면 {@link SseStream}이 조용히 무시한다 — 여기서 예외를 다시 던지면
+     * 서블릿으로 재디스패치되어 전역 핸들러가 500을 찍는다.
+     */
+    private void completeWithError(SseStream stream, ErrorCode code) {
+        stream.send(EVENT_ERROR, ApiResponse.error(code.getHttpStatus().value(), code.getMessage()));
+        stream.complete();
     }
 }

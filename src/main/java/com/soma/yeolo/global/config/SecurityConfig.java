@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -40,6 +41,8 @@ public class SecurityConfig {
                         // 이 재디스패치에는 인증이 없어 AuthorizationFilter가 Access Denied를 던진다.
                         // 최초 REQUEST 디스패치에서 이미 인가된 내부 재디스패치이므로 허용한다.
                         .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
+                        // 로그아웃(API-AUTH-4)은 인증 필요 — 공개 인증 API보다 먼저 매칭한다.
+                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
                         .requestMatchers("/api/auth/**").permitAll()
                         // k8s readiness/liveness probe 경로는 인증 없이 허용.
                         .requestMatchers("/actuator/health/**").permitAll()
