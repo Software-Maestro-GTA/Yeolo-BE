@@ -9,6 +9,7 @@ import com.soma.yeolo.global.sse.SseStream;
 import com.soma.yeolo.tasteprofile.client.AiTasteProfileClient;
 import com.soma.yeolo.tasteprofile.client.dto.AiBehaviorAnalysisRequest;
 import com.soma.yeolo.tasteprofile.domain.PreprocessedImage;
+import com.soma.yeolo.tasteprofile.domain.SourceType;
 import com.soma.yeolo.tasteprofile.domain.TasteProfile;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisEvents.CompleteData;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisEvents.Progress;
@@ -22,9 +23,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * 이미지 메타데이터 기반 취향 분석 오케스트레이션 (API-PREF-3 / FUN-4).
+ * 이미지 메타데이터 기반 성향 분석 오케스트레이션 (API-FB-2 / FUN-1).
  *
- * <p>전처리(Reverse Geocode + 시간 맥락) → AI 분석 호출(API-AI-1) → 결과 저장(DOM-1) 순으로
+ * <p>전처리(Reverse Geocode + 시간 맥락) → AI 분석 호출(API-BA-6) → 결과 저장(DOM-1) 순으로
  * 진행하며, 각 단계 상태를 {@link SseEmitter}로 스트리밍한다. 이벤트 step명은 명세 그대로 사용한다.
  * 이 메서드는 비동기 워커 스레드에서 실행되어 전체 SSE 수명주기를 책임진다.
  */
@@ -55,14 +56,15 @@ public class BehaviorTasteProfileService {
 
             stream.send(EVENT_PROGRESS,
                     new Progress("ANALYZING_PREFERENCE", "여행 성향을 분석 중입니다."));
-            JsonNode tasteProfileNode = aiClient.analyzeBehavior(AiBehaviorAnalysisRequest.of(userId, items));
+            JsonNode tasteProfileNode =
+                    aiClient.analyzeBehavior(AiBehaviorAnalysisRequest.of(userId, items));
 
             // 클라이언트가 이미 떠났어도 분석은 끝났으므로 저장은 진행한다(재요청 시 재분석 불필요).
             UUID tasteProfileId = persist(userId, tasteProfileNode);
 
-            if (!stream.send(EVENT_COMPLETE, ApiResponse.success("행동 데이터 기반 취향 분석 생성 성공",
-                    new CompleteData(tasteProfileId.toString())))) {
-                log.warn("취향 분석 완료 이벤트를 전달하지 못했다(클라이언트 이탈). userId={}, tasteProfileId={}",
+            if (!stream.send(EVENT_COMPLETE, ApiResponse.success("행동 데이터 기반 성향 분석 생성 성공",
+                    new CompleteData(tasteProfileId.toString(), SourceType.BEHAVIOR.getValue())))) {
+                log.warn("성향 분석 완료 이벤트를 전달하지 못했다(클라이언트 이탈). userId={}, tasteProfileId={}",
                         userId, tasteProfileId);
             }
             stream.complete();

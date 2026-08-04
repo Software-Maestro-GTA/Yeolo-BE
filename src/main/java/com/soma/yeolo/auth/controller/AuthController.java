@@ -37,7 +37,7 @@ public class AuthController {
         return ApiResponse.success("로그인 성공", response);
     }
 
-    /** 로그아웃 (API-FB-11). Access Token으로 식별된 사용자의 Refresh Token을 무효화한다. */
+    /** 로그아웃 (API-AUTH-4). Access Token으로 식별된 사용자의 Refresh Token을 무효화한다. */
     @PostMapping("/logout")
     public ApiResponse<Void> logout(@AuthenticationPrincipal UUID userId,
                                     @RequestBody(required = false) LogoutRequest request) {

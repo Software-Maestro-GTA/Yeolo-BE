@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.soma.yeolo.course.client.AiCourseClient;
-import com.soma.yeolo.course.client.StubPlaceNormalizer;
 import com.soma.yeolo.course.client.dto.AiCourseGenerationRequest;
 import com.soma.yeolo.course.domain.Course;
 import com.soma.yeolo.course.dto.CourseCreationRequest;
@@ -20,7 +19,6 @@ import com.soma.yeolo.tasteprofile.domain.SavedTasteProfile;
 import com.soma.yeolo.tasteprofile.domain.SourceType;
 import com.soma.yeolo.tasteprofile.domain.TasteProfile;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
-import com.soma.yeolo.user.service.port.UserPreferenceReader;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,16 +38,6 @@ class CourseCreationServiceTest {
 
     @Mock
     private SseEmitter emitter;
-
-    /** 사용자 선호(MBTI) 조회 포트 fake: 미리 정해둔 MBTI를 돌려준다(기본 없음). */
-    private static final class FakeUserPreferenceReader implements UserPreferenceReader {
-        private Optional<String> mbti = Optional.empty();
-
-        @Override
-        public Optional<String> findMbtiByUserId(UUID userId) {
-            return mbti;
-        }
-    }
 
     /** 성향 프로필 영속 포트 fake: 미리 정해둔 최신 프로필을 돌려준다. */
     private static final class FakeTasteProfileRepository implements TasteProfileRepository {
@@ -93,11 +81,6 @@ class CourseCreationServiceTest {
         }
 
         @Override
-        public void deleteById(UUID courseId) {
-            throw new UnsupportedOperationException("코스 생성 테스트에서는 삭제를 사용하지 않는다.");
-        }
-
-        @Override
         public boolean existsByUserId(UUID userId) {
             throw new UnsupportedOperationException("코스 생성 테스트에서는 존재 조회를 사용하지 않는다.");
         }
@@ -117,19 +100,17 @@ class CourseCreationServiceTest {
         }
     }
 
-    private final FakeUserPreferenceReader userPreferences = new FakeUserPreferenceReader();
     private final FakeTasteProfileRepository tasteProfiles = new FakeTasteProfileRepository();
     private final FakeCourseRepository courses = new FakeCourseRepository();
     private final FakeAiCourseClient aiClient = new FakeAiCourseClient();
 
     private CourseCreationService service() {
-        return new CourseCreationService(userPreferences, tasteProfiles, aiClient,
-                new ItineraryPlaceNormalizer(new StubPlaceNormalizer()), new CourseAssembler(), courses,
+        return new CourseCreationService(tasteProfiles, aiClient, new CourseAssembler(), courses,
                 TestSseHeartbeat.create());
     }
 
     private CourseCreationRequest request() {
-        return new CourseCreationRequest("대한민국", "제주", "2026-08-01", 3, "moderate");
+        return new CourseCreationRequest("대한민국", "제주", "2026-08-01", 3, "cost_effective");
     }
 
     private SavedTasteProfile savedProfile(UUID userId) {
@@ -160,7 +141,7 @@ class CourseCreationServiceTest {
 
         service().createAndStream(userId, request(), emitter);
 
-        // LOADING_USER_PREFERENCE + GENERATING_COURSE + complete = send 3회, 정상 종료
+        // LOADING_TASTE_PROFILE + GENERATING_COURSE + complete = send 3회, 정상 종료
         verify(emitter, times(3)).send(any(SseEventBuilder.class));
         assertThat(courses.saved).hasSize(1);
         assertThat(courses.saved.getFirst().userId()).isEqualTo(userId);
@@ -169,24 +150,8 @@ class CourseCreationServiceTest {
     }
 
     @Test
-    void MBTI만_있고_성향_프로필이_없어도_코스를_생성한다() throws Exception {
+    void 성향_프로필이_없으면_error를_보내고_AI를_호출하지_않는다() throws Exception {
         UUID userId = UUID.randomUUID();
-        userPreferences.mbti = Optional.of("ENFP");
-        tasteProfiles.latest = Optional.empty();
-        aiClient.result = courseNode();
-
-        service().createAndStream(userId, request(), emitter);
-
-        // LOADING_USER_PREFERENCE + GENERATING_COURSE + complete = send 3회, 저장 1건
-        verify(emitter, times(3)).send(any(SseEventBuilder.class));
-        assertThat(courses.saved).hasSize(1);
-        verify(emitter).complete();
-    }
-
-    @Test
-    void MBTI와_성향_프로필이_둘_다_없으면_error를_보내고_AI를_호출하지_않는다() throws Exception {
-        UUID userId = UUID.randomUUID();
-        userPreferences.mbti = Optional.empty();
         tasteProfiles.latest = Optional.empty();
 
         service().createAndStream(userId, request(), emitter);

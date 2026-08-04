@@ -39,11 +39,6 @@ class CourseRepositoryImpl implements CourseRepository {
     }
 
     @Override
-    public void deleteById(UUID courseId) {
-        jpaRepository.deleteById(courseId);
-    }
-
-    @Override
     public boolean existsByUserId(UUID userId) {
         return jpaRepository.existsByUserId(userId);
     }

@@ -24,7 +24,7 @@ import org.springframework.web.client.RestClient;
 
 class AiTasteProfileClientTest {
 
-    private static final String URL = "http://ai/internal/ai/taste-profile/analysis";
+    private static final String URL = "http://ai/internal/ai/taste-profile/behavior";
 
     private MockRestServiceServer server;
     private AiTasteProfileClient client;
@@ -44,13 +44,12 @@ class AiTasteProfileClientTest {
 
     @Test
     void complete_이벤트의_tasteProfile을_추출한다() {
-        // API-AI-1: 응답 tasteProfile에는 sourceType이 없다.
         String sse = """
                 event: progress
                 data: {"step":"ANALYZING_PREFERENCE","message":"분석 중"}
 
                 event: complete
-                data: {"tasteProfile":{"travelPaceDensity":"balanced","spendingTendency":"moderate"}}
+                data: {"tasteProfile":{"sourceType":"behavior","travelPaceDensity":"balanced"}}
 
                 """;
         server.expect(requestTo(URL))
@@ -60,7 +59,7 @@ class AiTasteProfileClientTest {
 
         JsonNode profile = client.analyzeBehavior(request());
 
-        assertThat(profile.has("sourceType")).isFalse();
+        assertThat(profile.get("sourceType").asText()).isEqualTo("behavior");
         assertThat(profile.get("travelPaceDensity").asText()).isEqualTo("balanced");
         server.verify();
     }
