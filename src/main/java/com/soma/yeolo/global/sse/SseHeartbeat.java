@@ -3,20 +3,22 @@ package com.soma.yeolo.global.sse;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ScheduledFuture;
-import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 
 /**
- * 오래 걸리는 블로킹 구간(AI 호출) 동안 SSE 연결에 주기적으로 keepalive를 흘려보낸다.
+ * SSE 파이프라인이 도는 동안 연결에 주기적으로 keepalive를 흘려보낸다.
  *
- * <p>AI 분석은 수십 초가 걸리는데 그동안 응답 바이트가 한 번도 나가지 않으면, 앞단 프록시가
- * 연결을 idle로 보고 끊는다(ALB·NGINX Ingress 모두 기본 60초). 서버는 다음 전송 시점에야
- * {@code Broken pipe}로 이를 알아차리므로, 그때는 이미 결과를 보낼 곳이 없다.
- * heartbeat는 (1) 연결을 idle에서 벗어나게 하고 (2) 진짜 클라이언트 이탈을 interval 안에
- * 감지하게 해준다. 서버 SSE 타임아웃을 늘리는 것으로는 어느 쪽도 해결되지 않는다.
+ * <p>SSE 파이프라인에는 응답 바이트가 한 번도 나가지 않는 긴 블로킹 구간이 여럿 있다 — AI 호출은
+ * 수십 초가 걸리고, Reverse Geocode(이미지당)·장소 정규화(방문지당)는 {@code IntervalRateLimiter}로
+ * 호출 간 최소 간격(기본 1초)을 두고 직렬 반복한다. 그동안 앞단 프록시는 연결을 idle로 보고 끊고
+ * (ALB·NGINX Ingress 모두 기본 60초), 서버는 다음 전송 시점에야 {@code Broken pipe}로 이를
+ * 알아차린다 — 그때는 이미 결과를 보낼 곳이 없다.
+ *
+ * <p>그래서 heartbeat는 특정 단계가 아니라 <b>파이프라인 전체</b>를 덮는다. 서버 SSE 타임아웃을
+ * 늘리는 것으로는 어느 쪽도 해결되지 않는다(끊는 주체가 서버가 아니다).
  */
 @Slf4j
 @Component
@@ -32,16 +34,24 @@ public class SseHeartbeat {
     }
 
     /**
-     * {@code blockingCall}이 끝날 때까지 heartbeat를 유지한 뒤 결과를 반환한다.
-     * 호출 자체의 예외는 그대로 전파하고, heartbeat는 성공·실패와 무관하게 정리한다.
+     * keepalive 전송을 시작한다. try-with-resources로 감싸 파이프라인 전 구간을 덮는다.
+     *
+     * <pre>{@code
+     * try (SseHeartbeat.Handle beat = heartbeat.start(stream)) {
+     *     ... 전처리 → AI 호출 → 후처리 → 저장 ...
+     * }
+     * }</pre>
      */
-    public <T> T runWithHeartbeat(SseStream stream, Supplier<T> blockingCall) {
+    public Handle start(SseStream stream) {
         ScheduledFuture<?> beat = scheduler.scheduleAtFixedRate(
                 stream::sendHeartbeat, Instant.now().plus(INTERVAL), INTERVAL);
-        try {
-            return blockingCall.get();
-        } finally {
-            beat.cancel(false);
-        }
+        return () -> beat.cancel(false);
+    }
+
+    /** keepalive 중단 핸들. 실패할 일이 없으므로 {@code close()}는 예외를 던지지 않는다. */
+    @FunctionalInterface
+    public interface Handle extends AutoCloseable {
+        @Override
+        void close();
     }
 }

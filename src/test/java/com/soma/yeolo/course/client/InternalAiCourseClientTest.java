@@ -40,7 +40,7 @@ class InternalAiCourseClientTest {
         server = MockRestServiceServer.bindTo(builder).build();
         RestClient restClient = builder.build();
         client = new InternalAiCourseClient(restClient,
-                new AiClientProperties("http://ai", "internal-key"));
+                new AiClientProperties("http://ai", "internal-key", 3_000L, 240_000L));
     }
 
     private AiCourseGenerationRequest request() throws Exception {

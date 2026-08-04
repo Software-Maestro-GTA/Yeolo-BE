@@ -35,7 +35,7 @@ class AiTasteProfileClientTest {
         server = MockRestServiceServer.bindTo(builder).build();
         RestClient restClient = builder.build();
         client = new AiTasteProfileClient(restClient,
-                new AiClientProperties("http://ai", "internal-key"));
+                new AiClientProperties("http://ai", "internal-key", 3_000L, 240_000L));
     }
 
     private AiBehaviorAnalysisRequest request() {
