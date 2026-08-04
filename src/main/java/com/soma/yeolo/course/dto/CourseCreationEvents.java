@@ -1,8 +1,7 @@
 package com.soma.yeolo.course.dto;
 
 /**
- * API-COURSE-1 SSE 이벤트 페이로드 정의. step명·필드명은 명세 그대로 사용한다.
- * (progress step: {@code LOADING_USER_PREFERENCE} → {@code GENERATING_COURSE}, complete: {@code courseId})
+ * API-FB-4 SSE 이벤트 페이로드 정의. step명·필드명은 명세 그대로 사용한다.
  */
 public final class CourseCreationEvents {
 

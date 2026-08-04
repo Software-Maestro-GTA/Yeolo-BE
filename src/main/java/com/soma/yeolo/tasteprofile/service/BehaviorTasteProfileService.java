@@ -7,6 +7,7 @@ import com.soma.yeolo.global.response.ApiResponse;
 import com.soma.yeolo.tasteprofile.client.AiTasteProfileClient;
 import com.soma.yeolo.tasteprofile.client.dto.AiBehaviorAnalysisRequest;
 import com.soma.yeolo.tasteprofile.domain.PreprocessedImage;
+import com.soma.yeolo.tasteprofile.domain.SourceType;
 import com.soma.yeolo.tasteprofile.domain.TasteProfile;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisEvents.CompleteData;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisEvents.Progress;
@@ -22,9 +23,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * 이미지 메타데이터 기반 취향 분석 오케스트레이션 (API-PREF-3 / FUN-4).
+ * 이미지 메타데이터 기반 성향 분석 오케스트레이션 (API-FB-2 / FUN-1).
  *
- * <p>전처리(Reverse Geocode + 시간 맥락) → AI 분석 호출(API-AI-1) → 결과 저장(DOM-1) 순으로
+ * <p>전처리(Reverse Geocode + 시간 맥락) → AI 분석 호출(API-BA-6) → 결과 저장(DOM-1) 순으로
  * 진행하며, 각 단계 상태를 {@link SseEmitter}로 스트리밍한다. 이벤트 step명은 명세 그대로 사용한다.
  * 이 메서드는 비동기 워커 스레드에서 실행되어 전체 SSE 수명주기를 책임진다.
  */
@@ -55,8 +56,8 @@ public class BehaviorTasteProfileService {
 
             UUID tasteProfileId = persist(userId, tasteProfileNode);
 
-            emit(emitter, EVENT_COMPLETE, ApiResponse.success("행동 데이터 기반 취향 분석 생성 성공",
-                    new CompleteData(tasteProfileId.toString())));
+            emit(emitter, EVENT_COMPLETE, ApiResponse.success("행동 데이터 기반 성향 분석 생성 성공",
+                    new CompleteData(tasteProfileId.toString(), SourceType.BEHAVIOR.getValue())));
             emitter.complete();
         } catch (BusinessException e) {
             log.warn("Behavior analysis failed: {}", e.getErrorCode());

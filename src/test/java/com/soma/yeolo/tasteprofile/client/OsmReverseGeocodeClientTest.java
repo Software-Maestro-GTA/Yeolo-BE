@@ -25,7 +25,6 @@ import org.springframework.web.client.RestClient;
 class OsmReverseGeocodeClientTest {
 
     private static final String REVERSE_URL = "https://nominatim.openstreetmap.org/reverse";
-    private static final String SEARCH_URL = "https://nominatim.openstreetmap.org/search";
     private static final String USER_AGENT = "Yeolo-BE-Test/1.0 (contact: test@yeolo.app)";
 
     private MockRestServiceServer server;
@@ -37,7 +36,7 @@ class OsmReverseGeocodeClientTest {
         server = MockRestServiceServer.bindTo(builder).build();
         // 테스트에서는 호출 간격(minIntervalMs)을 0으로 둬 레이트리밋 대기 없이 검증한다.
         client = new OsmReverseGeocodeClient(builder.build(),
-                new OsmGeocodeProperties(REVERSE_URL, SEARCH_URL, USER_AGENT, 18, "ko", 0L, 4096));
+                new OsmGeocodeProperties(REVERSE_URL, USER_AGENT, 18, "ko", 0L, 4096));
     }
 
     @Test

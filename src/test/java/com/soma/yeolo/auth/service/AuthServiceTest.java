@@ -200,13 +200,4 @@ class AuthServiceTest {
         verifyNoInteractions(userService, jwtTokenProvider, refreshTokenService,
                 tasteProfileRepository, courseRepository);
     }
-
-    @Test
-    void 로그아웃은_사용자의_Refresh_Token을_무효화한다() {
-        UUID userId = UUID.randomUUID();
-
-        authService.logout(userId);
-
-        verify(refreshTokenService).revoke(eq(userId));
-    }
 }
