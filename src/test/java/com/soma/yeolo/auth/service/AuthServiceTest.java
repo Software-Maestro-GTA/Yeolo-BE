@@ -8,8 +8,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.soma.yeolo.auth.client.AppleOAuthClient;
 import com.soma.yeolo.auth.client.GoogleOAuthClient;
+import com.soma.yeolo.auth.client.dto.AppleUserInfo;
 import com.soma.yeolo.auth.client.dto.GoogleUserInfo;
+import com.soma.yeolo.auth.dto.AppleLoginRequest;
+import com.soma.yeolo.auth.dto.AppleLoginResponse;
 import com.soma.yeolo.auth.dto.GoogleLoginRequest;
 import com.soma.yeolo.auth.dto.GoogleLoginResponse;
 import com.soma.yeolo.course.service.port.CourseRepository;
@@ -36,6 +40,8 @@ class AuthServiceTest {
 
     @Mock
     private GoogleOAuthClient googleOAuthClient;
+    @Mock
+    private AppleOAuthClient appleOAuthClient;
     @Mock
     private UserService userService;
     @Mock
@@ -126,6 +132,70 @@ class AuthServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.GOOGLE_AUTH_FAILED);
+
+        verifyNoInteractions(userService, jwtTokenProvider, refreshTokenService,
+                tasteProfileRepository, courseRepository);
+    }
+
+    /** 애플 인증 성공 흐름을 스텁한다. emailVerified 신호는 인자로 제어한다. */
+    private User stubAppleLoginSuccess(UUID userId, String email, Boolean emailVerified) {
+        User user = User.createOAuthUser(Provider.APPLE, "apple-sub", email, null, null);
+        ReflectionTestUtils.setField(user, "id", userId);
+
+        when(appleOAuthClient.authenticate("apple-code", "http://localhost/callback", "id-token"))
+                .thenReturn(new AppleUserInfo("apple-sub", email, emailVerified));
+        when(userService.upsertOnOAuthLogin(any(OAuthUserInfo.class))).thenReturn(user);
+        when(jwtTokenProvider.createAccessToken(userId)).thenReturn("access-token");
+        when(jwtTokenProvider.createRefreshToken(userId))
+                .thenReturn(new GeneratedToken("refresh-token", Instant.now().plusSeconds(1000)));
+        when(tasteProfileRepository.existsByUserId(userId)).thenReturn(false);
+        return user;
+    }
+
+    private AppleLoginResponse appleLogin() {
+        return authService.loginWithApple(
+                new AppleLoginRequest("apple-code", "http://localhost/callback", "id-token"));
+    }
+
+    @Test
+    void 애플_로그인은_사용자를_upsert하고_토큰을_발급한다() {
+        UUID userId = UUID.randomUUID();
+        stubAppleLoginSuccess(userId, "u@privaterelay.appleid.com", true);
+
+        AppleLoginResponse response = appleLogin();
+
+        assertThat(response.accessToken()).isEqualTo("access-token");
+        assertThat(response.refreshToken()).isEqualTo("refresh-token");
+        assertThat(response.user().userId()).isEqualTo(userId.toString());
+        assertThat(response.user().provider()).isEqualTo("apple");
+        assertThat(response.user().email()).isEqualTo("u@privaterelay.appleid.com");
+        // Apple은 id_token에 이름/프로필 이미지를 제공하지 않는다.
+        assertThat(response.user().displayName()).isNull();
+        assertThat(response.user().profileImageUrl()).isNull();
+        assertThat(response.user().status()).isEqualTo("active");
+        assertThat(response.doOnboarding()).isTrue();
+
+        verify(refreshTokenService).issue(eq(userId), eq("refresh-token"), any(Instant.class));
+    }
+
+    @Test
+    void 애플_email_verified가_미제공이면_인증을_통과시킨다() {
+        // Apple 재로그인 시 email/email_verified가 생략될 수 있다. sub 검증만 통과하면 로그인 성공.
+        UUID userId = UUID.randomUUID();
+        stubAppleLoginSuccess(userId, null, null);
+
+        assertThat(appleLogin().user().provider()).isEqualTo("apple");
+    }
+
+    @Test
+    void 애플_email_verified가_false면_인증실패_401로_처리하고_사용자를_생성하지_않는다() {
+        when(appleOAuthClient.authenticate("apple-code", "http://localhost/callback", "id-token"))
+                .thenReturn(new AppleUserInfo("apple-sub", "u@privaterelay.appleid.com", false));
+
+        assertThatThrownBy(this::appleLogin)
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.APPLE_AUTH_FAILED);
 
         verifyNoInteractions(userService, jwtTokenProvider, refreshTokenService,
                 tasteProfileRepository, courseRepository);
