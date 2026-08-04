@@ -92,6 +92,11 @@ class CourseCreationServiceTest {
         }
 
         @Override
+        public void deleteById(UUID courseId) {
+            throw new UnsupportedOperationException("코스 생성 테스트에서는 삭제를 사용하지 않는다.");
+        }
+
+        @Override
         public boolean existsByUserId(UUID userId) {
             throw new UnsupportedOperationException("코스 생성 테스트에서는 존재 조회를 사용하지 않는다.");
         }
