@@ -37,7 +37,7 @@ public class ImageMetadataPreprocessor {
     private PreprocessedImage toPreprocessed(ImageMetadata image) {
         try {
             GeoLocation location = reverseGeocodeClient.reverseGeocode(image.latitude(), image.longitude());
-            TimeContext timeContext = TimeContext.derive(image.capturedAt());
+            TimeContext timeContext = TimeContext.derive(image.capturedAt(), image.timezone());
             return new PreprocessedImage(image.sourceImageId(), location, timeContext);
         } catch (IllegalArgumentException e) {
             // capturedAt 형식 오류 등 → 분석 불가한 메타데이터

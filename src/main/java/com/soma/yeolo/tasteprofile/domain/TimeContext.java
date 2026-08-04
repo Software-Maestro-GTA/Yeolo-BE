@@ -28,16 +28,6 @@ public record TimeContext(
 ) {
 
     /**
-     * ISO-8601 촬영 시각만으로 시간 맥락을 파생한다. 별도 타임존 없이 {@code capturedAt}의
-     * 오프셋 지역 시각을 기준으로 계산한다. (API-PREF-3 요청에는 timezone이 없다)
-     *
-     * @throws IllegalArgumentException capturedAt이 유효한 ISO-8601 오프셋 시각이 아닐 때
-     */
-    public static TimeContext derive(String capturedAt) {
-        return derive(capturedAt, null);
-    }
-
-    /**
      * ISO-8601 촬영 시각과 타임존으로 시간 맥락을 파생한다.
      *
      * @throws IllegalArgumentException capturedAt이 유효한 ISO-8601 오프셋 시각이 아닐 때

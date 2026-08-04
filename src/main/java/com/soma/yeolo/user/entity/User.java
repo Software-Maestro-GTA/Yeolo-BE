@@ -90,27 +90,4 @@ public class User extends BaseTimeEntity {
         this.profileImageUrl = profileImageUrl;
         this.lastLoginAt = Instant.now();
     }
-
-    /**
-     * 회원탈퇴 (API-FB-12): 계정을 {@code deleted} 상태로 전환하고 탈퇴 시각을 기록하며,
-     * 저장된 개인정보(이메일·이름·프로필 이미지)와 OAuth 식별자(provider_user_id)를 영구 파기한다.
-     * 로우 자체는 유지해 사용자가 만든 코스가 삭제된 소유자를 참조하도록 남겨 둔다.
-     *
-     * <p>{@code provider_user_id}는 익명 토큰({@code deleted:<id>})으로 치환한다. 그 결과
-     * (1) 동일 OAuth 계정으로 재가입해도 탈퇴 계정과 매칭되지 않아 새 사용자로 생성되고,
-     * (2) {@code (provider, provider_user_id)} 유니크 제약과 충돌하지 않으며,
-     * (3) 원본 OAuth 제공자 식별자(provider_user_id)가 저장소에서 제거된다.
-     * 이미 탈퇴한 계정이면 멱등하게 무시한다.
-     */
-    public void withdraw() {
-        if (this.status == UserStatus.DELETED) {
-            return;
-        }
-        this.status = UserStatus.DELETED;
-        this.deletedAt = Instant.now();
-        this.email = null;
-        this.displayName = null;
-        this.profileImageUrl = null;
-        this.providerUserId = "deleted:" + this.id;
-    }
 }

@@ -36,7 +36,7 @@ class ImageMetadataPreprocessorTest {
                         List.of("tourist_attraction")));
 
         List<PreprocessedImage> result = preprocessor().preprocess(List.of(
-                new ImageMetadata("img-1", "2026-07-14T10:00:00+09:00", 33.45, 126.94)));
+                new ImageMetadata("img-1", "2026-07-14T10:00:00+09:00", 33.45, 126.94, "Asia/Seoul")));
 
         assertThat(result).hasSize(1);
         PreprocessedImage image = result.getFirst();
@@ -59,7 +59,7 @@ class ImageMetadataPreprocessorTest {
                 .thenReturn(new GeoLocation("대한민국", null, null, null, null, List.of()));
 
         assertThatThrownBy(() -> preprocessor().preprocess(List.of(
-                new ImageMetadata("img-1", "not-a-date", 33.45, 126.94))))
+                new ImageMetadata("img-1", "not-a-date", 33.45, 126.94, "Asia/Seoul"))))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INSUFFICIENT_IMAGE_METADATA);
     }

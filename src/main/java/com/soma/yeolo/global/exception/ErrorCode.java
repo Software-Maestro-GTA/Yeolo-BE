@@ -24,9 +24,6 @@ public enum ErrorCode {
     // Auth / JWT (보호 리소스 공통)
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요하거나 토큰이 만료되었습니다."),
 
-    // User - 회원탈퇴 (API-FB-12)
-    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
-
     // Taste Profile - Behavior 분석 (API-FB-2 / API-BA-6)
     INSUFFICIENT_IMAGE_METADATA(HttpStatus.BAD_REQUEST, "분석 가능한 이미지 메타데이터가 부족합니다."),
     REVERSE_GEOCODE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "위치 정보 전처리 중 오류가 발생했습니다."),
@@ -39,12 +36,9 @@ public enum ErrorCode {
     INVALID_COURSE_CONDITION(HttpStatus.BAD_REQUEST, "여행 조건 입력값이 올바르지 않습니다."),
     AI_COURSE_GENERATION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "코스 생성 처리 중 오류가 발생했습니다."),
 
-    // Course - 조회 (API-COURSE-2 / API-COURSE-3)
+    // Course - 조회 (API-FB-7 / API-FB-10)
     COURSE_NOT_FOUND(HttpStatus.NOT_FOUND, "여행 코스를 찾을 수 없습니다."),
     COURSE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "코스에 접근할 권한이 없습니다."),
-
-    // Course - 삭제 (API-COURSE-4)
-    COURSE_DELETE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 여행 코스를 삭제할 권한이 없습니다."),
 
     // Common
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "내부 처리 오류가 발생했습니다."),
