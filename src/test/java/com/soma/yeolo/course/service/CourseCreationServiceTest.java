@@ -15,6 +15,7 @@ import com.soma.yeolo.course.dto.CourseCreationRequest;
 import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
+import com.soma.yeolo.global.sse.TestSseHeartbeat;
 import com.soma.yeolo.tasteprofile.domain.SavedTasteProfile;
 import com.soma.yeolo.tasteprofile.domain.SourceType;
 import com.soma.yeolo.tasteprofile.domain.TasteProfile;
@@ -123,7 +124,8 @@ class CourseCreationServiceTest {
 
     private CourseCreationService service() {
         return new CourseCreationService(userPreferences, tasteProfiles, aiClient,
-                new ItineraryPlaceNormalizer(new StubPlaceNormalizer()), new CourseAssembler(), courses);
+                new ItineraryPlaceNormalizer(new StubPlaceNormalizer()), new CourseAssembler(), courses,
+                TestSseHeartbeat.create());
     }
 
     private CourseCreationRequest request() {

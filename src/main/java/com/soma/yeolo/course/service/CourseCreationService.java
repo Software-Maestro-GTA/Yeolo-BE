@@ -14,17 +14,17 @@ import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.response.ApiResponse;
+import com.soma.yeolo.global.sse.SseHeartbeat;
+import com.soma.yeolo.global.sse.SseStream;
 import com.soma.yeolo.tasteprofile.domain.SavedTasteProfile;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
 import com.soma.yeolo.user.service.port.UserPreferenceReader;
-import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -53,13 +53,15 @@ public class CourseCreationService {
     private final ItineraryPlaceNormalizer itineraryPlaceNormalizer;
     private final CourseAssembler courseAssembler;
     private final CourseRepository courseRepository;
+    private final SseHeartbeat heartbeat;
 
     /** 정규화 → 선호(MBTI)·성향 로딩 → AI 생성 → 장소 정규화 → 저장 파이프라인을 실행하고 진행 상황을 SSE로 중계한다. */
     public void createAndStream(UUID userId, CourseCreationRequest request, SseEmitter emitter) {
+        SseStream stream = new SseStream(emitter);
         try {
             TripCondition condition = normalize(request);
 
-            emit(emitter, EVENT_PROGRESS,
+            stream.send(EVENT_PROGRESS,
                     new Progress("LOADING_USER_PREFERENCE", "사용자 정보를 불러오는 중입니다."));
             // MBTI 또는 취향 프로필 중 하나 이상이 있으면 코스를 생성한다. (DOM-3 코스 생성 기준)
             // 둘 다 없으면 개인화 근거가 전혀 없으므로 404로 노출한다. (API-COURSE-1 §4: 404 성향 정보 없음)
@@ -70,25 +72,31 @@ public class CourseCreationService {
             }
             JsonNode tasteProfile = profile.map(p -> parseProfile(p.profileJson())).orElse(null);
 
-            emit(emitter, EVENT_PROGRESS,
+            stream.send(EVENT_PROGRESS,
                     new Progress("GENERATING_COURSE", "개인 맞춤형 여행 코스를 생성 중입니다."));
-            JsonNode courseNode = aiCourseClient.generateCourse(
-                    AiCourseGenerationRequest.of(userId, mbti.orElse(null), tasteProfile, condition));
+            // AI 코스 생성은 수십 초 블로킹이라 그동안 응답이 한 바이트도 안 나간다.
+            // 프록시가 연결을 idle로 보고 끊지 않도록 heartbeat를 유지한다.
+            JsonNode courseNode = heartbeat.runWithHeartbeat(stream, () -> aiCourseClient.generateCourse(
+                    AiCourseGenerationRequest.of(userId, mbti.orElse(null), tasteProfile, condition)));
 
             // AI 응답은 placeName·category 중심 → BE가 내부 placeId·좌표로 정규화해 저장한다. (DOM-3)
+            // 클라이언트가 이미 떠났어도 생성은 끝났으므로 저장은 진행한다(목록 조회로 확인 가능).
             JsonNode normalizedCourse = itineraryPlaceNormalizer.normalize(courseNode);
             Course course = courseAssembler.toDomain(userId, normalizedCourse);
             UUID courseId = courseRepository.save(course);
 
-            emit(emitter, EVENT_COMPLETE, ApiResponse.success("여행 코스 생성 성공",
-                    new CompleteData(courseId.toString())));
-            emitter.complete();
+            if (!stream.send(EVENT_COMPLETE, ApiResponse.success("여행 코스 생성 성공",
+                    new CompleteData(courseId.toString())))) {
+                log.warn("코스 생성 완료 이벤트를 전달하지 못했다(클라이언트 이탈). userId={}, courseId={}",
+                        userId, courseId);
+            }
+            stream.complete();
         } catch (BusinessException e) {
             log.warn("Course creation failed: {}", e.getErrorCode());
-            completeWithError(emitter, e.getErrorCode());
+            completeWithError(stream, e.getErrorCode());
         } catch (Exception e) {
             log.error("Unexpected error during course creation", e);
-            completeWithError(emitter, ErrorCode.INTERNAL_ERROR);
+            completeWithError(stream, ErrorCode.INTERNAL_ERROR);
         }
     }
 
@@ -116,20 +124,13 @@ public class CourseCreationService {
         }
     }
 
-    private void emit(SseEmitter emitter, String eventName, Object payload) throws IOException {
-        emitter.send(SseEmitter.event()
-                .name(eventName)
-                .data(payload, MediaType.APPLICATION_JSON));
-    }
-
-    /** 진행 중 오류를 명세 봉투로 담은 {@code error} 이벤트로 전송하고 스트림을 종료한다. */
-    private void completeWithError(SseEmitter emitter, ErrorCode code) {
-        try {
-            emit(emitter, EVENT_ERROR, ApiResponse.error(code.getHttpStatus().value(), code.getMessage()));
-            emitter.complete();
-        } catch (Exception sendFailure) {
-            log.debug("Failed to send SSE error event: {}", sendFailure.getMessage());
-            emitter.completeWithError(sendFailure);
-        }
+    /**
+     * 진행 중 오류를 명세 봉투로 담은 {@code error} 이벤트로 전송하고 스트림을 종료한다.
+     * 이미 끊긴 스트림이면 {@link SseStream}이 조용히 무시한다 — 여기서 예외를 다시 던지면
+     * 서블릿으로 재디스패치되어 전역 핸들러가 500을 찍는다.
+     */
+    private void completeWithError(SseStream stream, ErrorCode code) {
+        stream.send(EVENT_ERROR, ApiResponse.error(code.getHttpStatus().value(), code.getMessage()));
+        stream.complete();
     }
 }

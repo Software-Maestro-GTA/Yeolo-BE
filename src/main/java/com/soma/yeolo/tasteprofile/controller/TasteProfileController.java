@@ -24,8 +24,11 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RequiredArgsConstructor
 public class TasteProfileController {
 
-    /** SSE 타임아웃. AI 분석 시간을 고려해 여유 있게 두되 무한 대기는 방지한다. */
-    private static final long SSE_TIMEOUT_MS = 120_000L;
+    /**
+     * SSE 타임아웃. 실측 AI 분석이 80초대라 120초는 여유가 얼마 없어 180초로 둔다.
+     * (AI가 응답을 멈추면 aiRestClient의 read timeout 60초에서 먼저 끊기므로 무한 대기는 아니다.)
+     */
+    private static final long SSE_TIMEOUT_MS = 180_000L;
 
     private final BehaviorTasteProfileService behaviorTasteProfileService;
 
@@ -46,10 +49,12 @@ public class TasteProfileController {
             log.warn("SSE 타임아웃 - taste-profile 스트림 (userId={})", userId);
             emitter.complete();
         });
-emitter.onError(e -> {
-    log.warn("SSE 에러 - taste-profile 스트림 (userId={})", userId, e);
-    emitter.complete();
-});
+        // 클라이언트 이탈(Broken pipe)은 장애가 아니라 정상적인 종료 사유다.
+        // 스택 트레이스 없이 한 줄만 남긴다.
+        emitter.onError(e -> {
+            log.warn("SSE 에러 - taste-profile 스트림 (userId={}): {}", userId, e.toString());
+            emitter.complete();
+        });
         emitter.onCompletion(() -> log.debug("SSE 종료 - taste-profile 스트림 (userId={})", userId));
         sseTaskExecutor.execute(() -> behaviorTasteProfileService.analyzeAndStream(userId, request, emitter));
         return emitter;
