@@ -17,7 +17,7 @@ public enum ErrorCode {
     GOOGLE_AUTH_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Google 인증 처리 중 오류가 발생했습니다."),
 
     // Auth / Apple OAuth (API-AUTH-2)
-    INVALID_APPLE_CODE(HttpStatus.BAD_REQUEST, "유효하지 않은 Apple OAuth 인가 코드입니다."),
+    INVALID_APPLE_CODE(HttpStatus.BAD_REQUEST, "인가 코드가 유효하지 않습니다."),
     APPLE_AUTH_FAILED(HttpStatus.UNAUTHORIZED, "Apple 인증에 실패했습니다."),
     APPLE_AUTH_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Apple 인증 처리 중 오류가 발생했습니다."),
 
