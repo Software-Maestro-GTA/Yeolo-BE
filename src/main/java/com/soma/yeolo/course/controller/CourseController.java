@@ -24,8 +24,11 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RequiredArgsConstructor
 public class CourseController {
 
-    /** SSE 타임아웃. 성향 로딩 + AI 코스 생성 시간을 고려해 여유 있게 두되 무한 대기는 방지한다. */
-    private static final long SSE_TIMEOUT_MS = 120_000L;
+    /**
+     * SSE 타임아웃. 성향 로딩 + AI 코스 생성 시간을 고려해 여유 있게 두되 무한 대기는 방지한다.
+     * (AI가 응답을 멈추면 aiRestClient의 read timeout 60초에서 먼저 끊긴다.)
+     */
+    private static final long SSE_TIMEOUT_MS = 180_000L;
 
     private final CourseCreationService courseCreationService;
     private final AsyncTaskExecutor sseTaskExecutor;
@@ -44,7 +47,11 @@ public class CourseController {
             log.warn("SSE 타임아웃 - course 스트림 (userId={})", userId);
             emitter.complete();
         });
-        emitter.onError(e -> log.warn("SSE 에러 - course 스트림 (userId={}): {}", userId, e.toString()));
+        // 클라이언트 이탈(Broken pipe)은 장애가 아니라 정상적인 종료 사유다.
+        emitter.onError(e -> {
+            log.warn("SSE 에러 - course 스트림 (userId={}): {}", userId, e.toString());
+            emitter.complete();
+        });
         emitter.onCompletion(() -> log.debug("SSE 종료 - course 스트림 (userId={})", userId));
         sseTaskExecutor.execute(() -> courseCreationService.createAndStream(userId, request, emitter));
         return emitter;
