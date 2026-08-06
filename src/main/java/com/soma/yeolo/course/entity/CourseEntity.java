@@ -3,6 +3,7 @@ package com.soma.yeolo.course.entity;
 import com.soma.yeolo.course.domain.Course;
 import com.soma.yeolo.course.domain.SavedCourse;
 import com.soma.yeolo.global.entity.BaseTimeEntity;
+import com.soma.yeolo.global.entity.StringListJsonConverter;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;

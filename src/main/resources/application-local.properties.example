@@ -39,3 +39,10 @@ ai.internal.api-key=
 geocode.provider=stub
 geocode.google.api-key=
 geocode.google.nearby-radius=100
+
+# ===== 장소 조회 (API-PLACE-1 / DOM-3) =====
+# provider: stub(기본, 키 불필요) | google(실 API, 키 필요) | osm(OpenStreetMap, 키 불필요)
+# 코스 생성 시 AI가 준 장소명을 좌표·주소로 정규화해 내부 placeId를 부여하는 데 쓰인다.
+# google 선택 시 Google Cloud에서 'Places API' 활성화 필요(geocode와 같은 키를 쓴다).
+# osm 선택 시 user-agent는 GEOCODE_OSM_USER_AGENT 환경변수를 공유한다.
+place.provider=stub

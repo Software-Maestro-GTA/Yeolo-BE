@@ -163,6 +163,7 @@ jobs:
           AI_COURSE_PROVIDER: ${{ vars.AI_COURSE_PROVIDER }}
           GEOCODE_PROVIDER: ${{ vars.GEOCODE_PROVIDER }}
           GEOCODE_OSM_USER_AGENT: ${{ vars.GEOCODE_OSM_USER_AGENT }}
+          PLACE_PROVIDER: ${{ vars.PLACE_PROVIDER }}
           JWT_ACCESS_TTL: ${{ vars.JWT_ACCESS_TTL }}
           JWT_REFRESH_TTL: ${{ vars.JWT_REFRESH_TTL }}
         run: |
@@ -173,7 +174,7 @@ jobs:
                    GOOGLE_MAPS_API_KEY \
                    APPLE_CLIENT_ID APPLE_TEAM_ID APPLE_KEY_ID APPLE_PRIVATE_KEY \
                    AI_BASE_URL INTERNAL_API_KEY AI_COURSE_PROVIDER \
-                   JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT; do
+                   JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT PLACE_PROVIDER; do
             v="${!k}"
             [ -n "$v" ] && printf '%s=%s\n' "$k" "$v" >> was.env
           done
@@ -194,9 +195,11 @@ jobs:
           #   JPA_DDL_AUTO   앱 기본 update  → 운영 스키마 자동 변경(규약: dev·prod=validate)
           #   AI_BASE_URL    앱 기본 localhost:8000 → AI 호출 전부 실패
           #   GEOCODE_PROVIDER 앱 기본 stub → 지오코딩이 가짜 좌표/주소 반환
+          #   PLACE_PROVIDER   앱 기본 stub → 코스 장소가 가짜 좌표로 '저장'된다(지오코딩과
+          #                    달리 DB에 남고 재조회하지 않아 provider를 바꿔도 복구되지 않는다)
           # 워크플로가 기본값을 지어내는 대신, 없으면 배포를 끊는다.
           missing_vars=""
-          for req in JPA_DDL_AUTO AI_BASE_URL GEOCODE_PROVIDER; do
+          for req in JPA_DDL_AUTO AI_BASE_URL GEOCODE_PROVIDER PLACE_PROVIDER; do
             grep -q "^${req}=" was.env || missing_vars="$missing_vars $req"
           done
           if [ -n "$missing_vars" ]; then
@@ -303,6 +306,7 @@ jobs:
           AI_COURSE_PROVIDER: ${{ vars.AI_COURSE_PROVIDER }}
           GEOCODE_PROVIDER: ${{ vars.GEOCODE_PROVIDER }}
           GEOCODE_OSM_USER_AGENT: ${{ vars.GEOCODE_OSM_USER_AGENT }}
+          PLACE_PROVIDER: ${{ vars.PLACE_PROVIDER }}
           JWT_ACCESS_TTL: ${{ vars.JWT_ACCESS_TTL }}
           JWT_REFRESH_TTL: ${{ vars.JWT_REFRESH_TTL }}
         run: |
@@ -313,7 +317,7 @@ jobs:
                    GOOGLE_MAPS_API_KEY \
                    APPLE_CLIENT_ID APPLE_TEAM_ID APPLE_KEY_ID APPLE_PRIVATE_KEY \
                    AI_BASE_URL INTERNAL_API_KEY AI_COURSE_PROVIDER \
-                   JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT; do
+                   JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT PLACE_PROVIDER; do
             v="${!k}"
             [ -n "$v" ] && printf '%s=%s\n' "$k" "$v" >> was.env
           done
@@ -333,8 +337,10 @@ jobs:
           #                  고른 값이어야 한다(스키마 생성 후 validate 로 되돌릴 것).
           #   AI_BASE_URL    앱 기본 localhost:8000 → AI 호출 전부 실패
           #   GEOCODE_PROVIDER 앱 기본 stub → 지오코딩이 가짜 좌표/주소 반환
+          #   PLACE_PROVIDER   앱 기본 stub → 코스 장소가 가짜 좌표로 '저장'된다(지오코딩과
+          #                    달리 DB에 남고 재조회하지 않아 provider를 바꿔도 복구되지 않는다)
           missing_vars=""
-          for req in JPA_DDL_AUTO AI_BASE_URL GEOCODE_PROVIDER; do
+          for req in JPA_DDL_AUTO AI_BASE_URL GEOCODE_PROVIDER PLACE_PROVIDER; do
             grep -q "^${req}=" was.env || missing_vars="$missing_vars $req"
           done
           if [ -n "$missing_vars" ]; then
