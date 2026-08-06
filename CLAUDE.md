@@ -96,6 +96,11 @@ git submodule update --remote specs   # 최신 명세로 갱신 후, 커밋으�
 
 ## Git · 커밋 규칙
 
+- **브랜치 전략 — `main`(prod) / `dev`(dev):** 두 환경으로 나뉘어 있고 각각 CI/CD가 붙어 있다.
+  `main` 머지 = **prod 배포**, `dev` 머지 = **dev 배포**.
+- **커밋·푸쉬는 무조건 `dev` 기준으로 한다. `main`에 직접 커밋·푸쉬하지 않는다.**
+  - 이슈 브랜치는 항상 **`dev`에서 분기**한다 (`git checkout dev && git pull` 후 브랜치 생성).
+  - PR의 **base 브랜치는 `dev`**. prod 반영은 `dev` → `main` PR로만 한다(릴리스 시점, 사용자 판단).
 - **Claude는 브랜치 생성 + 커밋 메시지 초안 작성까지만** 한다. 이슈 착수 시 이슈 단위 브랜치를
   만들고, 작업 완료(테스트 통과) 시 커밋 메시지 초안을 제시한다.
 - **실제 `git commit`·`git push`는 사용자가 직접** 한다. Claude는 commit/push를 실행하지 않는다.

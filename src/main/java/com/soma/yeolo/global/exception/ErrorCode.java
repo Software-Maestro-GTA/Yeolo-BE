@@ -24,6 +24,10 @@ public enum ErrorCode {
     // Auth / JWT (보호 리소스 공통)
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요하거나 토큰이 만료되었습니다."),
 
+    // 사진 데이터 분석 동의 (API-PREF-2 / FUN-3 / REQ-8)
+    PHOTO_CONSENT_SAVE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "사진 데이터 분석 동의 저장에 실패했습니다."),
+    PHOTO_CONSENT_REQUIRED(HttpStatus.FORBIDDEN, "개인정보 수집·활용 동의가 필요합니다."),
+
     // Taste Profile - Behavior 분석 (API-FB-2 / API-BA-6)
     INSUFFICIENT_IMAGE_METADATA(HttpStatus.BAD_REQUEST, "분석 가능한 이미지 메타데이터가 부족합니다."),
     REVERSE_GEOCODE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "위치 정보 전처리 중 오류가 발생했습니다."),

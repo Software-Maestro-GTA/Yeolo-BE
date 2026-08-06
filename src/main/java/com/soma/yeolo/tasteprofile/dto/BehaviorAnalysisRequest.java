@@ -8,7 +8,8 @@ import java.util.List;
 
 /**
  * 이미지 메타데이터 기반 성향 분석 요청 (API-FB-2 Request Body).
- * 개인정보 수집·활용 동의는 클라이언트에서 선행 처리하며, 미동의 시 호출하지 않는다(FUN-1).
+ * 개인정보 수집·활용 동의 여부는 서버가 요청 처리 전에 검증한다(REQ-8) — 클라이언트 선행 안내와
+ * 별개로, 미동의 요청은 컨트롤러에서 403으로 차단된다.
  */
 public record BehaviorAnalysisRequest(
         @NotEmpty(message = "분석 가능한 이미지 메타데이터가 부족합니다.")
