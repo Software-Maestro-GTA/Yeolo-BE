@@ -98,9 +98,16 @@ git submodule update --remote specs   # 최신 명세로 갱신 후, 커밋으�
 
 - **브랜치 전략 — `main`(prod) / `dev`(dev):** 두 환경으로 나뉘어 있고 각각 CI/CD가 붙어 있다.
   `main` 머지 = **prod 배포**, `dev` 머지 = **dev 배포**.
-- **커밋·푸쉬는 무조건 `dev` 기준으로 한다. `main`에 직접 커밋·푸쉬하지 않는다.**
+- **작업은 항상 이슈 브랜치에서 하고, `dev`로 PR을 올려 머지한다.**
+  `main`·`dev` 어느 쪽에도 **직접 커밋·푸쉬하지 않는다.**
   - 이슈 브랜치는 항상 **`dev`에서 분기**한다 (`git checkout dev && git pull` 후 브랜치 생성).
-  - PR의 **base 브랜치는 `dev`**. prod 반영은 `dev` → `main` PR로만 한다(릴리스 시점, 사용자 판단).
+  - 커밋·푸쉬 대상은 **이슈 브랜치**(`git push origin <type>/#<issue>-<slug>`).
+  - PR의 **base 브랜치는 `dev`**. 리뷰·CI 통과 후 머지하면 dev 배포가 돈다.
+  - prod 반영은 `dev` → `main` PR로만 한다(릴리스 시점, 사용자 판단).
+  - **DB 스키마가 바뀌는 변경은 머지 전에 대상 환경 DB에 DDL을 먼저 적용한다.**
+    dev·prod는 `ddl-auto=validate`라 테이블이 없으면 파드 기동이 실패한다.
+    접근은 SSH가 아니라 SSM으로 bastion을 경유한다 — 절차는 `Yeolo-Infra`
+    `docs/dev-environment.md`, `bastion.tf` 상단 주석 참고.
 - **Claude는 브랜치 생성 + 커밋 메시지 초안 작성까지만** 한다. 이슈 착수 시 이슈 단위 브랜치를
   만들고, 작업 완료(테스트 통과) 시 커밋 메시지 초안을 제시한다.
 - **실제 `git commit`·`git push`는 사용자가 직접** 한다. Claude는 commit/push를 실행하지 않는다.
