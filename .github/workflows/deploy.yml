@@ -137,20 +137,34 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
           INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
-          # ── 비밀 아님: repo Variables (없으면 기본값) ──
-          JPA_DDL_AUTO: ${{ vars.JPA_DDL_AUTO || 'validate' }}
-          AI_BASE_URL: ${{ vars.AI_BASE_URL || 'http://ai.app.svc.cluster.local:8000' }}
-          AI_COURSE_PROVIDER: ${{ vars.AI_COURSE_PROVIDER || 'internal' }}
-          GEOCODE_PROVIDER: ${{ vars.GEOCODE_PROVIDER || 'osm' }}
+          APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+          # .p8 개인키는 개행 없는 한 줄(BEGIN/END 헤더 제외 base64 본문)로 저장한다.
+          # --from-env-file 은 여러 줄 값을 파싱하지 못한다.
+          APPLE_PRIVATE_KEY: ${{ secrets.APPLE_PRIVATE_KEY }}
+          # ── 비밀 아님: variables (environment > repository > organization) ──
+          # 여기서 기본값(|| '...')을 주지 않는다. 워크플로가 값을 지어내면 GitHub 설정이
+          # 틀려도 그럴듯하게 배포되고, 설정 오류가 앱 동작 이상으로만 뒤늦게 드러난다.
+          # 값이 비면 그 키는 was.env 에서 빠지고 앱이 application.properties 의 기본값을
+          # 쓴다 — 기본값의 단일 출처는 앱이다. 단, 앱 기본값이 로컬 개발 기준이라
+          # 클러스터에서 그대로 쓰면 안 되는 키는 아래 required-vars 가드로 막는다.
+          JPA_DDL_AUTO: ${{ vars.JPA_DDL_AUTO }}
+          AI_BASE_URL: ${{ vars.AI_BASE_URL }}
+          AI_COURSE_PROVIDER: ${{ vars.AI_COURSE_PROVIDER }}
+          GEOCODE_PROVIDER: ${{ vars.GEOCODE_PROVIDER }}
           GEOCODE_OSM_USER_AGENT: ${{ vars.GEOCODE_OSM_USER_AGENT }}
-          JWT_ACCESS_TTL: ${{ vars.JWT_ACCESS_TTL || '3600000' }}
-          JWT_REFRESH_TTL: ${{ vars.JWT_REFRESH_TTL || '1209600000' }}
+          JWT_ACCESS_TTL: ${{ vars.JWT_ACCESS_TTL }}
+          JWT_REFRESH_TTL: ${{ vars.JWT_REFRESH_TTL }}
         run: |
           umask 077
           : > was.env
           for k in DB_URL DB_USERNAME DB_PASSWORD JWT_SECRET JWT_ACCESS_TTL JWT_REFRESH_TTL \
                    GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REDIRECT_URI \
+                   GOOGLE_MAPS_API_KEY \
+                   APPLE_CLIENT_ID APPLE_TEAM_ID APPLE_KEY_ID APPLE_PRIVATE_KEY \
                    AI_BASE_URL INTERNAL_API_KEY AI_COURSE_PROVIDER \
                    JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT; do
             v="${!k}"
@@ -168,12 +182,27 @@ jobs:
             rm -f was.env
             exit 1
           fi
+          # 아래 variables 는 앱 기본값이 로컬 개발용이라 미설정 시 조용히 잘못 뜬다.
+          #   JPA_DDL_AUTO   앱 기본 update  → 운영 스키마 자동 변경(규약: dev·prod=validate)
+          #   AI_BASE_URL    앱 기본 localhost:8000 → AI 호출 전부 실패
+          #   GEOCODE_PROVIDER 앱 기본 stub → 지오코딩이 가짜 좌표/주소 반환
+          # 워크플로가 기본값을 지어내는 대신, 없으면 배포를 끊는다.
+          missing_vars=""
+          for req in JPA_DDL_AUTO AI_BASE_URL GEOCODE_PROVIDER; do
+            grep -q "^${req}=" was.env || missing_vars="$missing_vars $req"
+          done
+          if [ -n "$missing_vars" ]; then
+            echo "::error::필수 변수 누락 →$missing_vars. GitHub → Settings → Environments(prod) → Variables (또는 repo Variables) 에 설정 후 재실행하세요."
+            rm -f was.env
+            exit 1
+          fi
           kubectl -n "$K8S_NAMESPACE" create secret generic was-secrets \
             --from-env-file=was.env --dry-run=client -o yaml | kubectl apply -f -
           rm -f was.env
 
       # CD 는 이미지 태그만 교체한다. apply -k / 전체 매니페스트 재apply 금지(:bootstrap 회귀).
       - name: Set image
+        id: set_image
         run: |
           kubectl -n "$K8S_NAMESPACE" set image \
             "deployment/${DEPLOYMENT_NAME}" \
@@ -183,9 +212,12 @@ jobs:
       - name: Verify rollout
         run: kubectl -n "$K8S_NAMESPACE" rollout status "deployment/${DEPLOYMENT_NAME}" --timeout=5m
 
-      # 실패 시 직전 리비전으로 자동 롤백.
+      # 이번 배포가 실제로 이미지를 바꾼 뒤 실패했을 때만 직전 리비전으로 되돌린다.
+      # 그냥 failure() 로 두면 시크릿 sync·kubeconfig 실패처럼 클러스터를 건드리지도
+      # 않은 단계에서도 rollout undo 가 돌아, 멀쩡히 서비스 중이던 리비전을 한 칸
+      # 뒤로 밀어버린다(설정 오타가 정상 배포를 되돌리는 사고).
       - name: Rollback on failure
-        if: failure()
+        if: failure() && steps.set_image.outcome == 'success'
         run: |
           echo "rollout failed — rolling back deployment/${DEPLOYMENT_NAME}"
           kubectl -n "$K8S_NAMESPACE" rollout undo "deployment/${DEPLOYMENT_NAME}"
@@ -247,16 +279,24 @@ jobs:
           # .p8 개인키는 개행 없는 한 줄(BEGIN/END 헤더 제외 base64 본문)로 저장한다.
           # --from-env-file 은 여러 줄 값을 파싱하지 못한다.
           APPLE_PRIVATE_KEY: ${{ secrets.APPLE_PRIVATE_KEY }}
-          # ── 비밀 아님: Environment(dev) variables, 없으면 기본값 ──
-          # dev DB 는 신규라 스키마가 비어 있을 수 있다. 최초 부팅 시에는
-          # dev Environment variables 에 JPA_DDL_AUTO=update 를 두고 이후 validate 로 되돌린다.
-          JPA_DDL_AUTO: ${{ vars.JPA_DDL_AUTO || 'validate' }}
-          AI_BASE_URL: ${{ vars.AI_BASE_URL || 'http://ai.app-dev.svc.cluster.local:8000' }}
-          AI_COURSE_PROVIDER: ${{ vars.AI_COURSE_PROVIDER || 'internal' }}
-          GEOCODE_PROVIDER: ${{ vars.GEOCODE_PROVIDER || 'osm' }}
+          # ── 비밀 아님: variables (environment > repository > organization) ──
+          # 여기서 기본값(|| '...')을 주지 않는다. 워크플로가 값을 지어내면 GitHub 설정이
+          # 틀려도 그럴듯하게 배포되고, 설정 오류가 앱 동작 이상으로만 뒤늦게 드러난다.
+          # 값이 비면 그 키는 was.env 에서 빠지고 앱이 application.properties 의 기본값을
+          # 쓴다 — 기본값의 단일 출처는 앱이다. 단, 앱 기본값이 로컬 개발 기준이라
+          # 클러스터에서 그대로 쓰면 안 되는 키는 아래 required-vars 가드로 막는다.
+          #
+          # ★ AI_BASE_URL 은 dev Environment 에 반드시 있어야 한다. repo 레벨 값이
+          #   prod AI(ai.app)를 가리키므로, dev 에 없으면 dev WAS 가 prod AI 를 호출한다.
+          #   (가드는 "값이 있는지"만 보므로 repo 레벨 값을 상속해도 통과한다 — dev 전용
+          #    값이 실제로 들어 있는지는 Environment(dev) Variables 에서 직접 확인할 것.)
+          JPA_DDL_AUTO: ${{ vars.JPA_DDL_AUTO }}
+          AI_BASE_URL: ${{ vars.AI_BASE_URL }}
+          AI_COURSE_PROVIDER: ${{ vars.AI_COURSE_PROVIDER }}
+          GEOCODE_PROVIDER: ${{ vars.GEOCODE_PROVIDER }}
           GEOCODE_OSM_USER_AGENT: ${{ vars.GEOCODE_OSM_USER_AGENT }}
-          JWT_ACCESS_TTL: ${{ vars.JWT_ACCESS_TTL || '3600000' }}
-          JWT_REFRESH_TTL: ${{ vars.JWT_REFRESH_TTL || '1209600000' }}
+          JWT_ACCESS_TTL: ${{ vars.JWT_ACCESS_TTL }}
+          JWT_REFRESH_TTL: ${{ vars.JWT_REFRESH_TTL }}
         run: |
           umask 077
           : > was.env
@@ -280,12 +320,27 @@ jobs:
             rm -f was.env
             exit 1
           fi
+          # 아래 variables 는 앱 기본값이 로컬 개발용이라 미설정 시 조용히 잘못 뜬다.
+          #   JPA_DDL_AUTO   앱 기본 update — dev 최초 부팅엔 update 가 맞지만, 명시적으로
+          #                  고른 값이어야 한다(스키마 생성 후 validate 로 되돌릴 것).
+          #   AI_BASE_URL    앱 기본 localhost:8000 → AI 호출 전부 실패
+          #   GEOCODE_PROVIDER 앱 기본 stub → 지오코딩이 가짜 좌표/주소 반환
+          missing_vars=""
+          for req in JPA_DDL_AUTO AI_BASE_URL GEOCODE_PROVIDER; do
+            grep -q "^${req}=" was.env || missing_vars="$missing_vars $req"
+          done
+          if [ -n "$missing_vars" ]; then
+            echo "::error::필수 변수 누락 →$missing_vars. GitHub → Settings → Environments(dev) → Variables (또는 repo Variables) 에 설정 후 재실행하세요."
+            rm -f was.env
+            exit 1
+          fi
           kubectl -n "$K8S_NAMESPACE" create secret generic was-secrets \
             --from-env-file=was.env --dry-run=client -o yaml | kubectl apply -f -
           rm -f was.env
 
       # CD 는 이미지 태그만 교체한다. apply -k / 전체 매니페스트 재apply 금지.
       - name: Set image
+        id: set_image
         run: |
           kubectl -n "$K8S_NAMESPACE" set image \
             "deployment/${DEPLOYMENT_NAME}" \
@@ -295,8 +350,9 @@ jobs:
       - name: Verify rollout
         run: kubectl -n "$K8S_NAMESPACE" rollout status "deployment/${DEPLOYMENT_NAME}" --timeout=5m
 
+      # prod 와 동일: 이미지를 실제로 교체한 뒤 실패한 경우에만 되돌린다.
       - name: Rollback on failure
-        if: failure()
+        if: failure() && steps.set_image.outcome == 'success'
         run: |
           echo "rollout failed — rolling back deployment/${DEPLOYMENT_NAME} (app-dev)"
           kubectl -n "$K8S_NAMESPACE" rollout undo "deployment/${DEPLOYMENT_NAME}"
