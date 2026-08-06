@@ -1,12 +1,19 @@
 name: deploy
 
-# main 브랜치 push 만 배포한다.
-# OIDC trust 가 ref:refs/heads/main 으로 고정돼 있어 다른 ref 에서는 role assume 자체가 불가.
-# (확장하려면 인프라 repo github-oidc.tf:51-55 의 sub 조건을 먼저 넓혀야 함)
+# main → prod(app ns), dev → dev(app-dev ns) 두 갈래 배포.
+# 브랜치별로 OIDC role 이 다르고, trust 조건(인프라 repo github-oidc.tf:95-102)이
+# 서로를 거부한다. 각 role 이 받는 sub 는 두 형태뿐이다:
+#   prod role(…-gha-be)     : ref:refs/heads/main / environment:prod
+#   dev  role(…-gha-be-dev) : ref:refs/heads/dev  / environment:dev
+# 겹치지 않으므로 dev 브랜치에서 prod 네임스페이스를 건드릴 수 없다(의도된 격리).
+#
+# ★ Environment 이름은 OIDC sub 에 그대로 박힌다. 바꾸려면 인프라
+#   (var.github_deploy_environment / var.github_dev_environment) 와 락스텝이어야 하고,
+#   한쪽만 바꾸면 그 환경의 배포가 AssumeRole 단계에서 즉시 끊긴다.
+#   (과거 이름: prod=dev, dev=dev-app — 헷갈려서 2026-08 에 정리했다.)
 on:
   push:
-
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch: {}
 
 # 최소 권한: OIDC 토큰 발급 + 소스 read 만.
@@ -24,12 +31,16 @@ env:
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
+  # 빌드는 두 브랜치가 공유한다. environment 를 붙이지 않으므로 sub 는 ref 형태로
+  # 나가고, 브랜치에 맞는 role 만 골라 쓰면 된다. ECR 리포는 prod·dev 공용이고
+  # 이미지 태그가 git SHA 라 섞이지 않는다.
   build-and-push:
-    # workflow_dispatch 로 실행하더라도 main 에서만 동작(OIDC trust 와 일치).
-    if: github.ref == 'refs/heads/main'
+    # workflow_dispatch 로 실행하더라도 main/dev 에서만 동작(OIDC trust 와 일치).
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     # EKS 노드가 Graviton(arm64, t4g)이므로 arm64 네이티브 러너에서 빌드한다.
     # amd64 러너로 빌드하면 노드에서 'exec format error' 로 CrashLoopBackOff.
     # (호스트가 arm64라 build-push-action 의 platforms 지정 없이 arm64 이미지가 나온다.)
+    # dev 노드도 같은 Graviton 이라 브랜치와 무관하게 arm64 로 빌드한다.
     runs-on: ubuntu-24.04-arm
     outputs:
       image: ${{ steps.meta.outputs.image }}
@@ -37,10 +48,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 브랜치별로 assume 할 role 을 고른다. 값이 비어 있으면 여기서 즉시 실패시킨다.
+      # (표현식 fallback 으로 흘려보내면 dev 가 prod role 을 시도해 AssumeRole 거부
+      #  메시지만 남고, 원인이 'AWS_ROLE_ARN_DEV 미설정'이라는 게 드러나지 않는다.)
+      - name: Resolve OIDC role
+        id: role
+        env:
+          ROLE_PROD: ${{ vars.AWS_ROLE_ARN }}
+          ROLE_DEV: ${{ vars.AWS_ROLE_ARN_DEV }}
+        run: |
+          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then
+            role="$ROLE_DEV"; hint="AWS_ROLE_ARN_DEV"
+          else
+            role="$ROLE_PROD"; hint="AWS_ROLE_ARN"
+          fi
+          if [ -z "$role" ]; then
+            echo "::error::${hint} 변수가 비어 있습니다. GitHub → Settings → Variables 에 설정하세요."
+            exit 1
+          fi
+          echo "arn=$role" >> "$GITHUB_OUTPUT"
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-to-assume: ${{ steps.role.outputs.arn }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -63,12 +94,14 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: false
 
+  # ── prod 배포 (main 브랜치 전용) ──────────────────────────────────────────
   deploy:
     needs: build-and-push
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # 승인 게이트를 걸 수 있도록 environment 지정.
-    environment: dev
+    # environment 는 승인 게이트용이 아니라(게이트 없음) OIDC sub 와 시크릿 스코프용이다.
+    # 이 job 의 토큰 sub 는 environment:prod 로 발급되고 prod role 이 그것만 받는다.
+    environment: prod
     # 같은 앱의 배포를 직렬화한다. 진행 중 배포는 취소하지 않고 대기.
     concurrency:
       group: deploy-${{ github.repository }}-${{ github.ref }}
@@ -92,11 +125,11 @@ jobs:
 
       # 앱 env/비밀은 Yeolo-BE 가 소유한다. GitHub Secrets/Variables 값을 was-secrets
       # Secret 으로 만들어 클러스터에 주입한다(인프라 미관여). Deployment 가
-      # envFrom(secretRef: was-secrets)으로 로드한다. 비밀은 Environment(dev) secrets 에,
+      # envFrom(secretRef: was-secrets)으로 로드한다. 비밀은 Environment(prod) secrets 에,
       # 비밀 아닌 값은 repo Variables 에 둔다. 값이 빈 키는 env-file 에서 제외한다.
       - name: Sync app secrets (was-secrets)
         env:
-          # ── 비밀: GitHub → Settings → Environments(dev) → secrets ──
+          # ── 비밀: GitHub → Settings → Environments(prod) → secrets ──
           DB_URL: ${{ secrets.DB_URL }}
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
@@ -123,7 +156,7 @@ jobs:
             v="${!k}"
             [ -n "$v" ] && printf '%s=%s\n' "$k" "$v" >> was.env
           done
-          # 필수 키가 비어 있으면(예: dev Environment secrets 미설정) 여기서 즉시 중단한다.
+          # 필수 키가 비어 있으면(예: prod Environment secrets 미설정) 여기서 즉시 중단한다.
           # 이 가드가 없으면 was-secrets 가 DB 자격증명 없이 만들어져 새 파드가 기동에
           # 실패하고, 그 사실이 'Verify rollout' 5분 타임아웃→롤백으로만 드러난다(#27 인시던트).
           missing=""
@@ -131,7 +164,7 @@ jobs:
             grep -q "^${req}=" was.env || missing="$missing $req"
           done
           if [ -n "$missing" ]; then
-            echo "::error::필수 시크릿 누락 →$missing. GitHub → Settings → Environments(dev) → Secrets 에 설정 후 재실행하세요."
+            echo "::error::필수 시크릿 누락 →$missing. GitHub → Settings → Environments(prod) → Secrets 에 설정 후 재실행하세요."
             rm -f was.env
             exit 1
           fi
@@ -155,5 +188,116 @@ jobs:
         if: failure()
         run: |
           echo "rollout failed — rolling back deployment/${DEPLOYMENT_NAME}"
+          kubectl -n "$K8S_NAMESPACE" rollout undo "deployment/${DEPLOYMENT_NAME}"
+          kubectl -n "$K8S_NAMESPACE" rollout status "deployment/${DEPLOYMENT_NAME}" --timeout=5m
+
+  # ── dev 배포 (dev 브랜치 전용) ────────────────────────────────────────────
+  # prod job 과 구조는 같고 대상 네임스페이스/role 만 다르다.
+  # 클러스터는 prod 와 같은 하나(yeolo-dev)를 쓰고 네임스페이스로만 분리한다
+  # (인프라 variables.tf: "dev 환경 — prod 와 같은 클러스터·같은 노드, 네임스페이스만 분리").
+  # 그래서 EKS_CLUSTER 는 vars 를 그대로 쓰고, 실제 경계인 네임스페이스만 리터럴로 박는다.
+  deploy-dev:
+    needs: build-and-push
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    # OIDC sub 조건(environment:dev)과 정확히 일치해야 role assume 이 통과한다.
+    environment: dev
+    concurrency:
+      group: deploy-dev-${{ github.repository }}
+      cancel-in-progress: false
+    env:
+      K8S_NAMESPACE: app-dev
+      IMAGE: ${{ needs.build-and-push.outputs.image }}
+      CONTAINER_NAME: ${{ vars.CONTAINER_NAME || vars.DEPLOYMENT_NAME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN_DEV }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER"
+
+      # prod 와 동일하게 앱 env/비밀은 BE 가 소유한다. 값은 Environment(dev) 의
+      # secrets/variables 에서 온다 — prod 와 다른 값을 쓸 것(외부 키, redirect URI 등).
+      #
+      # ★ DB_USERNAME/DB_PASSWORD 는 넣지 않는다. dev DB 계정은 인프라가
+      #   Secrets Manager → External Secrets → db-credentials Secret 으로 주입한다.
+      #   같은 키를 was-secrets 에 또 넣으면 envFrom 순서에 따라 한쪽이 덮여
+      #   인증 실패로 파드가 기동하지 않는다.
+      #   DB_URL(host/port/db)만 우리가 넣는다 — 값은 인프라 repo 의
+      #   `terraform output -json app_env_reference_dev` 참고.
+      - name: Sync app secrets (was-secrets)
+        env:
+          # ── 비밀: Settings → Environments(dev) → secrets ──
+          DB_URL: ${{ secrets.DB_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
+          APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+          # .p8 개인키는 개행 없는 한 줄(BEGIN/END 헤더 제외 base64 본문)로 저장한다.
+          # --from-env-file 은 여러 줄 값을 파싱하지 못한다.
+          APPLE_PRIVATE_KEY: ${{ secrets.APPLE_PRIVATE_KEY }}
+          # ── 비밀 아님: Environment(dev) variables, 없으면 기본값 ──
+          # dev DB 는 신규라 스키마가 비어 있을 수 있다. 최초 부팅 시에는
+          # dev Environment variables 에 JPA_DDL_AUTO=update 를 두고 이후 validate 로 되돌린다.
+          JPA_DDL_AUTO: ${{ vars.JPA_DDL_AUTO || 'validate' }}
+          AI_BASE_URL: ${{ vars.AI_BASE_URL || 'http://ai.app-dev.svc.cluster.local:8000' }}
+          AI_COURSE_PROVIDER: ${{ vars.AI_COURSE_PROVIDER || 'internal' }}
+          GEOCODE_PROVIDER: ${{ vars.GEOCODE_PROVIDER || 'osm' }}
+          GEOCODE_OSM_USER_AGENT: ${{ vars.GEOCODE_OSM_USER_AGENT }}
+          JWT_ACCESS_TTL: ${{ vars.JWT_ACCESS_TTL || '3600000' }}
+          JWT_REFRESH_TTL: ${{ vars.JWT_REFRESH_TTL || '1209600000' }}
+        run: |
+          umask 077
+          : > was.env
+          for k in DB_URL JWT_SECRET JWT_ACCESS_TTL JWT_REFRESH_TTL \
+                   GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REDIRECT_URI \
+                   GOOGLE_MAPS_API_KEY \
+                   APPLE_CLIENT_ID APPLE_TEAM_ID APPLE_KEY_ID APPLE_PRIVATE_KEY \
+                   AI_BASE_URL INTERNAL_API_KEY AI_COURSE_PROVIDER \
+                   JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT; do
+            v="${!k}"
+            [ -n "$v" ] && printf '%s=%s\n' "$k" "$v" >> was.env
+          done
+          # 필수 키 누락은 여기서 끊는다(#27 인시던트: 누락이 rollout 5분 타임아웃으로만 드러남).
+          # DB_USERNAME/DB_PASSWORD 는 db-credentials 가 채우므로 검사 대상이 아니다.
+          missing=""
+          for req in DB_URL JWT_SECRET INTERNAL_API_KEY; do
+            grep -q "^${req}=" was.env || missing="$missing $req"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::필수 시크릿 누락 →$missing. GitHub → Settings → Environments(dev) → Secrets 에 설정 후 재실행하세요."
+            rm -f was.env
+            exit 1
+          fi
+          kubectl -n "$K8S_NAMESPACE" create secret generic was-secrets \
+            --from-env-file=was.env --dry-run=client -o yaml | kubectl apply -f -
+          rm -f was.env
+
+      # CD 는 이미지 태그만 교체한다. apply -k / 전체 매니페스트 재apply 금지.
+      - name: Set image
+        run: |
+          kubectl -n "$K8S_NAMESPACE" set image \
+            "deployment/${DEPLOYMENT_NAME}" \
+            "${CONTAINER_NAME}=${IMAGE}"
+
+      # 무중단(rolling) rollout 검증. dev 도 prod 와 같은 grace 90s 설정을 상속한다.
+      - name: Verify rollout
+        run: kubectl -n "$K8S_NAMESPACE" rollout status "deployment/${DEPLOYMENT_NAME}" --timeout=5m
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "rollout failed — rolling back deployment/${DEPLOYMENT_NAME} (app-dev)"
           kubectl -n "$K8S_NAMESPACE" rollout undo "deployment/${DEPLOYMENT_NAME}"
           kubectl -n "$K8S_NAMESPACE" rollout status "deployment/${DEPLOYMENT_NAME}" --timeout=5m
