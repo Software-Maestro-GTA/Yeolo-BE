@@ -46,6 +46,7 @@ public class CourseCreationService {
 
     private final TasteProfileRepository tasteProfileRepository;
     private final AiCourseClient aiCourseClient;
+    private final ItineraryPlaceNormalizer itineraryPlaceNormalizer;
     private final CourseAssembler courseAssembler;
     private final CourseRepository courseRepository;
     private final SseHeartbeat heartbeat;
@@ -69,6 +70,8 @@ public class CourseCreationService {
                     AiCourseGenerationRequest.of(userId, parseProfile(profile.profileJson()), condition));
 
             // 클라이언트가 이미 떠났어도 생성은 끝났으므로 저장은 진행한다(목록 조회로 확인 가능).
+            // AI는 장소명만 주므로, 저장 전에 각 방문지를 내부 장소(placeId·좌표)로 정규화한다(DOM-3).
+            itineraryPlaceNormalizer.normalize(courseNode, condition);
             Course course = courseAssembler.toDomain(userId, courseNode);
             UUID courseId = courseRepository.save(course);
 

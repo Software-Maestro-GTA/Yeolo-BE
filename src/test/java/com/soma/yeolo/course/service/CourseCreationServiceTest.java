@@ -15,6 +15,8 @@ import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.sse.TestSseHeartbeat;
+import com.soma.yeolo.place.domain.SavedPlace;
+import com.soma.yeolo.place.service.PlaceRegistry;
 import com.soma.yeolo.tasteprofile.domain.SavedTasteProfile;
 import com.soma.yeolo.tasteprofile.domain.SourceType;
 import com.soma.yeolo.tasteprofile.domain.TasteProfile;
@@ -104,8 +106,14 @@ class CourseCreationServiceTest {
     private final FakeCourseRepository courses = new FakeCourseRepository();
     private final FakeAiCourseClient aiClient = new FakeAiCourseClient();
 
+    /** 장소 정규화 fake: 모든 장소명을 고정 좌표의 내부 장소로 해결한다. */
+    private final PlaceRegistry placeRegistry = query -> Optional.of(
+            new SavedPlace(UUID.randomUUID(), query.placeName(), query.category(),
+                    "제주", 33.4581, 126.9425, null, List.of(), List.of()));
+
     private CourseCreationService service() {
-        return new CourseCreationService(tasteProfiles, aiClient, new CourseAssembler(), courses,
+        return new CourseCreationService(tasteProfiles, aiClient,
+                new ItineraryPlaceNormalizer(placeRegistry), new CourseAssembler(), courses,
                 TestSseHeartbeat.create());
     }
 
@@ -128,7 +136,9 @@ class CourseCreationServiceTest {
                   "totalDays": 3,
                   "tags": ["힐링"],
                   "recommendationReason": "여유로운 일정",
-                  "itinerary": {"days": [{"day": 1, "stops": []}]}
+                  "itinerary": {"days": [{"day": 1, "stops": [
+                    {"sequence": 1, "placeName": "성산일출봉", "category": "nature"}
+                  ]}]}
                 }
                 """);
     }
@@ -147,6 +157,22 @@ class CourseCreationServiceTest {
         assertThat(courses.saved.getFirst().userId()).isEqualTo(userId);
         assertThat(courses.saved.getFirst().title()).isEqualTo("2박 3일 제주 힐링 코스");
         verify(emitter).complete();
+    }
+
+    /** 저장 전에 방문지가 내부 placeId·좌표로 정규화되어야 장소 상세(API-PLACE-1)로 이어진다. */
+    @Test
+    void 저장되는_코스의_방문지가_내부_장소로_정규화된다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        tasteProfiles.latest = Optional.of(savedProfile(userId));
+        aiClient.result = courseNode();
+
+        service().createAndStream(userId, request(), emitter);
+
+        JsonNode stop = MAPPER.readTree(courses.saved.getFirst().itineraryJson())
+                .path("days").get(0).path("stops").get(0);
+        assertThat(UUID.fromString(stop.path("placeId").asText())).isNotNull();
+        assertThat(stop.path("latitude").asDouble()).isEqualTo(33.4581);
+        assertThat(stop.path("longitude").asDouble()).isEqualTo(126.9425);
     }
 
     @Test
