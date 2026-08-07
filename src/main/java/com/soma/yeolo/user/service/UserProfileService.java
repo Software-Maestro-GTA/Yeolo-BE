@@ -40,7 +40,8 @@ public class UserProfileService {
      * 순서를 뒤집으면 업로드가 느려질수록 풀이 마른다.
      *
      * <p>업로드 성공 후 DB 갱신이 실패하면 저장소에 참조되지 않는 객체가 남는다(2PC가 없는 한
-     * 불가피). 교체된 옛 이미지와 마찬가지로 버킷 수명주기 규칙으로 정리한다.
+     * 불가피). 교체된 옛 이미지와 마찬가지로 지금은 방치한다 — 근거는
+     * {@link com.soma.yeolo.user.client.S3ProfileImageStorage} 문서 참고.
      */
     @Transactional
     public User updateProfile(UUID userId, UserProfileUpdateRequest request) {
