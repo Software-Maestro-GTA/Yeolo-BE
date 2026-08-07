@@ -18,6 +18,7 @@
 | [#2](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/2) | TSK-34 | 이미지 메타데이터 성향 분석 + Reverse Geocode 전처리 | API-FB-2, API-BA-6 | FUN-1 | REQ-11 | DOM-3, DOM-5 | Backlog |
 | [#1](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/1) | TSK-36 | 이전 생성 코스 목록/상세 조회 | API-FB-10, API-FB-7 | FUN-7 | — | DOM-2 | Backlog |
 | [#51](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/51) | TSK-25 | 사용자 프로필·MBTI 선호 입력값 저장 | API-PREF-1, API-USER-1 | FUN-2, FUN-8 | REQ-2, REQ-9 | DOM-1 | In progress |
+| [#46](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/46) | TSK-32 | 국가·도시 자동완성 | API-LOC-1, API-LOC-2 | FUN-5, FUN-8 | REQ-4, REQ-9 | — | In progress |
 
 > ⚠️ **명세 ID 재편:** SPEC 저장소가 갱신되며 API·DOM ID 체계가 바뀌었다
 > (`API-FB-*` → `API-AUTH-*`/`API-COURSE-*`/`API-PREF-*`/`API-USER-*`, DOM 번호도 이동 —
@@ -33,6 +34,8 @@
   연동 → 진행 이벤트(`LOADING_USER_PREFERENCE` → `GENERATING_COURSE` → `complete`) 스트리밍 →
   결과를 코스 정보(DOM-2)로 저장. (#6, #4)
 - **조회:** 코스 목록(최신순·페이지네이션) 및 상세, 소유자 권한 검증. 성향 프로필 조회. (#1, #5)
+- **지역 선택:** 코스 생성 화면의 국가·도시 자동완성(한글 초성 검색 포함). 명세에 국가·도시 도메인
+  정의가 없어 기준 데이터 출처를 BE에서 정했다(CLDR + GeoNames) — `docs/location-dataset.md`. (#46)
 
 ## Out of Scope — 이번 스프린트에서 손대지 않음
 

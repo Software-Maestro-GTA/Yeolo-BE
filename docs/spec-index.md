@@ -17,6 +17,22 @@
 | API-FB-7 | `API-FB-7.md` | `GET /api/courses/{courseId}` — 코스 상세 | #1 |
 | API-FB-8 | `API-FB-8.md` | `GET /api/me/taste-profile` — 내 성향 프로필 조회 | #5 |
 | API-FB-10 | `API-FB-10.md` | `GET /api/courses` — 이전 코스 목록 | #1 |
+| API-LOC-1 | `API-LOC-1.md` | `GET /api/locations/countries/autocomplete` — 국가 자동완성 | #46 |
+| API-LOC-2 | `API-LOC-2.md` | `GET /api/locations/cities/autocomplete` — 도시 자동완성 | #46 |
+
+#### 명세 정정 이력 — API-LOC-2 인증 (#46)
+
+원래 명세는 자기모순이었다: 기본 정보는 `인증 필요: N`인데 Request Header에 `Authorization`이 있고
+Error Codes에 `401: 인증 실패`가 있었다.
+
+**공개(인증 불필요)로 확정**했다. 근거는 — 같은 공개 기준 데이터를 주는 형제 API(API-LOC-1)에는
+401이 없어 둘을 같게 다루는 편이 FE에 단순하고, 응답이 사용자별로 달라지지 않으며, 토큰을 붙여
+보내도 그대로 200이라 FE가 어느 쪽으로 구현했든 깨지지 않는다.
+
+그에 맞춰 `specs/api-specs/API-LOC-2.md`에서 `Authorization` 헤더와 `401`을 제거했다.
+**⚠️ `specs/`는 Notion "GTA / 프로젝트 개발"에서 `sync_notion_specs.py`가 생성하므로, 이 수정은
+다음 동기화 때 덮어써진다 — Notion 원본에도 같은 수정을 반영해야 확정된다.** FE에도 401 경로가
+발생하지 않음을 공유할 것. (구현 근거는 `SecurityConfig`의 `/api/locations/**` 주석)
 
 ### BE ↔ AI 내부 API (BE가 호출)
 | API ID | 파일 | Method · Endpoint | 이슈 |
