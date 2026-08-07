@@ -85,7 +85,15 @@ com.soma.yeolo.global/            공통: 예외/응답/설정/보안/BaseEntity
 
 - **스키마 관리:** 마이그레이션 도구 없이 `ddl-auto` 사용. **엔티티가 스키마의 근거.**
   - `local`: `spring.jpa.hibernate.ddl-auto=update`
-  - `dev`/`prod`: `validate` (자동 변경 금지, 스키마 드리프트 감지용)
+  - `dev`: `update` — 스키마가 자주 바뀌는 단계라 배포마다 손으로 DDL을 넣지 않는다.
+  - `prod`: `validate` (자동 변경 금지, 스키마 드리프트 감지용)
+- **`update`의 한계와 그에 따른 규칙:** Hibernate `update`는 **추가만** 한다 — 컬럼/테이블 삭제,
+  이름 변경, 타입 축소는 반영되지 않고 옛 컬럼이 그대로 남는다. 그래서 dev 스키마는 시간이 지나며
+  엔티티와 어긋나고, **그 어긋남은 prod의 `validate`에서 처음 드러난다.** 이를 감수하는 대신:
+  - 스키마를 바꾸는 변경은 **`docs/ddl/<table>.sql`에 prod 적용용 DDL을 남긴다** (dev가 자동으로
+    만들어 준다고 해서 생략하지 않는다 — prod에는 그 파일이 유일한 경로다).
+  - 컬럼 삭제·이름 변경·타입 변경은 dev에 자동 반영되지 않으므로, dev DB에 직접 적용하거나
+    스키마를 다시 만들어야 실제 동작을 확인할 수 있다.
 - **엔티티 관례**
   - `@NoArgsConstructor(access = PROTECTED)`, 세터 지양(도메인 메서드로 상태 변경).
   - PK: `@GeneratedValue(strategy = IDENTITY)` (DB 네이티브 auto-increment/identity).

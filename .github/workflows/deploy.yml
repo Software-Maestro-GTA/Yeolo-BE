@@ -192,7 +192,7 @@ jobs:
             exit 1
           fi
           # 아래 variables 는 앱 기본값이 로컬 개발용이라 미설정 시 조용히 잘못 뜬다.
-          #   JPA_DDL_AUTO   앱 기본 update  → 운영 스키마 자동 변경(규약: dev·prod=validate)
+          #   JPA_DDL_AUTO   앱 기본 update  → 운영 스키마 자동 변경(규약: prod=validate)
           #   AI_BASE_URL    앱 기본 localhost:8000 → AI 호출 전부 실패
           #   GEOCODE_PROVIDER 앱 기본 stub → 지오코딩이 가짜 좌표/주소 반환
           #   PLACE_PROVIDER   앱 기본 stub → 코스 장소가 가짜 좌표로 '저장'된다(지오코딩과
@@ -333,8 +333,8 @@ jobs:
             exit 1
           fi
           # 아래 variables 는 앱 기본값이 로컬 개발용이라 미설정 시 조용히 잘못 뜬다.
-          #   JPA_DDL_AUTO   앱 기본 update — dev 최초 부팅엔 update 가 맞지만, 명시적으로
-          #                  고른 값이어야 한다(스키마 생성 후 validate 로 되돌릴 것).
+          #   JPA_DDL_AUTO   앱 기본 update — dev 는 update 로 둔다(스키마가 자주 바뀌는 단계라
+          #                  배포마다 손으로 DDL 을 넣지 않는다). 그래도 명시적으로 고른 값이어야 한다.
           #   AI_BASE_URL    앱 기본 localhost:8000 → AI 호출 전부 실패
           #   GEOCODE_PROVIDER 앱 기본 stub → 지오코딩이 가짜 좌표/주소 반환
           #   PLACE_PROVIDER   앱 기본 stub → 코스 장소가 가짜 좌표로 '저장'된다(지오코딩과

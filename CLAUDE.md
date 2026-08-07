@@ -66,7 +66,8 @@ git submodule update --remote specs   # 최신 명세로 갱신 후, 커밋으�
   AI 내부 API 호출부만 `<domain>.client/` 어댑터로 격리.
 - 패키지는 도메인 기준으로 나눕니다: `com.soma.yeolo.<domain>.{controller,service,repository,domain,entity,dto}`
   (예: `com.soma.yeolo.auth`, `.tasteprofile`, `.course`, `.user`). 공통은 `com.soma.yeolo.global`.
-- DB 스키마: 마이그레이션 도구 없이 `ddl-auto`(엔티티=스키마). local=`update`, dev·prod=`validate`.
+- DB 스키마: 마이그레이션 도구 없이 `ddl-auto`(엔티티=스키마). local·dev=`update`, prod=`validate`.
+  `update`는 추가만 하므로, 스키마 변경 시 **prod 적용용 DDL을 `docs/ddl/<table>.sql`에 남긴다.**
 - 인증: Refresh Token은 DB 테이블(`RefreshToken` 엔티티)에 **해시로** 저장.
 - 응답 포맷: 임의 공통 래퍼 강제 없이 **엔드포인트별 명세의 Response 스키마를 그대로** 따름.
 - Controller는 얇게, 비즈니스 로직은 Service에. DB 접근은 Repository로.
