@@ -31,7 +31,7 @@
 - **성향 분석:** 이미지 EXIF(좌표·시간) 메타데이터만 수집 → Reverse Geocode로 한글 주소화 →
   AI 서버(API-BA-6)로 분석 요청. 개인정보 동의 사전 검증 필수. (#2)
 - **코스 생성:** `POST /api/courses`(SSE)로 조건 입력 → 성향 프로필 로딩 → AI 서버(API-BA-1, SSE)
-  연동 → 진행 이벤트(`LOADING_USER_PREFERENCE` → `GENERATING_COURSE` → `complete`) 스트리밍 →
+  연동 → 진행 이벤트(`LOADING_TASTE_PREFERENCE` → `GENERATING_COURSE` → `complete`) 스트리밍 →
   결과를 코스 정보(DOM-2)로 저장. (#6, #4)
 - **조회:** 코스 목록(최신순·페이지네이션) 및 상세, 소유자 권한 검증. 성향 프로필 조회. (#1, #5)
 - **지역 선택:** 코스 생성 화면의 국가·도시 자동완성(한글 초성 검색 포함). 명세에 국가·도시 도메인

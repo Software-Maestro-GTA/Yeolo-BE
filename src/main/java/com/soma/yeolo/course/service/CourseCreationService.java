@@ -63,7 +63,7 @@ public class CourseCreationService {
             TripCondition condition = normalize(request);
 
             stream.send(EVENT_PROGRESS,
-                    new Progress("LOADING_USER_PREFERENCE", "사용자 정보를 불러오는 중입니다."));
+                    new Progress("LOADING_TASTE_PREFERENCE", "사용자 정보를 불러오는 중입니다."));
             // DOM-3: MBTI 또는 취향 분석 결과 중 하나 이상이면 생성할 수 있고, 둘 다 있으면 함께
             // 반영한다. 따라서 각각은 없어도 되고, 둘 다 없을 때만 404로 끊는다.
             Mbti mbti = userMbtiReader.findMbti(userId).orElse(null);

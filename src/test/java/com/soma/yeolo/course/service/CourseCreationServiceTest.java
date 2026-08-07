@@ -166,7 +166,7 @@ class CourseCreationServiceTest {
 
         service().createAndStream(userId, request(), emitter);
 
-        // LOADING_USER_PREFERENCE + GENERATING_COURSE + complete = send 3회, 정상 종료
+        // LOADING_TASTE_PREFERENCE + GENERATING_COURSE + complete = send 3회, 정상 종료
         verify(emitter, times(3)).send(any(SseEventBuilder.class));
         assertThat(courses.saved).hasSize(1);
         assertThat(courses.saved.getFirst().userId()).isEqualTo(userId);
