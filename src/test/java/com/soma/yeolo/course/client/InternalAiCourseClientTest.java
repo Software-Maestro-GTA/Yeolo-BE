@@ -17,6 +17,7 @@ import com.soma.yeolo.course.domain.TripCondition;
 import com.soma.yeolo.global.client.AiClientProperties;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
+import com.soma.yeolo.preference.domain.Mbti;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +48,7 @@ class InternalAiCourseClientTest {
         JsonNode tasteProfile = MAPPER.readTree("{\"sourceType\":\"behavior\"}");
         TripCondition condition = new TripCondition("대한민국", "제주",
                 LocalDate.of(2026, 8, 1), 3, BudgetType.COST_EFFECTIVE);
-        return AiCourseGenerationRequest.of(UUID.randomUUID(), tasteProfile, condition);
+        return AiCourseGenerationRequest.of(UUID.randomUUID(), Mbti.ENFP, tasteProfile, condition);
     }
 
     @Test
@@ -67,6 +68,8 @@ class InternalAiCourseClientTest {
                 // 필드로 새어 나가면 AI 서버가 실제 성향 필드를 못 받아 400을 낸다).
                 .andExpect(jsonPath("$.tasteProfile.sourceType").value("behavior"))
                 .andExpect(jsonPath("$.tasteProfile.array").doesNotExist())
+                // MBTI는 명세(API-AI-2)의 mbti 필드로 대문자 4글자 그대로 전송한다.
+                .andExpect(jsonPath("$.mbti").value("ENFP"))
                 .andRespond(withSuccess(sse, MediaType.TEXT_EVENT_STREAM));
 
         JsonNode course = client.generateCourse(request());

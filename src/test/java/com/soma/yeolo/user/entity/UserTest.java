@@ -41,4 +41,28 @@ class UserTest {
         assertThat(user.getProvider()).isEqualTo(Provider.GOOGLE);
         assertThat(user.getProviderUserId()).isEqualTo("sub-1");
     }
+
+    @Test
+    void 프로필_수정은_전달된_항목만_반영한다() {
+        User user = User.createOAuthUser(Provider.GOOGLE, "sub-1",
+                "old@gmail.com", "옛이름", "http://old");
+
+        user.updateProfile(null, "새이름", null);
+
+        // 이름만 바꿨는데 이메일·이미지가 지워지면 안 된다 (API-USER-1 nullable 정책).
+        assertThat(user.getDisplayName()).isEqualTo("새이름");
+        assertThat(user.getEmail()).isEqualTo("old@gmail.com");
+        assertThat(user.getProfileImageUrl()).isEqualTo("http://old");
+    }
+
+    @Test
+    void 프로필_수정으로_세_항목을_한번에_갱신할_수_있다() {
+        User user = User.createOAuthUser(Provider.GOOGLE, "sub-1", null, null, null);
+
+        user.updateProfile("new@gmail.com", "새이름", "http://new");
+
+        assertThat(user.getEmail()).isEqualTo("new@gmail.com");
+        assertThat(user.getDisplayName()).isEqualTo("새이름");
+        assertThat(user.getProfileImageUrl()).isEqualTo("http://new");
+    }
 }

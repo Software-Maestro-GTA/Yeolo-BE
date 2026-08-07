@@ -24,6 +24,17 @@ public enum ErrorCode {
     // Auth / JWT (보호 리소스 공통)
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요하거나 토큰이 만료되었습니다."),
 
+    // 사용자 선호 - MBTI (API-PREF-1 / FUN-8)
+    INVALID_MBTI(HttpStatus.BAD_REQUEST, "MBTI 입력값을 확인해주세요."),
+
+    // 사용자 프로필 (API-USER-1 / DOM-1)
+    INVALID_USER_PROFILE(HttpStatus.BAD_REQUEST, "사용자 프로필 입력값을 확인해주세요."),
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
+    EMAIL_ALREADY_IN_USE(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
+    PROFILE_IMAGE_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "프로필 이미지 용량이 너무 큽니다."),
+    UNSUPPORTED_PROFILE_IMAGE_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "지원하지 않는 이미지 형식입니다."),
+    PROFILE_IMAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "프로필 이미지 저장에 실패했습니다."),
+
     // 사진 데이터 분석 동의 (API-PREF-2 / FUN-3 / REQ-8)
     PHOTO_CONSENT_SAVE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "사진 데이터 분석 동의 저장에 실패했습니다."),
     PHOTO_CONSENT_REQUIRED(HttpStatus.FORBIDDEN, "개인정보 수집·활용 동의가 필요합니다."),
@@ -36,8 +47,10 @@ public enum ErrorCode {
     // Taste Profile - 조회 (API-FB-8)
     TASTE_PROFILE_NOT_FOUND(HttpStatus.NOT_FOUND, "저장된 성향 프로필이 없습니다."),
 
-    // Course - 생성 (API-FB-4 / API-BA-1)
+    // Course - 생성 (API-COURSE-1 / API-AI-2)
     INVALID_COURSE_CONDITION(HttpStatus.BAD_REQUEST, "여행 조건 입력값이 올바르지 않습니다."),
+    // DOM-3: MBTI 또는 취향 분석 결과 중 하나 이상이 있으면 코스를 생성할 수 있다 — 둘 다 없을 때만 404.
+    USER_PREFERENCE_NOT_FOUND(HttpStatus.NOT_FOUND, "MBTI 또는 성향 정보가 없습니다."),
     AI_COURSE_GENERATION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "코스 생성 처리 중 오류가 발생했습니다."),
 
     // Course - 조회 (API-FB-7 / API-FB-10)
