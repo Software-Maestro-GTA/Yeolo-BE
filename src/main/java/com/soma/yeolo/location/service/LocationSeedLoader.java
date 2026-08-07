@@ -2,8 +2,6 @@ package com.soma.yeolo.location.service;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,11 +52,6 @@ public class LocationSeedLoader implements ApplicationRunner {
         }
         try {
             seed();
-        } catch (DataIntegrityViolationException e) {
-            // 파드가 여러 개면 같은 배포에서 둘 이상이 동시에 재적재를 시작할 수 있다. 뒤늦게 커밋하려던
-            // 쪽은 먼저 커밋된 행과 PK가 충돌해 롤백된다 — 데이터는 앞선 적재로 이미 올바르므로
-            // 장애가 아니다. ERROR로 올리면 배포마다 헛경보가 된다.
-            log.warn("다른 인스턴스가 먼저 기준 데이터를 적재한 것으로 보인다. 이번 적재는 건너뛴다.", e);
         } catch (Exception e) {
             // 자동완성만 비게 되고 나머지 기능은 정상 동작한다. 기동은 막지 않되 확실히 드러낸다.
             log.error("국가·도시 기준 데이터 적재에 실패했다. 자동완성 API가 빈 결과를 돌려준다.", e);
@@ -91,13 +84,38 @@ public class LocationSeedLoader implements ApplicationRunner {
         // 여기서부터는 전체 파싱이 필요하다. 국가는 도시의 countryNameKo 공급원이기도 해서
         // 도시만 재적재하는 경우에도 읽는다.
         LocationSeedFile countries = read(properties.countriesPath(), COUNTRY_COLUMNS).orElseThrow();
-        if (countriesStale) {
-            writer.replaceCountries(countries);
+        LocationSeedFile cities = citiesStale
+                ? read(properties.citiesPath(), CITY_COLUMNS).orElse(null)
+                : null;
+
+        try {
+            writer.replace(countries, countriesStale, cities, citiesStale);
+        } catch (DataIntegrityViolationException e) {
+            handleIntegrityViolation(e, countriesVersion.get(), citiesVersion);
         }
-        if (citiesStale) {
-            LocationSeedFile cities = read(properties.citiesPath(), CITY_COLUMNS).orElseThrow();
-            writer.replaceCities(cities, countryNames(countries), countriesStale);
+    }
+
+    /**
+     * 적재 중 무결성 위반이 났을 때, <b>경합인지 데이터 결함인지 가려낸다.</b>
+     *
+     * <p>파드가 여러 개면 뒤늦게 커밋하려던 쪽이 먼저 커밋된 행과 PK 충돌로 롤백된다 — 데이터는
+     * 앞선 적재로 이미 올바르므로 장애가 아니고, ERROR로 올리면 배포마다 헛경보가 된다.
+     *
+     * <p>그런데 <b>데이터셋 결함도 같은 예외로 온다</b>: 재생성된 파일에 {@code geonameid}가 중복이거나,
+     * {@code country_id}가 컬럼 길이를 넘거나, NOT NULL을 위반하는 경우다. 이때는 테이블이 빈 채로
+     * 남는데 "다른 인스턴스가 먼저 적재했다"고 찍으면 담당자를 엉뚱한 곳으로 보낸다.
+     *
+     * <p>구분 기준은 <b>적재 상태가 실제로 최신이 됐는지</b>다. 다른 파드가 마쳤다면 상태 행의 버전이
+     * 파일과 같다. 그렇지 않으면 아무도 적재하지 못한 것이므로 예외를 그대로 올려 ERROR로 드러낸다.
+     */
+    private void handleIntegrityViolation(DataIntegrityViolationException e,
+                                          String countriesVersion, Optional<String> citiesVersion) {
+        boolean seededElsewhere = writer.alreadySeeded(COUNTRIES, countriesVersion)
+                && citiesVersion.map(v -> writer.alreadySeeded(CITIES, v)).orElse(true);
+        if (!seededElsewhere) {
+            throw e;
         }
+        log.warn("다른 인스턴스가 먼저 기준 데이터를 적재했다. 이번 적재는 건너뛴다.", e);
     }
 
     /** 데이터셋 파일의 버전만 읽는다. 파일이 없으면 빈 값 — 적재만 건너뛰고 기동은 계속한다. */
@@ -122,14 +140,6 @@ public class LocationSeedLoader implements ApplicationRunner {
     }
 
     private boolean needsReload(String dataset, String version) {
-        return !writer.currentVersion(dataset).map(version::equals).orElse(false);
-    }
-
-    private Map<String, String> countryNames(LocationSeedFile countries) {
-        Map<String, String> names = new LinkedHashMap<>();
-        for (String[] row : countries.rows()) {
-            names.put(row[0], row[1]);
-        }
-        return names;
+        return !writer.alreadySeeded(dataset, version);
     }
 }
