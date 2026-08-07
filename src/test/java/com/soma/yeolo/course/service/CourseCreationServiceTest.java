@@ -17,6 +17,8 @@ import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.sse.TestSseHeartbeat;
 import com.soma.yeolo.place.domain.SavedPlace;
 import com.soma.yeolo.place.service.PlaceRegistry;
+import com.soma.yeolo.preference.domain.Mbti;
+import com.soma.yeolo.preference.service.UserMbtiReader;
 import com.soma.yeolo.tasteprofile.domain.SavedTasteProfile;
 import com.soma.yeolo.tasteprofile.domain.SourceType;
 import com.soma.yeolo.tasteprofile.domain.TasteProfile;
@@ -92,9 +94,11 @@ class CourseCreationServiceTest {
     private static final class FakeAiCourseClient implements AiCourseClient {
         private JsonNode result;
         private BusinessException failure;
+        private AiCourseGenerationRequest lastRequest;
 
         @Override
         public JsonNode generateCourse(AiCourseGenerationRequest request) {
+            lastRequest = request;
             if (failure != null) {
                 throw failure;
             }
@@ -102,9 +106,20 @@ class CourseCreationServiceTest {
         }
     }
 
+    /** MBTI 조회 포트 fake: 미리 정해둔 값을 돌려준다(미입력이면 빈 값). */
+    private static final class FakeUserMbtiReader implements UserMbtiReader {
+        private Mbti mbti;
+
+        @Override
+        public Optional<Mbti> findMbti(UUID userId) {
+            return Optional.ofNullable(mbti);
+        }
+    }
+
     private final FakeTasteProfileRepository tasteProfiles = new FakeTasteProfileRepository();
     private final FakeCourseRepository courses = new FakeCourseRepository();
     private final FakeAiCourseClient aiClient = new FakeAiCourseClient();
+    private final FakeUserMbtiReader mbtiReader = new FakeUserMbtiReader();
 
     /** 장소 정규화 fake: 모든 장소명을 고정 좌표의 내부 장소로 해결한다. */
     private final PlaceRegistry placeRegistry = query -> Optional.of(
@@ -112,7 +127,7 @@ class CourseCreationServiceTest {
                     "제주", 33.4581, 126.9425, null, List.of(), List.of()));
 
     private CourseCreationService service() {
-        return new CourseCreationService(tasteProfiles, aiClient,
+        return new CourseCreationService(mbtiReader, tasteProfiles, aiClient,
                 new ItineraryPlaceNormalizer(placeRegistry), new CourseAssembler(), courses,
                 TestSseHeartbeat.create());
     }
@@ -151,7 +166,7 @@ class CourseCreationServiceTest {
 
         service().createAndStream(userId, request(), emitter);
 
-        // LOADING_TASTE_PROFILE + GENERATING_COURSE + complete = send 3회, 정상 종료
+        // LOADING_USER_PREFERENCE + GENERATING_COURSE + complete = send 3회, 정상 종료
         verify(emitter, times(3)).send(any(SseEventBuilder.class));
         assertThat(courses.saved).hasSize(1);
         assertThat(courses.saved.getFirst().userId()).isEqualTo(userId);
@@ -175,17 +190,65 @@ class CourseCreationServiceTest {
         assertThat(stop.path("longitude").asDouble()).isEqualTo(126.9425);
     }
 
+    /** DOM-3: MBTI·취향 분석 결과가 <b>둘 다</b> 없을 때만 생성할 수 없다. */
     @Test
-    void 성향_프로필이_없으면_error를_보내고_AI를_호출하지_않는다() throws Exception {
+    void MBTI와_성향_프로필이_모두_없으면_error를_보내고_AI를_호출하지_않는다() throws Exception {
         UUID userId = UUID.randomUUID();
         tasteProfiles.latest = Optional.empty();
+        mbtiReader.mbti = null;
 
         service().createAndStream(userId, request(), emitter);
 
         // LOADING progress(1) + error(1) = send 2회
         verify(emitter, times(2)).send(any(SseEventBuilder.class));
+        assertThat(aiClient.lastRequest).isNull();
         assertThat(courses.saved).isEmpty();
         verify(emitter).complete();
+    }
+
+    /** 인수 기준: 저장된 MBTI가 내부 AI 코스 생성 요청에 포함된다. */
+    @Test
+    void 저장된_MBTI가_AI_요청에_실린다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        tasteProfiles.latest = Optional.of(savedProfile(userId));
+        mbtiReader.mbti = Mbti.ENFP;
+        aiClient.result = courseNode();
+
+        service().createAndStream(userId, request(), emitter);
+
+        assertThat(aiClient.lastRequest.mbti()).isEqualTo("ENFP");
+        assertThat(aiClient.lastRequest.tasteProfile()).isNotNull();
+    }
+
+    /** DOM-3: 둘 중 하나만 있어도 생성한다 — 취향 분석 없이 MBTI만 입력한 사용자(FUN-8 경로). */
+    @Test
+    void 성향_프로필이_없어도_MBTI가_있으면_코스를_생성한다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        tasteProfiles.latest = Optional.empty();
+        mbtiReader.mbti = Mbti.INTJ;
+        aiClient.result = courseNode();
+
+        service().createAndStream(userId, request(), emitter);
+
+        assertThat(aiClient.lastRequest.mbti()).isEqualTo("INTJ");
+        assertThat(aiClient.lastRequest.tasteProfile()).isNull();
+        assertThat(courses.saved).hasSize(1);
+        verify(emitter).complete();
+    }
+
+    /** MBTI 미입력 사용자는 기존처럼 취향 분석 결과만으로 생성한다 — mbti는 명세대로 null. */
+    @Test
+    void MBTI가_없으면_AI_요청의_mbti는_null이다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        tasteProfiles.latest = Optional.of(savedProfile(userId));
+        mbtiReader.mbti = null;
+        aiClient.result = courseNode();
+
+        service().createAndStream(userId, request(), emitter);
+
+        assertThat(aiClient.lastRequest.mbti()).isNull();
+        assertThat(aiClient.lastRequest.tasteProfile()).isNotNull();
+        assertThat(courses.saved).hasSize(1);
     }
 
     @Test

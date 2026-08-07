@@ -126,7 +126,9 @@ com.soma.yeolo.global/            공통: 예외/응답/설정/보안/BaseEntity
 - HTTP 클라이언트: Spring `RestClient`(동기). 호출부는 `<domain>.client/` 어댑터로 격리.
 - **타임아웃·재시도·실패 시 사용자 노출 에러**를 명시적으로 정의(무한 대기 금지).
 - SSE: `POST /api/courses`는 AI(API-BA-1, SSE)를 중계 스트리밍.
-  이벤트 단계명(`LOADING_TASTE_PROFILE` → `GENERATING_COURSE` → `complete`)은 **명세 그대로** 사용.
+  이벤트 단계명(`LOADING_USER_PREFERENCE` → `GENERATING_COURSE` → `complete`)은 **명세 그대로** 사용.
+  (명세 갱신으로 첫 단계가 `LOADING_TASTE_PROFILE`에서 바뀌었다 — MBTI와 성향 프로필을 함께
+  불러오는 단계이기 때문. 단계명은 FE 계약이므로 명세를 따라 바꾸고 FE에 공유한다.)
 
 ## 6. 설정 · 프로파일
 

@@ -90,4 +90,23 @@ public class User extends BaseTimeEntity {
         this.profileImageUrl = profileImageUrl;
         this.lastLoginAt = Instant.now();
     }
+
+    /**
+     * 사용자가 직접 수정한 프로필을 반영한다 (API-USER-1).
+     *
+     * <p>{@code null}인 항목은 <b>변경하지 않는다</b>. PATCH이고 DOM-1상 세 항목 모두 nullable이라
+     * "안 보냄"과 "null로 지움"을 요청 본문만으로 구분할 수 없는데, 안 보낸 항목을 null로 덮으면
+     * 이름만 고쳐도 이메일이 지워진다. 지우는 쪽이 아니라 유지하는 쪽을 기본값으로 둔다.
+     */
+    public void updateProfile(String email, String displayName, String profileImageUrl) {
+        if (email != null) {
+            this.email = email;
+        }
+        if (displayName != null) {
+            this.displayName = displayName;
+        }
+        if (profileImageUrl != null) {
+            this.profileImageUrl = profileImageUrl;
+        }
+    }
 }

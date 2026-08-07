@@ -25,6 +25,14 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'  // k8s readiness/liveness probe
     implementation 'com.fasterxml.jackson.core:jackson-databind'
+    // 프로필 이미지 저장(API-USER-1). 동기 S3Client만 쓰므로 기본 HTTP 클라이언트(Apache)와
+    // 비동기용 Netty 를 빼고 경량 url-connection-client 로 대체한다(이미지 크기·기동 시간).
+    implementation platform('software.amazon.awssdk:bom:2.46.7')
+    implementation('software.amazon.awssdk:s3') {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+        exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+    }
+    implementation 'software.amazon.awssdk:url-connection-client'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'

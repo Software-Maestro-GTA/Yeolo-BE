@@ -16,6 +16,8 @@ import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.response.ApiResponse;
 import com.soma.yeolo.global.sse.SseHeartbeat;
 import com.soma.yeolo.global.sse.SseStream;
+import com.soma.yeolo.preference.domain.Mbti;
+import com.soma.yeolo.preference.service.UserMbtiReader;
 import com.soma.yeolo.tasteprofile.domain.SavedTasteProfile;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
 import java.time.LocalDate;
@@ -27,9 +29,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * 지역/날짜/예산 조건 기반 코스 생성 오케스트레이션 (API-FB-4 / FUN-6).
+ * 지역/날짜/예산 조건 기반 코스 생성 오케스트레이션 (API-COURSE-1 / FUN-6 / FUN-8).
  *
- * <p>조건 정규화 → 성향 프로필 로딩(DOM-1) → AI 코스 생성 호출(API-BA-1) → 결과 저장(DOM-2) 순으로
+ * <p>조건 정규화 → 선호 정보 로딩(MBTI + 성향 프로필) → AI 코스 생성 호출(API-AI-2) → 저장(DOM-3) 순으로
  * 진행하며, 각 단계 상태를 {@link SseEmitter}로 스트리밍한다. 이벤트 step명은 명세 그대로 사용한다.
  * 이 메서드는 비동기 워커 스레드에서 실행되어 전체 SSE 수명주기를 책임진다.
  */
@@ -44,6 +46,7 @@ public class CourseCreationService {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+    private final UserMbtiReader userMbtiReader;
     private final TasteProfileRepository tasteProfileRepository;
     private final AiCourseClient aiCourseClient;
     private final ItineraryPlaceNormalizer itineraryPlaceNormalizer;
@@ -60,14 +63,22 @@ public class CourseCreationService {
             TripCondition condition = normalize(request);
 
             stream.send(EVENT_PROGRESS,
-                    new Progress("LOADING_TASTE_PROFILE", "사용자 성향 프로필을 불러오는 중입니다."));
-            SavedTasteProfile profile = tasteProfileRepository.findLatestByUserId(userId)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.TASTE_PROFILE_NOT_FOUND));
+                    new Progress("LOADING_USER_PREFERENCE", "사용자 정보를 불러오는 중입니다."));
+            // DOM-3: MBTI 또는 취향 분석 결과 중 하나 이상이면 생성할 수 있고, 둘 다 있으면 함께
+            // 반영한다. 따라서 각각은 없어도 되고, 둘 다 없을 때만 404로 끊는다.
+            Mbti mbti = userMbtiReader.findMbti(userId).orElse(null);
+            JsonNode tasteProfile = tasteProfileRepository.findLatestByUserId(userId)
+                    .map(SavedTasteProfile::profileJson)
+                    .map(this::parseProfile)
+                    .orElse(null);
+            if (mbti == null && tasteProfile == null) {
+                throw new BusinessException(ErrorCode.USER_PREFERENCE_NOT_FOUND);
+            }
 
             stream.send(EVENT_PROGRESS,
                     new Progress("GENERATING_COURSE", "개인 맞춤형 여행 코스를 생성 중입니다."));
             JsonNode courseNode = aiCourseClient.generateCourse(
-                    AiCourseGenerationRequest.of(userId, parseProfile(profile.profileJson()), condition));
+                    AiCourseGenerationRequest.of(userId, mbti, tasteProfile, condition));
 
             // 클라이언트가 이미 떠났어도 생성은 끝났으므로 저장은 진행한다(목록 조회로 확인 가능).
             // AI는 장소명만 주므로, 저장 전에 각 방문지를 내부 장소(placeId·좌표)로 정규화한다(DOM-3).

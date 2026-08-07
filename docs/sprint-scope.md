@@ -17,13 +17,20 @@
 | [#4](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/4) | TSK-7 | 성향 프로필 기반 AI 코스 생성 연동 (SSE) | API-BA-1 | FUN-2 | REQ-7 | DOM-2 | Backlog |
 | [#2](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/2) | TSK-34 | 이미지 메타데이터 성향 분석 + Reverse Geocode 전처리 | API-FB-2, API-BA-6 | FUN-1 | REQ-11 | DOM-3, DOM-5 | Backlog |
 | [#1](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/1) | TSK-36 | 이전 생성 코스 목록/상세 조회 | API-FB-10, API-FB-7 | FUN-7 | — | DOM-2 | Backlog |
+| [#51](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/51) | TSK-25 | 사용자 프로필·MBTI 선호 입력값 저장 | API-PREF-1, API-USER-1 | FUN-2, FUN-8 | REQ-2, REQ-9 | DOM-1 | In progress |
+
+> ⚠️ **명세 ID 재편:** SPEC 저장소가 갱신되며 API·DOM ID 체계가 바뀌었다
+> (`API-FB-*` → `API-AUTH-*`/`API-COURSE-*`/`API-PREF-*`/`API-USER-*`, DOM 번호도 이동 —
+> 예전 DOM-3(사용자)는 현재 **DOM-1**, 예전 DOM-2(코스)는 현재 **DOM-3**). 위 표의 #1~#7 행은
+> 옛 ID이고, #51 행부터가 현행 ID다. 작업 전 `specs/api-specs/api.md`·`specs/domain-specs/domain.md`
+> 인덱스를 먼저 확인할 것. (`docs/spec-index.md`도 옛 ID 기준이라 갱신이 필요하다.)
 
 ### 스코프 상의 핵심 포인트
 - **인증:** Google OAuth 인가코드 → Google 토큰 교환 → 사용자 upsert → JWT(Access/Refresh) 발급. (#3)
 - **성향 분석:** 이미지 EXIF(좌표·시간) 메타데이터만 수집 → Reverse Geocode로 한글 주소화 →
   AI 서버(API-BA-6)로 분석 요청. 개인정보 동의 사전 검증 필수. (#2)
 - **코스 생성:** `POST /api/courses`(SSE)로 조건 입력 → 성향 프로필 로딩 → AI 서버(API-BA-1, SSE)
-  연동 → 진행 이벤트(`LOADING_TASTE_PROFILE` → `GENERATING_COURSE` → `complete`) 스트리밍 →
+  연동 → 진행 이벤트(`LOADING_USER_PREFERENCE` → `GENERATING_COURSE` → `complete`) 스트리밍 →
   결과를 코스 정보(DOM-2)로 저장. (#6, #4)
 - **조회:** 코스 목록(최신순·페이지네이션) 및 상세, 소유자 권한 검증. 성향 프로필 조회. (#1, #5)
 
