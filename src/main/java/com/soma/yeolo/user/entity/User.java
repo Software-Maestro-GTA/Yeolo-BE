@@ -109,4 +109,24 @@ public class User extends BaseTimeEntity {
             this.profileImageUrl = profileImageUrl;
         }
     }
+
+    /**
+     * 회원탈퇴 (API-USER-2). 계정을 소프트 삭제(status=deleted)하면서 개인정보를 파기한다.
+     *
+     * <p>OAuth 식별자는 지우지 않고 {@code deleted:<id>}로 치환한다. 원본 sub를 남기지 않으면서도
+     * {@code (provider, provider_user_id)} 유니크 제약을 비워 줘, 같은 계정으로 재가입하면
+     * 탈퇴한 옛 레코드가 아니라 새 사용자로 인식된다. 이미 탈퇴한 계정이면 아무것도 하지 않는다(멱등)
+     * — 두 번째 호출이 탈퇴 시각을 덮어써 파기 시점 기록이 흐트러지지 않게 한다.
+     */
+    public void withdraw() {
+        if (this.status == UserStatus.DELETED) {
+            return;
+        }
+        this.status = UserStatus.DELETED;
+        this.deletedAt = Instant.now();
+        this.email = null;
+        this.displayName = null;
+        this.profileImageUrl = null;
+        this.providerUserId = "deleted:" + this.id;
+    }
 }

@@ -8,6 +8,7 @@ import com.soma.yeolo.auth.dto.AppleLoginRequest;
 import com.soma.yeolo.auth.dto.AppleLoginResponse;
 import com.soma.yeolo.auth.dto.GoogleLoginRequest;
 import com.soma.yeolo.auth.dto.GoogleLoginResponse;
+import com.soma.yeolo.auth.dto.TokenRefreshResponse;
 import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
@@ -21,6 +22,7 @@ import com.soma.yeolo.user.service.UserService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 /**
  * OAuth 로그인 오케스트레이션:
@@ -88,6 +90,37 @@ public class AuthService {
      */
     private boolean resolveDoOnboarding(UUID userId) {
         return !(tasteProfileRepository.existsByUserId(userId) && courseRepository.existsByUserId(userId));
+    }
+
+    /**
+     * 토큰 재발급 (API-AUTH-3): Refresh Token을 검증하고 Access/Refresh를 함께 재발급한다.
+     *
+     * <p>새 Refresh Token으로 회전시켜 저장하므로 방금 쓴 토큰은 즉시 무효가 된다(재사용 차단).
+     * 검증 실패 사유(서명 위조·만료·용도 불일치·이미 무효화됨)는 모두 같은 401로 응답한다 —
+     * 어느 쪽으로 틀렸는지 알려 주면 유효한 토큰을 찾는 데 단서가 되기 때문이다.
+     *
+     * <p>탈퇴·로그아웃한 사용자는 저장된 Refresh Token이 지워져 {@code matches}에서 걸린다.
+     * 즉 저장 레코드의 존재 자체가 "살아 있는 세션"의 근거이므로 별도 사용자 상태 조회는 하지 않는다.
+     */
+    public TokenRefreshResponse refresh(String refreshToken) {
+        if (!StringUtils.hasText(refreshToken)) {
+            throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        UUID userId;
+        try {
+            userId = jwtTokenProvider.parseRefreshTokenUserId(refreshToken);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+        if (!refreshTokenService.matches(userId, refreshToken)) {
+            throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        String accessToken = jwtTokenProvider.createAccessToken(userId);
+        GeneratedToken refresh = jwtTokenProvider.createRefreshToken(userId);
+        refreshTokenService.issue(userId, refresh.token(), refresh.expiresAt());
+        return new TokenRefreshResponse(accessToken, refresh.token());
     }
 
     /** 로그아웃 (API-AUTH-4): 사용자의 Refresh Token을 무효화해 세션을 종료한다. */

@@ -41,6 +41,11 @@ class CourseQueryServiceTest {
         }
 
         @Override
+        public void deleteById(UUID courseId) {
+            store.removeIf(c -> c.courseId().equals(courseId));
+        }
+
+        @Override
         public boolean existsByUserId(UUID userId) {
             return store.stream().anyMatch(c -> c.userId().equals(userId));
         }
@@ -166,5 +171,36 @@ class CourseQueryServiceTest {
         assertThatThrownBy(() -> service().getCourse(UUID.randomUUID(), courseId))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.COURSE_ACCESS_DENIED);
+    }
+
+    @Test
+    void 소유자면_코스를_삭제하고_목록에서_제외된다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, me, "내 코스", "{\"days\":[]}"));
+
+        service().deleteCourse(me, courseId);
+
+        assertThat(courses.findById(courseId)).isEmpty();
+        assertThat(service().getMyCourses(me).courses()).isEmpty();
+    }
+
+    @Test
+    void 삭제할_코스가_없으면_404() {
+        assertThatThrownBy(() -> service().deleteCourse(UUID.randomUUID(), UUID.randomUUID()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.COURSE_NOT_FOUND);
+    }
+
+    @Test
+    void 타인_코스를_삭제하면_403이고_삭제되지_않는다() {
+        UUID owner = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, owner, "남의 코스", "{\"days\":[]}"));
+
+        assertThatThrownBy(() -> service().deleteCourse(UUID.randomUUID(), courseId))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.COURSE_DELETE_ACCESS_DENIED);
+        assertThat(courses.findById(courseId)).isPresent();
     }
 }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -16,6 +17,7 @@ import com.soma.yeolo.auth.dto.AppleLoginRequest;
 import com.soma.yeolo.auth.dto.AppleLoginResponse;
 import com.soma.yeolo.auth.dto.GoogleLoginRequest;
 import com.soma.yeolo.auth.dto.GoogleLoginResponse;
+import com.soma.yeolo.auth.dto.TokenRefreshResponse;
 import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
@@ -208,5 +210,61 @@ class AuthServiceTest {
         authService.logout(userId);
 
         verify(refreshTokenService).revoke(eq(userId));
+    }
+
+    @Test
+    void 재발급은_토큰을_검증하고_Access와_Refresh를_함께_회전시킨다() {
+        UUID userId = UUID.randomUUID();
+        Instant expiresAt = Instant.now().plusSeconds(1209600);
+        when(jwtTokenProvider.parseRefreshTokenUserId("old-refresh")).thenReturn(userId);
+        when(refreshTokenService.matches(userId, "old-refresh")).thenReturn(true);
+        when(jwtTokenProvider.createAccessToken(userId)).thenReturn("new-access");
+        when(jwtTokenProvider.createRefreshToken(userId))
+                .thenReturn(new GeneratedToken("new-refresh", expiresAt));
+
+        TokenRefreshResponse response = authService.refresh("old-refresh");
+
+        assertThat(response.accessToken()).isEqualTo("new-access");
+        assertThat(response.refreshToken()).isEqualTo("new-refresh");
+        // 새 토큰을 저장해야 방금 쓴 토큰이 무효가 된다(재사용 차단).
+        verify(refreshTokenService).issue(userId, "new-refresh", expiresAt);
+    }
+
+    @Test
+    void 재발급_토큰이_없으면_401로_처리하고_토큰을_발급하지_않는다() {
+        assertThatThrownBy(() -> authService.refresh(null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_REFRESH_TOKEN);
+
+        verifyNoInteractions(jwtTokenProvider, refreshTokenService);
+    }
+
+    @Test
+    void 서명이_깨진_재발급_토큰은_401로_처리한다() {
+        when(jwtTokenProvider.parseRefreshTokenUserId("broken"))
+                .thenThrow(new IllegalArgumentException("bad token"));
+
+        assertThatThrownBy(() -> authService.refresh("broken"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_REFRESH_TOKEN);
+
+        verifyNoInteractions(refreshTokenService);
+    }
+
+    @Test
+    void 무효화됐거나_이미_회전된_재발급_토큰은_401로_처리한다() {
+        UUID userId = UUID.randomUUID();
+        when(jwtTokenProvider.parseRefreshTokenUserId("stale")).thenReturn(userId);
+        // 서명·만료는 멀쩡해도 저장된 토큰과 다르면(로그아웃·탈퇴·회전) 살아 있는 세션이 아니다.
+        when(refreshTokenService.matches(userId, "stale")).thenReturn(false);
+
+        assertThatThrownBy(() -> authService.refresh("stale"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_REFRESH_TOKEN);
+
+        verify(jwtTokenProvider, never()).createAccessToken(userId);
     }
 }

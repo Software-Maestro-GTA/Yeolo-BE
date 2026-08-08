@@ -17,6 +17,7 @@ import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.security.JwtAuthenticationFilter;
 import com.soma.yeolo.global.security.JwtTokenProvider;
 import com.soma.yeolo.global.security.RestAuthenticationEntryPoint;
+import com.soma.yeolo.global.security.WithdrawnUserChecker;
 import com.soma.yeolo.global.sse.SseProperties;
 import com.soma.yeolo.tasteprofile.service.BehaviorTasteProfileService;
 import java.util.UUID;
@@ -62,7 +63,7 @@ class TasteProfileControllerTest {
 
     private static final String BODY = """
             {"images":[{"sourceImageId":"img-1","capturedAt":"2026-07-14T10:00:00+09:00",\
-            "latitude":33.45,"longitude":126.94,"timezone":"Asia/Seoul"}]}""";
+            "latitude":33.45,"longitude":126.94}]}""";
 
     @Autowired
     private MockMvc mockMvc;
@@ -76,9 +77,12 @@ class TasteProfileControllerTest {
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
 
+    @MockitoBean
+    private WithdrawnUserChecker withdrawnUserChecker;
+
     private UUID authenticate() {
         UUID userId = UUID.randomUUID();
-        when(jwtTokenProvider.parseUserId("valid-token")).thenReturn(userId);
+        when(jwtTokenProvider.parseAccessTokenUserId("valid-token")).thenReturn(userId);
         return userId;
     }
 
@@ -90,7 +94,7 @@ class TasteProfileControllerTest {
         doThrow(new BusinessException(ErrorCode.PHOTO_CONSENT_REQUIRED))
                 .when(photoAnalysisConsentChecker).requireAgreed(userId);
 
-        mockMvc.perform(post("/api/taste-profile/behavior")
+        mockMvc.perform(post("/api/users/me/taste-profile/analysis")
                         .header("Authorization", "Bearer valid-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(BODY))
@@ -108,7 +112,7 @@ class TasteProfileControllerTest {
         authenticate();
         // 동의한 경우 requireAgreed는 아무것도 하지 않는다(mock 기본 동작과 동일).
 
-        mockMvc.perform(post("/api/taste-profile/behavior")
+        mockMvc.perform(post("/api/users/me/taste-profile/analysis")
                         .header("Authorization", "Bearer valid-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(BODY))

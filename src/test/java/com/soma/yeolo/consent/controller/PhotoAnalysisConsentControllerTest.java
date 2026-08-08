@@ -13,6 +13,7 @@ import com.soma.yeolo.global.config.SecurityConfig;
 import com.soma.yeolo.global.security.JwtAuthenticationFilter;
 import com.soma.yeolo.global.security.JwtTokenProvider;
 import com.soma.yeolo.global.security.RestAuthenticationEntryPoint;
+import com.soma.yeolo.global.security.WithdrawnUserChecker;
 import java.time.Instant;
 import java.util.UUID;
 import org.hamcrest.Matchers;
@@ -41,9 +42,12 @@ class PhotoAnalysisConsentControllerTest {
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
 
+    @MockitoBean
+    private WithdrawnUserChecker withdrawnUserChecker;
+
     private UUID authenticate() {
         UUID userId = UUID.randomUUID();
-        when(jwtTokenProvider.parseUserId("valid-token")).thenReturn(userId);
+        when(jwtTokenProvider.parseAccessTokenUserId("valid-token")).thenReturn(userId);
         return userId;
     }
 

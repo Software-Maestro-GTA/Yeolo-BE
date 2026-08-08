@@ -28,4 +28,10 @@ public class StubProfileImageStorage implements ProfileImageStorage {
         return "%s/%s/%s.%s".formatted(
                 BASE_URL, userId, UUID.randomUUID(), image.format().getExtension());
     }
+
+    /** 저장한 실체가 없으므로 지울 것도 없다. 탈퇴 흐름이 스텁에서도 끊기지 않도록 성공 처리한다. */
+    @Override
+    public void deleteAll(UUID userId) {
+        log.debug("Profile image delete (stub): userId={}", userId);
+    }
 }

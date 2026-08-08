@@ -21,4 +21,18 @@ public interface ProfileImageStorage {
      * @throws com.soma.yeolo.global.exception.BusinessException 저장 실패(500)
      */
     String store(UUID userId, ProfileImage image);
+
+    /**
+     * 사용자의 프로필 이미지를 <b>모두</b> 파기한다 (API-USER-2 회원탈퇴). 지울 것이 없으면
+     * 아무것도 하지 않는다(멱등).
+     *
+     * <p>현재 이미지 한 장이 아니라 사용자 소유 객체 전부를 지운다 — 업로드마다 새 키를 발급하는
+     * 구조라 교체된 옛 이미지가 저장소에 남아 있고, 그것들도 같은 사람의 사진이라 파기 대상이다.
+     *
+     * <p><b>구현 계약:</b> 저장과 마찬가지로 실패를 삼키지 않는다. 지우지 못했는데 탈퇴를 성공으로
+     * 응답하면 파기했다고 알린 개인정보가 저장소에 그대로 남는다.
+     *
+     * @throws com.soma.yeolo.global.exception.BusinessException 삭제 실패(500)
+     */
+    void deleteAll(UUID userId);
 }

@@ -15,6 +15,7 @@ import com.soma.yeolo.global.exception.GlobalExceptionHandler;
 import com.soma.yeolo.global.security.JwtAuthenticationFilter;
 import com.soma.yeolo.global.security.JwtTokenProvider;
 import com.soma.yeolo.global.security.RestAuthenticationEntryPoint;
+import com.soma.yeolo.global.security.WithdrawnUserChecker;
 import com.soma.yeolo.location.dto.CityAutocompleteResponse;
 import com.soma.yeolo.location.dto.CountryAutocompleteResponse;
 import com.soma.yeolo.location.service.LocationAutocompleteService;
@@ -47,6 +48,9 @@ class LocationControllerTest {
 
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
+
+    @MockitoBean
+    private WithdrawnUserChecker withdrawnUserChecker;
 
     @Test
     void 국가_자동완성은_인증_없이_명세의_봉투로_응답한다() throws Exception {

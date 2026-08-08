@@ -19,6 +19,7 @@
 | [#1](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/1) | TSK-36 | 이전 생성 코스 목록/상세 조회 | API-FB-10, API-FB-7 | FUN-7 | — | DOM-2 | Backlog |
 | [#51](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/51) | TSK-25 | 사용자 프로필·MBTI 선호 입력값 저장 | API-PREF-1, API-USER-1 | FUN-2, FUN-8 | REQ-2, REQ-9 | DOM-1 | In progress |
 | [#46](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/46) | TSK-32 | 국가·도시 자동완성 | API-LOC-1, API-LOC-2 | FUN-5, FUN-8 | REQ-4, REQ-9 | — | In progress |
+| [#78](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/78) | — | 회원탈퇴·코스 삭제 복구 + 토큰 재발급 | API-USER-2, API-AUTH-3, API-COURSE-4 | FUN-1, FUN-9 | REQ-11 | DOM-1, DOM-3 | In progress |
 
 > ⚠️ **명세 ID 재편:** SPEC 저장소가 갱신되며 API·DOM ID 체계가 바뀌었다
 > (`API-FB-*` → `API-AUTH-*`/`API-COURSE-*`/`API-PREF-*`/`API-USER-*`, DOM 번호도 이동 —
@@ -36,6 +37,22 @@
 - **조회:** 코스 목록(최신순·페이지네이션) 및 상세, 소유자 권한 검증. 성향 프로필 조회. (#1, #5)
 - **지역 선택:** 코스 생성 화면의 국가·도시 자동완성(한글 초성 검색 포함). 명세에 국가·도시 도메인
   정의가 없어 기준 데이터 출처를 BE에서 정했다(CLDR + GeoNames) — `docs/location-dataset.md`. (#46)
+- **세션 수명주기:** 회원탈퇴(API-USER-2)는 소프트 삭제 + 개인정보 파기 + 세션 무효화를 한
+  트랜잭션으로 처리한다. 토큰 재발급(API-AUTH-3)은 Access/Refresh를 함께 회전시켜 쓴 토큰을 즉시
+  무효화한다. (#78)
+- **탈퇴 파기 범위(명세에 규정이 없어 BE에서 정함):** 명세는 요청·응답만 정의하고 무엇을 지울지
+  말하지 않는다. 아래를 파기 대상으로 확정했다 — 계정 식별정보(이메일·이름·프로필 이미지 URL·
+  OAuth 식별자 → `deleted:<id>`), **저장소의 프로필 이미지 파일 전부**(사용자 프리픽스 단위라
+  교체된 옛 이미지까지), **취향 프로필**(사진 EXIF에서 파생된 이동 이력), Refresh Token.
+  `users` 행 자체와 **코스·MBTI·사진분석 동의 이력은 남긴다**(코스가 사용자 식별자를 참조한다).
+  이미지 파기에 실패하면 예외를 전파해 탈퇴 전체를 롤백한다 — 사진이 남았는데 "탈퇴 성공"으로
+  응답하지 않기 위함이며, 대가로 저장소 장애 중에는 탈퇴가 500이 된다(재시도 가능·멱등).
+  탈퇴자의 남은 Access Token은 인증 필터가 계정 상태를 확인해 401로 막는다. (#78)
+- **롤백 복구:** 회원탈퇴(#42/#44)와 코스 삭제(#52)는 한 번 구현됐다가 롤백 커밋 `024afc8`
+  ("main을 스프린트1 + Apple OAuth 시제품")에 휩쓸려 사라진 것을 #78에서 되살린 것이다. 같은
+  롤백의 다른 피해(장소 정규화, `UserPreference`)는 이후 `place`·`preference` 패키지로 재구축되어
+  복구가 끝났다 — **이로써 `024afc8` 유실분은 모두 회수됐다.** 코스 삭제를 되살리며 목록 조회
+  메시지도 명세(API-COURSE-3 "여행 코스 목록 조회 성공")에 맞춰 정정했다. (#78)
 
 ## Out of Scope — 이번 스프린트에서 손대지 않음
 

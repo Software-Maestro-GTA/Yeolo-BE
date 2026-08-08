@@ -65,4 +65,35 @@ class UserTest {
         assertThat(user.getDisplayName()).isEqualTo("새이름");
         assertThat(user.getProfileImageUrl()).isEqualTo("http://new");
     }
+
+    @Test
+    void 탈퇴하면_deleted_상태로_전환하고_탈퇴시각을_기록하며_개인정보를_파기한다() {
+        User user = User.createOAuthUser(Provider.GOOGLE, "sub-1",
+                "u@gmail.com", "홍길동", "http://img");
+
+        user.withdraw();
+
+        assertThat(user.getStatus()).isEqualTo(UserStatus.DELETED);
+        assertThat(user.getDeletedAt()).isNotNull();
+        // 개인정보 영구 파기 (API-USER-2)
+        assertThat(user.getEmail()).isNull();
+        assertThat(user.getDisplayName()).isNull();
+        assertThat(user.getProfileImageUrl()).isNull();
+        // OAuth 식별자는 익명 토큰으로 치환 — 원본 sub 제거 + 재가입 시 새 사용자로 인식
+        assertThat(user.getProviderUserId()).isNotEqualTo("sub-1");
+        assertThat(user.getProviderUserId()).startsWith("deleted:");
+    }
+
+    @Test
+    void 이미_탈퇴한_계정을_다시_탈퇴해도_상태와_탈퇴시각은_유지된다() {
+        User user = User.createOAuthUser(Provider.GOOGLE, "sub-1",
+                "u@gmail.com", "홍길동", "http://img");
+        user.withdraw();
+        var firstDeletedAt = user.getDeletedAt();
+
+        user.withdraw();
+
+        assertThat(user.getStatus()).isEqualTo(UserStatus.DELETED);
+        assertThat(user.getDeletedAt()).isEqualTo(firstDeletedAt);
+    }
 }

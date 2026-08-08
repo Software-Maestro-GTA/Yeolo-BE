@@ -44,6 +44,11 @@ class UserProfileServiceTest {
             stored = image;
             return "https://cdn.test/%s.%s".formatted(userId, image.format().getExtension());
         }
+
+        @Override
+        public void deleteAll(UUID userId) {
+            stored = null;
+        }
     }
 
     @Mock

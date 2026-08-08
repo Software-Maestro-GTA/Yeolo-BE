@@ -9,11 +9,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.soma.yeolo.auth.dto.AppleLoginResponse;
 import com.soma.yeolo.auth.dto.GoogleLoginResponse;
 import com.soma.yeolo.auth.dto.GoogleLoginResponse.UserSummary;
+import com.soma.yeolo.auth.dto.TokenRefreshResponse;
 import com.soma.yeolo.auth.service.AuthService;
 import com.soma.yeolo.global.config.SecurityConfig;
+import com.soma.yeolo.global.exception.BusinessException;
+import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.security.JwtAuthenticationFilter;
 import com.soma.yeolo.global.security.JwtTokenProvider;
 import com.soma.yeolo.global.security.RestAuthenticationEntryPoint;
+import com.soma.yeolo.global.security.WithdrawnUserChecker;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +39,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
+
+    @MockitoBean
+    private WithdrawnUserChecker withdrawnUserChecker;
 
     @Test
     void 구글_로그인_성공시_200과_명세_봉투로_응답한다() throws Exception {
@@ -128,7 +135,7 @@ class AuthControllerTest {
     @Test
     void 로그아웃_성공시_200과_명세_봉투로_응답한다() throws Exception {
         UUID userId = UUID.randomUUID();
-        when(jwtTokenProvider.parseUserId("valid-token")).thenReturn(userId);
+        when(jwtTokenProvider.parseAccessTokenUserId("valid-token")).thenReturn(userId);
 
         mockMvc.perform(post("/api/auth/logout")
                         .header("Authorization", "Bearer valid-token")
@@ -143,7 +150,7 @@ class AuthControllerTest {
     @Test
     void 로그아웃_바디_없이도_200으로_응답한다() throws Exception {
         UUID userId = UUID.randomUUID();
-        when(jwtTokenProvider.parseUserId("valid-token")).thenReturn(userId);
+        when(jwtTokenProvider.parseAccessTokenUserId("valid-token")).thenReturn(userId);
 
         mockMvc.perform(post("/api/auth/logout")
                         .header("Authorization", "Bearer valid-token"))
@@ -160,5 +167,69 @@ class AuthControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
+    void 재발급_성공시_200과_명세_봉투로_응답한다() throws Exception {
+        when(authService.refresh("refresh-token"))
+                .thenReturn(new TokenRefreshResponse("new-access", "new-refresh"));
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"refresh-token\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("토큰 재발급 성공"))
+                .andExpect(jsonPath("$.data.accessToken").value("new-access"))
+                .andExpect(jsonPath("$.data.refreshToken").value("new-refresh"));
+    }
+
+    @Test
+    void 재발급은_Authorization_헤더로_보낸_토큰도_받는다() throws Exception {
+        when(authService.refresh("header-token"))
+                .thenReturn(new TokenRefreshResponse("new-access", "new-refresh"));
+
+        // 명세가 헤더·본문 양쪽에 Refresh Token을 적어 둬서 헤더만 보내는 FE도 동작해야 한다.
+        mockMvc.perform(post("/api/auth/refresh")
+                        .header("Authorization", "Bearer header-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accessToken").value("new-access"));
+    }
+
+    @Test
+    void 재발급은_인증_없이_호출할_수_있다() throws Exception {
+        // 만료된 Access Token 상태에서 부르는 자리이므로 SecurityConfig상 공개여야 한다 —
+        // 401이 나면 재발급 자체가 불가능해진다.
+        when(authService.refresh("refresh-token"))
+                .thenReturn(new TokenRefreshResponse("new-access", "new-refresh"));
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"refresh-token\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void 무효한_재발급_토큰은_401과_명세_메시지로_응답한다() throws Exception {
+        when(authService.refresh("bad-token"))
+                .thenThrow(new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN));
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"bad-token\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("Refresh Token이 유효하지 않거나 만료되었습니다."))
+                .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
+    void 재발급_토큰이_아예_없으면_401로_응답한다() throws Exception {
+        when(authService.refresh(null))
+                .thenThrow(new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN));
+
+        mockMvc.perform(post("/api/auth/refresh"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401));
     }
 }

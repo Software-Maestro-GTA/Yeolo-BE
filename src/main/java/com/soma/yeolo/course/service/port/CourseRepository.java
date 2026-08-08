@@ -24,13 +24,16 @@ public interface CourseRepository {
     UUID save(Course course);
 
     /**
-     * 사용자가 생성한 코스를 최신 생성순으로 조회한다. 없으면 빈 목록을 반환한다. (API-FB-10)
-     * (페이지네이션은 현재 명세에 없으며, 필요 시 파라미터 추가로 확장한다. FUN-7)
+     * 사용자가 생성한 코스를 최신 생성순으로 조회한다. 없으면 빈 목록을 반환한다. (API-COURSE-3)
+     * (페이지네이션은 현재 명세에 없으며, 필요 시 파라미터 추가로 확장한다. FUN-9)
      */
     List<SavedCourse> findByUserIdLatestFirst(UUID userId);
 
-    /** 코스를 식별자로 조회한다. 없으면 빈 값을 반환한다. 소유권 판정은 호출자가 수행한다. (API-FB-7) */
+    /** 코스를 식별자로 조회한다. 없으면 빈 값을 반환한다. 소유권 판정은 호출자가 수행한다. (API-COURSE-2) */
     Optional<SavedCourse> findById(UUID courseId);
+
+    /** 코스를 식별자로 삭제한다. 존재·소유권 검증은 호출자가 선행한다. 없는 식별자면 무시한다. (API-COURSE-4) */
+    void deleteById(UUID courseId);
 
     /** 사용자가 생성한 코스가 하나라도 있는지 여부. (온보딩 완료 판정에 사용) */
     boolean existsByUserId(UUID userId);

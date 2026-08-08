@@ -64,6 +64,11 @@ class BehaviorTasteProfileServiceTest {
         public boolean existsByUserId(UUID userId) {
             throw new UnsupportedOperationException("행동 분석 테스트에서는 존재 조회를 사용하지 않는다.");
         }
+
+        @Override
+        public void deleteByUserId(UUID userId) {
+            saved.clear();
+        }
     }
 
     private final FakeTasteProfileRepository store = new FakeTasteProfileRepository();
@@ -75,13 +80,13 @@ class BehaviorTasteProfileServiceTest {
 
     private BehaviorAnalysisRequest request() {
         return new BehaviorAnalysisRequest(List.of(
-                new ImageMetadata("img-1", "2026-07-14T10:00:00+09:00", 33.45, 126.94, "Asia/Seoul")));
+                new ImageMetadata("img-1", "2026-07-14T10:00:00+09:00", 33.45, 126.94)));
     }
 
     private PreprocessedImage preprocessed() {
         return new PreprocessedImage("img-1",
                 new GeoLocation("대한민국", "제주", "서귀포", "성산읍", "성산일출봉", List.of("tourist_attraction")),
-                TimeContext.derive("2026-07-14T10:00:00+09:00", "Asia/Seoul"));
+                TimeContext.derive("2026-07-14T10:00:00+09:00"));
     }
 
     @Test

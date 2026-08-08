@@ -18,10 +18,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * 성향 프로필 API. 이미지 메타데이터 기반 성향 분석을 SSE로 스트리밍한다. (API-FB-2)
+ * 성향 프로필 API. 이미지 메타데이터 기반 취향 분석을 SSE로 스트리밍한다. (API-PREF-3)
  */
 @RestController
-@RequestMapping("/api/taste-profile")
+@RequestMapping("/api/users/me/taste-profile")
 @RequiredArgsConstructor
 public class TasteProfileController {
 
@@ -33,14 +33,14 @@ public class TasteProfileController {
     private final AsyncTaskExecutor sseTaskExecutor;
 
     /**
-     * 이미지 메타데이터 기반 성향 분석 생성 (API-FB-2).
+     * 이미지 메타데이터 기반 취향 분석 생성 (API-PREF-3).
      * 요청 검증 실패(빈 목록/형식 오류)는 스트림 시작 전 400 JSON으로 응답한다(전역 핸들러).
      *
      * <p>사진 분석 동의 검증도 같은 이유로 <b>스트림을 열기 전</b>에 수행한다(REQ-8 / API-PREF-3의 403).
      * 동의가 없으면 분석 파이프라인을 아예 시작하지 않으므로, error 이벤트가 아니라 명세의 실패 응답
      * 형태 그대로 403 JSON으로 나간다.
      */
-    @PostMapping(value = "/behavior", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PostMapping(value = "/analysis", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter analyzeBehavior(@AuthenticationPrincipal UUID userId,
                                       @Valid @RequestBody BehaviorAnalysisRequest request) {
         photoAnalysisConsentChecker.requireAgreed(userId);

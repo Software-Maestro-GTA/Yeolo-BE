@@ -47,11 +47,10 @@ public class SecurityConfig {
                         // 국가·도시 자동완성(API-LOC-1/2)은 명세상 "인증 필요: N"인 공개 기준 정보다.
                         // 사용자별로 달라지는 값이 없고, 로그인 전 화면에서도 지역을 훑어볼 수 있어야 한다.
                         //
-                        // API-LOC-2 명세는 자기모순이다 — 기본 정보는 "인증 필요: N"인데 Header 에
-                        // Authorization 이 있고 Error Code 에 401 이 있다. **공개로 확정한다**:
-                        // 같은 데이터를 주는 API-LOC-1 에는 401 이 없어 형제 API와 일관되고, FE 가
-                        // 토큰을 붙여 보내도 그대로 200 이라 어느 쪽으로 구현했든 깨지지 않는다.
-                        // 대신 명세에 적힌 401 은 도달 불가이므로 FE 에 공유해야 한다.
+                        // API-LOC-2 명세는 원래 자기모순이었다 — 기본 정보는 "인증 필요: N"인데
+                        // Header 에 Authorization 이 있고 Error Code 에 401 이 있었다. **공개로
+                        // 확정**했고 Notion 원본·명세 파일에도 반영돼 모순은 해소된 상태다.
+                        // (경위는 docs/spec-index.md "해소된 명세 모순 — API-LOC-2 인증")
                         .requestMatchers(HttpMethod.GET, "/api/locations/**").permitAll()
                         // k8s readiness/liveness probe 경로는 인증 없이 허용.
                         .requestMatchers("/actuator/health/**").permitAll()

@@ -17,6 +17,7 @@ import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.security.JwtAuthenticationFilter;
 import com.soma.yeolo.global.security.JwtTokenProvider;
 import com.soma.yeolo.global.security.RestAuthenticationEntryPoint;
+import com.soma.yeolo.global.security.WithdrawnUserChecker;
 import com.soma.yeolo.user.domain.Provider;
 import com.soma.yeolo.user.dto.UserProfileUpdateRequest;
 import com.soma.yeolo.user.entity.User;
@@ -55,9 +56,12 @@ class UserProfileControllerTest {
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
 
+    @MockitoBean
+    private WithdrawnUserChecker withdrawnUserChecker;
+
     private UUID authenticate() {
         UUID userId = UUID.randomUUID();
-        when(jwtTokenProvider.parseUserId("valid-token")).thenReturn(userId);
+        when(jwtTokenProvider.parseAccessTokenUserId("valid-token")).thenReturn(userId);
         return userId;
     }
 

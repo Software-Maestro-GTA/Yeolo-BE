@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 /**
- * 이미지 메타데이터 기반 성향 분석 요청 (API-FB-2 Request Body).
+ * 이미지 메타데이터 기반 취향 분석 요청 (API-PREF-3 Request Body).
  * 개인정보 수집·활용 동의 여부는 서버가 요청 처리 전에 검증한다(REQ-8) — 클라이언트 선행 안내와
  * 별개로, 미동의 요청은 컨트롤러에서 403으로 차단된다.
  */
@@ -21,10 +21,9 @@ public record BehaviorAnalysisRequest(
      * 사진 한 장의 EXIF 기반 메타데이터 (DOM-5 §4-2).
      *
      * @param sourceImageId 클라이언트 이미지 식별자
-     * @param capturedAt    ISO-8601 촬영 시각(오프셋 포함)
+     * @param capturedAt    ISO-8601 촬영 시각(UTC)
      * @param latitude      촬영 위도
      * @param longitude     촬영 경도
-     * @param timezone      촬영 시간 해석에 사용할 타임존 (예: Asia/Seoul)
      */
     public record ImageMetadata(
             @NotBlank(message = "sourceImageId는 필수입니다.")
@@ -37,9 +36,7 @@ public record BehaviorAnalysisRequest(
             Double latitude,
 
             @NotNull(message = "longitude는 필수입니다.")
-            Double longitude,
-
-            String timezone
+            Double longitude
     ) {
     }
 }
