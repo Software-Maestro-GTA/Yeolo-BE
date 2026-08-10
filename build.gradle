@@ -33,6 +33,16 @@ dependencies {
         exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
     }
     implementation 'software.amazon.awssdk:url-connection-client'
+    // IRSA 필수. s3 는 sts 를 끌어오지 않는데, sts 가 클래스패스에 없으면 SDK 기본
+    // 자격증명 체인이 WebIdentityTokenFileCredentialsProvider 를 조용히 건너뛰고
+    // IMDS(노드 인스턴스 역할)로 폴백한다 — AWS_ROLE_ARN·토큰 파일이 파드에 멀쩡히
+    // 주입돼 있어도 그렇다. 그러면 S3 호출이 전부 AccessDenied 인데 에러 주체가
+    // assumed-role/default-eks-node-group-... 으로 찍혀 원인을 IAM 에서 찾게 된다
+    // (2026-08-10 dev 회원탈퇴 500 의 실제 원인). 빼지 말 것.
+    runtimeOnly('software.amazon.awssdk:sts') {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+        exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+    }
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'

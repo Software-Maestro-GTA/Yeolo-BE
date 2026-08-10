@@ -43,7 +43,10 @@ profile-images/{userId}/{uuid}.{jpg|png|webp}
   따라서 **긴 TTL을 써도 안전**하고, 이미지 교체 시 무효화(invalidation)가 필요 없다.
 - CORS: `<img>` 태그로만 표시하면 불필요. FE가 canvas/fetch로 읽어야 한다면 그때 요청하겠다.
 
-### 1-3. IRSA — WAS 파드의 S3 쓰기 권한
+### 1-3. IRSA — WAS 파드의 S3 권한
+
+> **완료됨(2026-08-07).** IRSA 역할·정책·SA 애노테이션이 `Yeolo-Infra/profile-image.tf`
+> 에 IaC 로 들어가 있다. 아래는 이력이며, 권한 범위는 **1-4** 가 최신이다.
 
 WAS Deployment가 쓰는 ServiceAccount에 IAM Role을 연결하고, 아래 정책을 붙여 달라.
 **필요한 건 PutObject 하나뿐이다** (앱은 삭제·목록 조회를 하지 않는다).
@@ -63,6 +66,53 @@ WAS Deployment가 쓰는 ServiceAccount에 IAM Role을 연결하고, 아래 정�
   ]
 }
 ```
+
+### 1-4. 권한 확대 — 회원탈퇴 파기 (2026-08-10)
+
+**§1-3의 "PutObject 하나뿐"은 #78부터 사실이 아니다.** 회원탈퇴(API-USER-2)가
+`S3ProfileImageStorage.deleteAll()` 로 사용자 프리픽스를 `ListObjectsV2` 로 훑어
+`DeleteObjects` 한다. 필요한 권한:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "WriteProfileImageObjects",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::<버킷명>/*"
+    },
+    {
+      "Sid": "ListProfileImageBucket",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::<버킷명>"
+    }
+  ]
+}
+```
+
+`s3:ListBucket` 은 오브젝트가 아니라 **버킷** 레벨 액션이라 리소스 ARN 끝에 `/*` 가
+붙으면 매칭되지 않는다. 그래서 statement 를 둘로 나눈다. 합쳐 두면 업로드는 되는데
+목록 조회만 403 이 나고, 그 403 은 탈퇴 API 에서야 드러난다.
+
+반영 위치는 `Yeolo-Infra/profile-image.tf` 의 `aws_iam_policy.was_profile_image` 다
+(콘솔·CLI 로 고치면 다음 `terraform apply` 에 되돌아간다).
+
+### 1-5. 앱 전제 — AWS SDK 에 `sts` 모듈이 있어야 IRSA 가 산다
+
+IRSA 를 아무리 정확히 맞춰도, `software.amazon.awssdk:sts` 가 클래스패스에 없으면
+SDK v2 기본 자격증명 체인이 `WebIdentityTokenFileCredentialsProvider` 를 **조용히
+건너뛰고** IMDS(노드 인스턴스 역할)로 폴백한다. `s3` 는 `sts` 를 끌어오지 않는다.
+
+증상이 고약하다 — 파드에 `AWS_ROLE_ARN` 과 프로젝티드 토큰이 멀쩡히 주입돼 있고,
+IAM·신뢰관계·SA 애노테이션이 전부 정상인데 모든 S3 호출이 `AccessDenied` 다.
+에러 주체가 `assumed-role/<IRSA 역할>` 이 아니라
+`assumed-role/default-eks-node-group-.../i-...` 로 찍히므로 원인을 인프라에서 찾게 된다.
+
+**주체가 노드 역할이면 IAM 이 아니라 앱 의존성을 먼저 본다.** `build.gradle` 에
+`runtimeOnly 'software.amazon.awssdk:sts'` 가 있어야 한다(2026-08-10 추가).
 
 ---
 
