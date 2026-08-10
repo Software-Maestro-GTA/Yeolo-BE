@@ -1,6 +1,7 @@
 package com.soma.yeolo.course.repository;
 
 import com.soma.yeolo.course.entity.CourseEntity;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,6 +14,9 @@ public interface CourseJpaRepository extends JpaRepository<CourseEntity, UUID> {
 
     /** 사용자의 코스를 최신 생성순으로 조회한다. (API-FB-10) */
     List<CourseEntity> findByUserIdOrderByCreatedAtDesc(UUID userId);
+
+    /** 공유받은 코스를 식별자 묶음으로 최신 생성순 조회한다. (API-COURSE-3 / DOM-6) */
+    List<CourseEntity> findByIdInOrderByCreatedAtDesc(Collection<UUID> courseIds);
 
     /** 사용자가 생성한 코스 존재 여부. (온보딩 완료 판정) */
     boolean existsByUserId(UUID userId);

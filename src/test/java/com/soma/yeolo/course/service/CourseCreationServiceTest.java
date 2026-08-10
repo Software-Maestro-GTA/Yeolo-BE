@@ -85,6 +85,12 @@ class CourseCreationServiceTest {
         }
 
         @Override
+        public java.util.List<com.soma.yeolo.course.domain.SavedCourse> findAllByIdsLatestFirst(
+                java.util.Collection<UUID> courseIds) {
+            throw new UnsupportedOperationException("코스 생성 테스트에서는 조회를 사용하지 않는다.");
+        }
+
+        @Override
         public java.util.Optional<com.soma.yeolo.course.domain.SavedCourse> findById(UUID courseId) {
             throw new UnsupportedOperationException("코스 생성 테스트에서는 조회를 사용하지 않는다.");
         }

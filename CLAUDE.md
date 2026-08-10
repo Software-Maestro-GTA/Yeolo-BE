@@ -79,9 +79,32 @@ git submodule update --remote specs   # 최신 명세로 갱신 후, 커밋으�
   역직렬화해 반환하되(미지 필드는 `FAIL_ON_UNKNOWN_PROPERTIES=false`로 무시), AI 파싱·저장 등 **내부
   파이프라인은 무손실 보존을 위해 `JsonNode` 유지** 가능. 경계는 "FE로 나가는 응답"입니다.
 - Enum·필드명·라벨은 **도메인 명세의 값을 그대로** 따릅니다(임의 변경 금지).
+  **명세 개정으로 값이 바뀌면, 새 값 검증과 함께 "제거된 옛 값은 거부된다" 테스트를 반드시 남깁니다.**
+  (예: `BudgetTypeTest.명세_개정으로_제거된_standard는_거부된다`) BE 자체 검증은 자기 enum 기준이라
+  명세 위반을 못 잡고, 판정 주체가 AI 서버뿐이면 실패가 런타임까지 밀립니다. 실제로 `budgetType`이
+  `moderate`→`standard`로 되돌아간 리버트를 이 테스트가 없어 놓쳤고(테스트도 함께 되돌아감),
+  코스 생성이 AI 400으로 죽었습니다.
 - Lombok 사용. 엔티티는 `@NoArgsConstructor(access = PROTECTED)` 등 JPA 관례 준수.
 - 예외는 명세의 Error Code/HTTP status에 맞춰 처리(전역 예외 핸들러 권장).
 - SSE 엔드포인트(`POST /api/courses`, AI 연동)는 명세의 이벤트 단계명을 그대로 사용.
+
+## 환경 설정 · 검증 자산 규칙
+
+- **`INTERNAL_API_KEY`는 BE와 AI가 공유하는 대칭 키다.** `JWT_SECRET`·`DB_URL`처럼 환경별로 새로
+  발급하면 안 된다 — 한쪽만 바꾸는 순간 그 환경의 BE→AI 호출이 **전부 401**이 된다.
+  배포 가드(`deploy.yml`)는 값이 **비었는지만** 검사하고, AI 디플로이먼트는 `envFrom ... optional: true`라
+  키가 틀려도 파드는 정상 기동한다 — 즉 양쪽 다 초록불인데 런타임에만 터진다.
+  값 대조는 노출 없이 해시로: `kubectl -n <ns> exec deploy/<was|ai> -- printenv INTERNAL_API_KEY | shasum -a 256`
+- **Postman 자산은 `docs/postman/` 에 컬렉션 1개 + 환경 파일 1개(`Yeolo-Dev.postman_environment.json`)만
+  유지한다.** 새 이름 파일(`*.local.*` 등)을 만들지 말고 **기존 파일을 갱신**한다. 환경 파일에는
+  실제 시크릿이 채워져 있으므로 `.gitignore` 대상이며 커밋하지 않는다. 로컬 대상 테스트는 별도
+  파일이 아니라 그 환경의 `baseUrl`·`jwtSecret`만 바꿔 쓴다. 상세는 `docs/postman/README.md`.
+- **BE인지 AI인지 가르기.** AI 내부 API(`/internal/ai/*`)는 ClusterIP 전용이라 클러스터 안에서만
+  부를 수 있다. 500이 날 때는 BE를 거치지 않고 AI를 직접 호출해 경계를 가른다 — Postman은
+  `kubectl -n app-dev port-forward deploy/ai 8000:8000` 후 `07. Internal AI` 폴더를 쓴다.
+  AI 호출 실패 로그는 `AiTasteProfileClient` / `InternalAiCourseClient` 에 남는다.
+- **dev·prod가 같은 클러스터를 쓴다.** `-n app-dev` 가 dev, **`-n app` 이 prod** 다(이름에 `dev`가
+  안 붙은 쪽이 prod). 명령어를 붙여넣기 전에 네임스페이스를 확인한다.
 
 ## 작업 흐름
 

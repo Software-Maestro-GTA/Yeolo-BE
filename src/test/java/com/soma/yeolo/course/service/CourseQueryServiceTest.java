@@ -9,13 +9,18 @@ import com.soma.yeolo.course.dto.CourseDetailResponse;
 import com.soma.yeolo.course.dto.CourseListResponse;
 import com.soma.yeolo.course.dto.Itinerary;
 import com.soma.yeolo.course.service.port.CourseRepository;
+import com.soma.yeolo.course.service.port.CourseSharing;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -32,7 +37,19 @@ class CourseQueryServiceTest {
 
         @Override
         public List<SavedCourse> findByUserIdLatestFirst(UUID userId) {
-            return store.stream().filter(c -> c.userId().equals(userId)).toList();
+            return latestFirst(store.stream().filter(c -> c.userId().equals(userId)).toList());
+        }
+
+        @Override
+        public List<SavedCourse> findAllByIdsLatestFirst(Collection<UUID> courseIds) {
+            return latestFirst(store.stream().filter(c -> courseIds.contains(c.courseId())).toList());
+        }
+
+        /** 실제 어댑터와 같은 정렬(최신 생성순)을 흉내낸다 — 저장 순서를 그대로 돌려주면 포트 계약과 어긋난다. */
+        private List<SavedCourse> latestFirst(List<SavedCourse> found) {
+            return found.stream()
+                    .sorted(Comparator.comparing(SavedCourse::createdAt).reversed())
+                    .toList();
         }
 
         @Override
@@ -51,29 +68,68 @@ class CourseQueryServiceTest {
         }
     }
 
+    /** 코스 공유 포트 fake: 수락된 (코스, 사용자) 쌍을 인메모리로 들고 있는다. */
+    private static final class FakeCourseSharing implements CourseSharing {
+        private final Set<List<UUID>> accesses = new LinkedHashSet<>();
+        private final List<UUID> revokedCourses = new ArrayList<>();
+
+        void grant(UUID courseId, UUID userId) {
+            accesses.add(List.of(courseId, userId));
+        }
+
+        @Override
+        public List<UUID> findSharedCourseIds(UUID userId) {
+            return accesses.stream().filter(pair -> pair.get(1).equals(userId))
+                    .map(pair -> pair.get(0)).toList();
+        }
+
+        @Override
+        public boolean isSharedWith(UUID courseId, UUID userId) {
+            return accesses.contains(List.of(courseId, userId));
+        }
+
+        @Override
+        public boolean removeShare(UUID courseId, UUID userId) {
+            return accesses.remove(List.of(courseId, userId));
+        }
+
+        @Override
+        public void revokeAllForCourse(UUID courseId) {
+            accesses.removeIf(pair -> pair.get(0).equals(courseId));
+            revokedCourses.add(courseId);
+        }
+    }
+
     private final FakeCourseRepository courses = new FakeCourseRepository();
+    private final FakeCourseSharing sharing = new FakeCourseSharing();
 
     private CourseQueryService service() {
-        return new CourseQueryService(courses);
+        return new CourseQueryService(courses, sharing);
     }
 
     private SavedCourse course(UUID courseId, UUID userId, String title, String itineraryJson) {
+        return course(courseId, userId, title, itineraryJson, Instant.now());
+    }
+
+    private SavedCourse course(UUID courseId, UUID userId, String title, String itineraryJson,
+                               Instant createdAt) {
         return new SavedCourse(courseId, userId, title, "대한민국", "제주",
-                LocalDate.of(2026, 8, 1), 3, List.of("힐링"), "이유", itineraryJson, Instant.now());
+                LocalDate.of(2026, 8, 1), 3, List.of("힐링"), "이유", itineraryJson, createdAt);
     }
 
     @Test
-    void 내_코스만_요약_목록으로_반환한다() {
+    void 내_코스만_최신순_요약_목록으로_반환한다() {
         UUID me = UUID.randomUUID();
         UUID other = UUID.randomUUID();
-        courses.store.add(course(UUID.randomUUID(), me, "내 코스 A", "{\"days\":[]}"));
-        courses.store.add(course(UUID.randomUUID(), other, "남의 코스", "{\"days\":[]}"));
-        courses.store.add(course(UUID.randomUUID(), me, "내 코스 B", "{\"days\":[]}"));
+        Instant base = Instant.parse("2026-08-01T00:00:00Z");
+        courses.store.add(course(UUID.randomUUID(), me, "내 코스 A", "{\"days\":[]}", base));
+        courses.store.add(course(UUID.randomUUID(), other, "남의 코스", "{\"days\":[]}", base));
+        courses.store.add(course(UUID.randomUUID(), me, "내 코스 B", "{\"days\":[]}", base.plusSeconds(60)));
 
         CourseListResponse response = service().getMyCourses(me);
 
         assertThat(response.courses()).extracting(CourseListResponse.CourseSummary::title)
-                .containsExactly("내 코스 A", "내 코스 B");
+                .containsExactly("내 코스 B", "내 코스 A");
     }
 
     @Test
@@ -202,5 +258,115 @@ class CourseQueryServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.COURSE_DELETE_ACCESS_DENIED);
         assertThat(courses.findById(courseId)).isPresent();
+    }
+
+    // ===== 친구 초대로 공유받은 코스 (DOM-6) =====
+
+    /** DOM-6 §코스 목록에서의 처리 — "공유받은 코스를 수락하면 해당 코스는 여행 코스 목록에 표시된다." */
+    @Test
+    void 공유받은_코스도_내_목록에_함께_보인다() {
+        UUID me = UUID.randomUUID();
+        UUID friend = UUID.randomUUID();
+        UUID sharedId = UUID.randomUUID();
+        courses.store.add(course(UUID.randomUUID(), me, "내 코스", "{\"days\":[]}"));
+        courses.store.add(course(sharedId, friend, "친구가 공유한 코스", "{\"days\":[]}"));
+        sharing.grant(sharedId, me);
+
+        CourseListResponse response = service().getMyCourses(me);
+
+        assertThat(response.courses()).extracting(CourseListResponse.CourseSummary::title)
+                .containsExactlyInAnyOrder("내 코스", "친구가 공유한 코스");
+    }
+
+    @Test
+    void 수락하지_않은_친구_코스는_목록에_보이지_않는다() {
+        UUID me = UUID.randomUUID();
+        UUID friend = UUID.randomUUID();
+        courses.store.add(course(UUID.randomUUID(), friend, "수락 안 한 코스", "{\"days\":[]}"));
+
+        assertThat(service().getMyCourses(me).courses()).isEmpty();
+    }
+
+    /** 소유 코스와 공유 코스를 합쳐도 응답의 createdAt 과 같은 기준(최신순)으로 정렬돼야 한다. */
+    @Test
+    void 소유_코스와_공유_코스를_생성_시각_최신순으로_섞어_정렬한다() {
+        UUID me = UUID.randomUUID();
+        UUID friend = UUID.randomUUID();
+        UUID sharedId = UUID.randomUUID();
+        Instant base = Instant.parse("2026-08-01T00:00:00Z");
+        courses.store.add(course(UUID.randomUUID(), me, "내 옛 코스", "{\"days\":[]}", base));
+        courses.store.add(course(sharedId, friend, "공유 코스", "{\"days\":[]}", base.plusSeconds(60)));
+        courses.store.add(course(UUID.randomUUID(), me, "내 새 코스", "{\"days\":[]}", base.plusSeconds(120)));
+        sharing.grant(sharedId, me);
+
+        CourseListResponse response = service().getMyCourses(me);
+
+        assertThat(response.courses()).extracting(CourseListResponse.CourseSummary::title)
+                .containsExactly("내 새 코스", "공유 코스", "내 옛 코스");
+    }
+
+    /** DOM-6 §권한 정책 — 공유받은 사용자는 "공유받은 코스 상세 조회"를 할 수 있다. */
+    @Test
+    void 공유받은_사용자는_코스_상세를_조회할_수_있다() {
+        UUID me = UUID.randomUUID();
+        UUID friend = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, friend, "공유 코스", "{\"days\":[{\"day\":1,\"stops\":[]}]}"));
+        sharing.grant(courseId, me);
+
+        CourseDetailResponse response = service().getCourse(me, courseId);
+
+        assertThat(response.course().courseId()).isEqualTo(courseId.toString());
+        assertThat(response.course().userId()).isEqualTo(friend.toString());
+    }
+
+    /**
+     * DOM-6 §보안 및 운영 정책 — "공유받은 사용자의 삭제 동작은 원본 삭제가 아니라 접근 권한
+     * 제거로 처리한다."
+     */
+    @Test
+    void 공유받은_사용자의_삭제는_원본을_지우지_않고_내_목록에서만_제거한다() {
+        UUID me = UUID.randomUUID();
+        UUID friend = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, friend, "공유 코스", "{\"days\":[]}"));
+        sharing.grant(courseId, me);
+
+        service().deleteCourse(me, courseId);
+
+        assertThat(courses.findById(courseId)).isPresent();
+        assertThat(service().getMyCourses(me).courses()).isEmpty();
+        assertThat(service().getMyCourses(friend).courses()).hasSize(1);
+    }
+
+    /** 목록에서 제거한 뒤에는 다시 남의 코스일 뿐이므로 상세도 403이어야 한다. */
+    @Test
+    void 목록에서_제거한_공유_코스는_상세도_403이_된다() {
+        UUID me = UUID.randomUUID();
+        UUID friend = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, friend, "공유 코스", "{\"days\":[]}"));
+        sharing.grant(courseId, me);
+        service().deleteCourse(me, courseId);
+
+        assertThatThrownBy(() -> service().getCourse(me, courseId))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.COURSE_ACCESS_DENIED);
+    }
+
+    /** 소유자가 원본을 지우면 공유받은 사용자 목록에도 열 수 없는 코스가 남지 않아야 한다. */
+    @Test
+    void 소유자가_코스를_삭제하면_공유도_함께_정리된다() {
+        UUID owner = UUID.randomUUID();
+        UUID guest = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, owner, "내 코스", "{\"days\":[]}"));
+        sharing.grant(courseId, guest);
+
+        service().deleteCourse(owner, courseId);
+
+        assertThat(sharing.revokedCourses).containsExactly(courseId);
+        assertThat(sharing.isSharedWith(courseId, guest)).isFalse();
+        assertThat(service().getMyCourses(guest).courses()).isEmpty();
     }
 }
