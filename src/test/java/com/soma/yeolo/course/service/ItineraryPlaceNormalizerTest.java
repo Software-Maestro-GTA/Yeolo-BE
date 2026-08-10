@@ -21,7 +21,7 @@ class ItineraryPlaceNormalizerTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static final TripCondition CONDITION = new TripCondition(
-            "대한민국", "제주", LocalDate.of(2026, 8, 1), 2, BudgetType.STANDARD);
+            "대한민국", "제주", LocalDate.of(2026, 8, 1), 2, BudgetType.MODERATE);
 
     private static final String AI_COURSE = """
             {
