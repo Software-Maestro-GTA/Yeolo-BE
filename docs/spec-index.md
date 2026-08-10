@@ -27,13 +27,29 @@
 | API-LOC-2 | `API-LOC-2.md` | `GET /api/locations/cities/autocomplete` — 도시 자동완성 | #46 |
 | API-PLACE-1 | `API-PLACE-1.md` | `GET /api/places/{placeId}` — 여행 장소 조회 | #48 |
 | API-PREF-1 | `API-PREF-1.md` | `PATCH /api/users/me/preferences` — 사용자 MBTI 등록/수정 | #51 |
+| API-SHARE-1 | `API-SHARE-1.md` | `POST /api/courses/{courseId}/share-links` — 공유 링크 생성 | #49 |
+| API-SHARE-2 | `API-SHARE-2.md` | `GET /api/share-links/{shareToken}` — 공유 링크 조회(미리보기) | #49 |
+| API-SHARE-3 | `API-SHARE-3.md` | `POST /api/share-links/{shareToken}/accept` — 공유 링크 수락 | #49 |
 | API-PREF-2 | `API-PREF-2.md` | `POST /api/users/me/consents/photo` — 사진 데이터 분석 동의 | #50 |
 | API-PREF-3 | `API-PREF-3.md` | `POST /api/users/me/taste-profile/analysis` — 취향 분석(SSE) | #2, #55, #78 |
 | API-PREF-4 | `API-PREF-4.md` | `GET /api/users/me/taste-profile` — 취향 조회 | #5, #78 |
 | API-USER-1 | `API-USER-1.md` | `PATCH /api/users/me/profile` — 사용자 프로필 등록/수정 | #51 |
 | API-USER-2 | `API-USER-2.md` | `DELETE /api/users/me` — 회원탈퇴 | #78 |
 
-미구현(스코프 밖): `API-BOOKING-1`(예약 제휴 링크), `API-SHARE-1/2/3`(코스 공유 링크).
+미구현(스코프 밖): `API-BOOKING-1`(예약 제휴 링크).
+
+#### 미해소 명세 모순 — API-SHARE-3의 400 vs DOM-6의 "코스 상세로 이동" (#49)
+
+`API-SHARE-3`은 **이미 수락한 링크·자기 자신의 코스**를 모두 `400: 수락할 수 없는 공유 링크입니다.`로
+규정한다. 반면 `DOM-6`은 같은 두 상황에서 "중복 추가 없이 **기존 코스 상세 화면 또는 목록으로
+이동**"하는 것이 자연스럽다고 적는다. 그런데 미리보기(API-SHARE-2)는 `courseId`를 내려주지 않으므로
+(DOM-6 §보안 및 운영 정책), 400을 받은 FE에는 이동할 코스 식별자가 없다 — 두 문서를 동시에 만족시킬
+수 없다.
+
+**API 명세(400)를 따랐다.** Error Code와 실패 응답 예시가 명시된 쪽이 FE 계약이고, DOM-6의 문장은
+화면 흐름에 대한 권고(“~하는 것이 자연스럽다”)이기 때문이다. 중복 추가 금지라는 실질 요건은 400으로도
+지켜진다. **Notion 원본 확인이 필요하다** — 만약 이동 UX를 살리기로 하면 수락을 멱등 200
+(`data.courseId` 반환)으로 바꾸는 한 줄 변경이며, 그때 이 절을 정리한다.
 
 #### 해소된 명세 모순 — API-LOC-2 인증 (#46, #78)
 
@@ -84,6 +100,7 @@ SPEC 저장소 갱신으로 ID 체계가 바뀌었다. 옛 문서·이슈에서 
 | DOM-2 | `DOM-2.md` | 코스 정보 (Course Recommendation) | #6, #4, #1 |
 | DOM-3 | `DOM-3.md` | 사용자 정보 (User) | #3, #5, #2 |
 | DOM-5 | `DOM-5.md` | 이미지 메타데이터 전처리 (Image Metadata Preprocessing) | #2 |
+| DOM-6 | `DOM-6.md` | 여행 코스 친구 초대 프로세스 (공유 링크·접근 권한) | #49 |
 
 ## 기능 명세 (`specs/functional-specs/`)
 | FUN ID | 파일 | 기능 |

@@ -65,6 +65,14 @@ public enum ErrorCode {
     // Course - 삭제 (API-COURSE-4). 조회와 메시지가 달라 별도 코드로 둔다(명세 문구 그대로).
     COURSE_DELETE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 여행 코스를 삭제할 권한이 없습니다."),
 
+    // Course - 친구 초대 공유 링크 (API-SHARE-1 / API-SHARE-2 / API-SHARE-3 / DOM-6)
+    COURSE_SHARE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 여행 코스를 공유할 권한이 없습니다."),
+    INVALID_SHARE_LINK(HttpStatus.NOT_FOUND, "유효하지 않은 공유 링크입니다."),
+    SHARE_LINK_GONE(HttpStatus.GONE, "만료되었거나 회수된 공유 링크입니다."),
+    // 이미 수락한 링크 / 자기 자신의 코스 (API-SHARE-3 §"400"). 두 사유를 한 문구로 합친 것은
+    // 명세가 실패 응답 예시를 하나만 정의하기 때문이다.
+    SHARE_LINK_NOT_ACCEPTABLE(HttpStatus.BAD_REQUEST, "수락할 수 없는 공유 링크입니다."),
+
     // Place - 조회 (API-PLACE-1). 잘못된 placeId(400)는 전역 핸들러가 바인딩 실패에서 만든다.
     PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "장소 정보를 찾을 수 없습니다."),
 

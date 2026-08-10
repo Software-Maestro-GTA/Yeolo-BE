@@ -4,6 +4,7 @@ import com.soma.yeolo.course.domain.Course;
 import com.soma.yeolo.course.domain.SavedCourse;
 import com.soma.yeolo.course.entity.CourseEntity;
 import com.soma.yeolo.course.service.port.CourseRepository;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,6 +30,16 @@ class CourseRepositoryImpl implements CourseRepository {
     @Override
     public List<SavedCourse> findByUserIdLatestFirst(UUID userId) {
         return jpaRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(CourseEntity::toSavedCourse)
+                .toList();
+    }
+
+    @Override
+    public List<SavedCourse> findAllByIdsLatestFirst(Collection<UUID> courseIds) {
+        if (courseIds.isEmpty()) {
+            return List.of();
+        }
+        return jpaRepository.findByIdInOrderByCreatedAtDesc(courseIds).stream()
                 .map(CourseEntity::toSavedCourse)
                 .toList();
     }

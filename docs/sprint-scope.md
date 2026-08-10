@@ -20,6 +20,7 @@
 | [#51](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/51) | TSK-25 | 사용자 프로필·MBTI 선호 입력값 저장 | API-PREF-1, API-USER-1 | FUN-2, FUN-8 | REQ-2, REQ-9 | DOM-1 | In progress |
 | [#46](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/46) | TSK-32 | 국가·도시 자동완성 | API-LOC-1, API-LOC-2 | FUN-5, FUN-8 | REQ-4, REQ-9 | — | In progress |
 | [#78](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/78) | — | 회원탈퇴·코스 삭제 복구 + 토큰 재발급 | API-USER-2, API-AUTH-3, API-COURSE-4 | FUN-1, FUN-9 | REQ-11 | DOM-1, DOM-3 | In progress |
+| [#49](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/49) | TSK-40 | 친구 초대 공유 링크 생성·조회·수락 | API-SHARE-1, API-SHARE-2, API-SHARE-3 | FUN-7 | REQ-6 | DOM-6 | In progress |
 
 > ⚠️ **명세 ID 재편:** SPEC 저장소가 갱신되며 API·DOM ID 체계가 바뀌었다
 > (`API-FB-*` → `API-AUTH-*`/`API-COURSE-*`/`API-PREF-*`/`API-USER-*`, DOM 번호도 이동 —
@@ -53,6 +54,27 @@
   롤백의 다른 피해(장소 정규화, `UserPreference`)는 이후 `place`·`preference` 패키지로 재구축되어
   복구가 끝났다 — **이로써 `024afc8` 유실분은 모두 회수됐다.** 코스 삭제를 되살리며 목록 조회
   메시지도 명세(API-COURSE-3 "여행 코스 목록 조회 성공")에 맞춰 정정했다. (#78)
+
+- **친구 초대 공유:** 코스 소유자가 링크를 발급(API-SHARE-1)하고, 초대받은 사용자가 **비로그인
+  상태로 미리보기**(API-SHARE-2)한 뒤 로그인해 수락(API-SHARE-3)하면 코스가 목록에 추가된다.
+  초대 식별자는 실제 `courseId`를 노출하지 않는 랜덤 토큰이며 **해시로만 저장**한다(Refresh Token과
+  같은 정책) — 그래서 발급 API는 호출할 때마다 새 토큰을 내고, 앞서 발급된 링크도 만료 전까지
+  함께 유효하다. (#49)
+- **공유 정책(명세에 규정이 없어 BE에서 정함):** 명세는 요청·응답만 정의하고 테이블 스펙·만료
+  정책을 말하지 않는다(이슈 #49 "확인 필요"). 아래를 확정했다 —
+  **① 테이블**은 `course_share_links`(링크)와 `course_accesses`(접근 권한) 둘로 나눈다
+  (`docs/ddl/`). 접근 권한에 `(course_id, user_id)` 유니크를 걸어 중복 수락을 DB에서 막는다.
+  **② 만료**는 기본 7일(`share-link.ttl`, 0이면 무기한). 만료·회수된 링크는 410이다.
+  **③ 공유받은 사용자의 삭제**는 원본 삭제가 아니라 자기 목록에서만 제거한다(DOM-6 그대로).
+  즉 `DELETE /api/courses/{id}`는 소유자면 원본 삭제, 공유받은 사용자면 접근 권한 제거, 그 외 403이다.
+  **④ 소유자가 원본을 삭제**하면 접근 권한을 지우고 링크를 회수한다. 회수된 링크를 열면
+  "코스 없음"(404)으로 안내한다 — 링크 상태(410)보다 코스 존재를 먼저 보기 때문이며, DOM-6이
+  "공유된 여행 코스를 찾을 수 없습니다"를 별도 안내로 규정하기 때문이다.
+  **⑤ 목록에서 소유 코스와 공유 코스를 구분하지 않는다**(DOM-6이 이번 스프린트엔 불필요하다고
+  명시, API-COURSE-3에 구분 필드 없음). 정렬은 원본 코스 생성 시각 기준 최신순이다. (#49)
+- **미해소 명세 모순(#49):** 이미 수락한 링크·자기 코스 수락은 API-SHARE-3의 400을 따랐다.
+  DOM-6이 권하는 "코스 상세로 이동" UX와 어긋나며 Notion 원본 확인이 필요하다 —
+  경위는 `docs/spec-index.md`.
 
 ## Out of Scope — 이번 스프린트에서 손대지 않음
 

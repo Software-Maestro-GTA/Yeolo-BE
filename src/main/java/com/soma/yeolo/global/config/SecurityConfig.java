@@ -52,6 +52,11 @@ public class SecurityConfig {
                         // 확정**했고 Notion 원본·명세 파일에도 반영돼 모순은 해소된 상태다.
                         // (경위는 docs/spec-index.md "해소된 명세 모순 — API-LOC-2 인증")
                         .requestMatchers(HttpMethod.GET, "/api/locations/**").permitAll()
+                        // 공유 링크 미리보기(API-SHARE-2)는 명세상 "인증 필요: N"이다. 초대받은
+                        // 사용자가 로그인 전에도 어떤 코스를 받았는지 확인하고 그 다음 로그인하는
+                        // 흐름이라(DOM-6 §비로그인 사용자 처리), 인증을 걸면 순서가 뒤집힌다.
+                        // 수락(API-SHARE-3, POST .../accept)은 인증이 필요하므로 GET만 연다.
+                        .requestMatchers(HttpMethod.GET, "/api/share-links/*").permitAll()
                         // k8s readiness/liveness probe 경로는 인증 없이 허용.
                         .requestMatchers("/actuator/health/**").permitAll()
                         .anyRequest().authenticated()
