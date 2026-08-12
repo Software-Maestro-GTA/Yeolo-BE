@@ -59,6 +59,24 @@ public class User extends BaseTimeEntity {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    /*
+     * 사용자가 직접 고친 항목 표시 (API-USER-1). true인 항목은 재로그인 시 제공자 값으로 덮지 않는다
+     * — 근거는 아래 updateOnLogin 문서 참고. 항목별로 나눈 것은 프로필 수정이 부분 수정이기 때문이다.
+     * 이름만 고친 사용자의 이메일까지 제공자 추종을 끊으면, 제공자가 이메일을 바꿔도 옛 주소가 남는다.
+     *
+     * columnDefinition으로 DB 기본값을 주는 이유: dev는 ddl-auto=update라 이미 행이 있는 users에
+     * 컬럼을 덧붙이는데, 기본값 없는 NOT NULL 추가는 PostgreSQL에서 실패한다(기존 행이 NULL).
+     * nullable 속성을 쓰지 않는 것은 Hibernate가 여기에 not null을 한 번 더 붙이지 않게 하려는 것이다.
+     */
+    @Column(name = "email_customized", columnDefinition = "boolean not null default false")
+    private boolean emailCustomized;
+
+    @Column(name = "display_name_customized", columnDefinition = "boolean not null default false")
+    private boolean displayNameCustomized;
+
+    @Column(name = "profile_image_customized", columnDefinition = "boolean not null default false")
+    private boolean profileImageCustomized;
+
     @Builder
     private User(Provider provider, String providerUserId, String email,
                  String displayName, String profileImageUrl) {
@@ -83,11 +101,32 @@ public class User extends BaseTimeEntity {
                 .build();
     }
 
-    /** 기존 사용자 재로그인 시 프로필 최신화 + 마지막 로그인 시각 갱신. */
+    /**
+     * 기존 사용자 재로그인 시 프로필을 제공자 값과 맞추고 마지막 로그인 시각을 갱신한다.
+     *
+     * <p>덮어쓰는 항목은 <b>사용자가 직접 고치지 않았고</b>(=이 클래스의 {@code *Customized} 표시가
+     * 꺼져 있고) <b>제공자가 값을 실제로 준</b> 항목뿐이다. 두 조건은 각각 다음을 막는다.
+     *
+     * <ul>
+     *   <li>고친 항목까지 덮으면 {@link #updateProfile}로 수정한 프로필이 다음 로그인에 되돌아간다
+     *       — 사용자에게는 "수정이 저장되지 않는" 것으로 보인다.</li>
+     *   <li>제공자가 준 {@code null}까지 반영하면 값이 지워진다. Apple은 최초 동의 이후 이름·사진을
+     *       주지 않고 이메일도 생략될 수 있어(DOM-1 §프로필 정보 처리 기준), 로그인 한 번에
+     *       가입 때 받은 정보가 사라진다. 미제공은 "지워 달라"가 아니라 "모른다"이다.</li>
+     * </ul>
+     *
+     * <p>즉 손대지 않은 항목은 제공자를 계속 따라가고, 손댄 항목만 사용자 값으로 굳는다.
+     */
     public void updateOnLogin(String email, String displayName, String profileImageUrl) {
-        this.email = email;
-        this.displayName = displayName;
-        this.profileImageUrl = profileImageUrl;
+        if (!this.emailCustomized && email != null) {
+            this.email = email;
+        }
+        if (!this.displayNameCustomized && displayName != null) {
+            this.displayName = displayName;
+        }
+        if (!this.profileImageCustomized && profileImageUrl != null) {
+            this.profileImageUrl = profileImageUrl;
+        }
         this.lastLoginAt = Instant.now();
     }
 
@@ -97,16 +136,22 @@ public class User extends BaseTimeEntity {
      * <p>{@code null}인 항목은 <b>변경하지 않는다</b>. PATCH이고 DOM-1상 세 항목 모두 nullable이라
      * "안 보냄"과 "null로 지움"을 요청 본문만으로 구분할 수 없는데, 안 보낸 항목을 null로 덮으면
      * 이름만 고쳐도 이메일이 지워진다. 지우는 쪽이 아니라 유지하는 쪽을 기본값으로 둔다.
+     *
+     * <p>반영한 항목은 "사용자가 고쳤다"로 표시해, 이후 로그인이 제공자 값으로 되돌리지 않게 한다
+     * ({@link #updateOnLogin}). 표시는 되돌리지 않는다 — 한 번 직접 정한 항목의 주인은 사용자다.
      */
     public void updateProfile(String email, String displayName, String profileImageUrl) {
         if (email != null) {
             this.email = email;
+            this.emailCustomized = true;
         }
         if (displayName != null) {
             this.displayName = displayName;
+            this.displayNameCustomized = true;
         }
         if (profileImageUrl != null) {
             this.profileImageUrl = profileImageUrl;
+            this.profileImageCustomized = true;
         }
     }
 

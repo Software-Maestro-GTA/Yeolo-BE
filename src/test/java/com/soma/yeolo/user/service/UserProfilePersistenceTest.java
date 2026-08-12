@@ -80,6 +80,38 @@ class UserProfilePersistenceTest {
         assertThat(reloaded.getProfileImageUrl()).isEqualTo("https://cdn.test/%s.png".formatted(userId));
     }
 
+    /**
+     * 수정한 프로필이 재로그인에 되돌아가면 "저장이 안 된다"로 보인다 — 실제로 겪은 회귀다.
+     * 예전 {@code updateOnLogin}은 로그인마다 제공자 값으로 세 항목을 무조건 덮어썼다.
+     *
+     * <p>"고쳤다" 표시가 <b>DB에 남아야</b> 성립하는 규칙이라 여기서 검증한다. 로그인 직전
+     * {@code em.clear()}로 영속성 컨텍스트를 비우므로, 표시는 DB에서 다시 읽힌 값이다.
+     */
+    @Test
+    void 고친_항목은_재로그인해도_DB에_남고_안_고친_항목은_제공자를_따라간다() {
+        User saved = userRepository.save(
+                User.createOAuthUser(Provider.GOOGLE, "sub-3", "oauth@gmail.com", "구글이름", "http://oauth"));
+        UUID userId = saved.getId();
+        em.flush();
+        em.clear();
+
+        // 이메일·이름만 고친다(이미지는 미전송 → 제공자 소관 그대로).
+        service().updateProfile(userId, new UserProfileUpdateRequest("mine@gmail.com", "내가고친이름", null));
+        em.flush();
+        em.clear();
+
+        // 제공자가 세 항목 모두 새 값을 들고 재로그인한다.
+        new UserService(userRepository).upsertOnOAuthLogin(new OAuthUserInfo(
+                Provider.GOOGLE, "sub-3", "new@gmail.com", "바뀐구글이름", "http://new"));
+        em.flush();
+        em.clear();
+
+        User reloaded = userRepository.findById(userId).orElseThrow();
+        assertThat(reloaded.getEmail()).isEqualTo("mine@gmail.com");
+        assertThat(reloaded.getDisplayName()).isEqualTo("내가고친이름");
+        assertThat(reloaded.getProfileImageUrl()).isEqualTo("http://new");
+    }
+
     @Test
     void 미전송_항목은_DB에서도_그대로다() {
         User saved = userRepository.save(

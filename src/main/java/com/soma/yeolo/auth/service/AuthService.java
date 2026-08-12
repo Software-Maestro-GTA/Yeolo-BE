@@ -70,7 +70,9 @@ public class AuthService {
             throw new BusinessException(ErrorCode.APPLE_AUTH_FAILED);
         }
 
-        // 2. 사용자 생성/조회. Apple은 id_token에 이름/프로필 이미지를 제공하지 않아 null로 둔다.
+        // 2. 사용자 생성/조회. Apple은 id_token에 이름/프로필 이미지를 제공하지 않아 null로 둔다
+        //    (가입 직후 null → 앱이 프로필 등록 화면으로 유도, DOM-1). 재로그인 시 이 null은
+        //    무시되므로 사용자가 채운 값을 지우지 않는다(User.updateOnLogin).
         User user = userService.upsertOnOAuthLogin(new OAuthUserInfo(
                 Provider.APPLE, apple.sub(), apple.email(), null, null));
 

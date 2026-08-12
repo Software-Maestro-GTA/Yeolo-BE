@@ -19,6 +19,9 @@ public class UserService implements UserDisplayProfileReader {
      * OAuth 로그인 시 사용자 upsert.
      * (provider, providerUserId) 기준으로 기존 사용자면 프로필/로그인 시각을 갱신하고,
      * 없으면 신규 생성한다.
+     *
+     * <p>프로필 갱신은 사용자가 API-USER-1로 직접 고치지 않은 항목에만 적용된다 — 판단은
+     * 엔티티가 한다({@link User#updateOnLogin}).
      */
     @Transactional
     public User upsertOnOAuthLogin(OAuthUserInfo info) {

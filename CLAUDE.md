@@ -95,10 +95,28 @@ git submodule update --remote specs   # 최신 명세로 갱신 후, 커밋으�
   배포 가드(`deploy.yml`)는 값이 **비었는지만** 검사하고, AI 디플로이먼트는 `envFrom ... optional: true`라
   키가 틀려도 파드는 정상 기동한다 — 즉 양쪽 다 초록불인데 런타임에만 터진다.
   값 대조는 노출 없이 해시로: `kubectl -n <ns> exec deploy/<was|ai> -- printenv INTERNAL_API_KEY | shasum -a 256`
-- **Postman 자산은 `docs/postman/` 에 컬렉션 1개 + 환경 파일 1개(`Yeolo-Dev.postman_environment.json`)만
-  유지한다.** 새 이름 파일(`*.local.*` 등)을 만들지 말고 **기존 파일을 갱신**한다. 환경 파일에는
-  실제 시크릿이 채워져 있으므로 `.gitignore` 대상이며 커밋하지 않는다. 로컬 대상 테스트는 별도
-  파일이 아니라 그 환경의 `baseUrl`·`jwtSecret`만 바꿔 쓴다. 상세는 `docs/postman/README.md`.
+- **Postman 자산은 `docs/postman/Yeolo-BE-Dev.postman_collection.json` 하나뿐이다.**
+  환경(Environment) 파일은 두지 않고 **변수를 컬렉션 변수로** 관리한다 — 파일이 둘이면 어느 쪽이
+  최신인지 관리해야 하고, 환경 파일은 애초에 요청을 담지 못한다(`_postman_variable_scope`).
+  - **새 엔드포인트를 구현하면 이 파일에 요청을 함께 추가한다.** 코드만 고치고 컬렉션을 빠뜨리면
+    "Postman에 왜 없지?"가 된다. 새 변수가 필요하면(예: `shareToken`) 컬렉션 변수에도 추가한다.
+  - **시크릿(`internalApiKey`·`jwtSecret`)은 빈 값으로 커밋한다.** Postman 에서는 `Current value`
+    칸에만 입력한다 — `Initial value` 에 넣으면 export 시 파일에 박힌다.
+  - 스크립트는 `pm.collectionVariables` 를 쓴다(`pm.environment` 는 환경이 없어 동작하지 않는다).
+  - `.gitignore` 의 `docs` 때문에 커밋에는 `git add -f` 가 필요하다.
+- **Postman 테스트 대상은 dev 서버 하나다.** `baseUrl`은 dev CloudFront를 가리키며 로컬(`localhost:8080`)
+  대상 테스트는 현재 하지 않는다 — 환경 파일을 하나로 유지하는 이유이기도 하다. 로컬을 찔러야 할
+  일이 생기면 새 환경 파일을 만들지 말고 그 환경의 `baseUrl`·`jwtSecret`만 바꿔 쓴다.
+  상세는 `docs/postman/README.md`.
+- **토큰은 로그인으로만 얻는다 — `tokenMode=mint`는 쓰지 않는다.** mint(`jwtSecret`으로 access token을
+  직접 서명)는 실제 인증 경로를 건너뛴다: 로그인·토큰 발급·Refresh Token 저장이 실행되지 않아
+  `POST /api/auth/refresh`·로그아웃처럼 **DB 세션 행에 의존하는 API를 테스트할 수 없다**
+  (`RefreshTokenService.matches`가 저장된 해시와 대조하므로 직접 서명한 refresh는 언제나 거부된다).
+  서버 키가 회전되면 원인이 불분명한 401만 남는 문제도 있다. `tokenMode`는 항상 `login`으로 둔다.
+- **Postman 401 진단은 "지금 서명한 토큰"으로 한다.** 저장된 옛 `refreshToken`의 서명으로 키를
+  판정하면 안 된다 — 서버 키가 교체되기 전에 발급된 토큰이면 키가 정확해도 서명이 안 맞아,
+  멀쩡한 `jwtSecret`을 의심하게 된다(실제로 겪었다). 임의 UUID를 `sub`로 지금 서명한 토큰이
+  200이면 키는 정상이고 **그 계정이 탈퇴 처리된 것**이다(`JwtAuthenticationFilter`의 탈퇴자 차단).
 - **BE인지 AI인지 가르기.** AI 내부 API(`/internal/ai/*`)는 ClusterIP 전용이라 클러스터 안에서만
   부를 수 있다. 500이 날 때는 BE를 거치지 않고 AI를 직접 호출해 경계를 가른다 — Postman은
   `kubectl -n app-dev port-forward deploy/ai 8000:8000` 후 `07. Internal AI` 폴더를 쓴다.
