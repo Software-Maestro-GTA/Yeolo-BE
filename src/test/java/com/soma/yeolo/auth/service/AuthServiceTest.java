@@ -18,17 +18,19 @@ import com.soma.yeolo.auth.dto.AppleLoginResponse;
 import com.soma.yeolo.auth.dto.GoogleLoginRequest;
 import com.soma.yeolo.auth.dto.GoogleLoginResponse;
 import com.soma.yeolo.auth.dto.TokenRefreshResponse;
-import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.security.JwtTokenProvider;
 import com.soma.yeolo.global.security.JwtTokenProvider.GeneratedToken;
+import com.soma.yeolo.preference.domain.Mbti;
+import com.soma.yeolo.preference.service.UserMbtiReader;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
 import com.soma.yeolo.user.domain.Provider;
 import com.soma.yeolo.user.entity.User;
 import com.soma.yeolo.user.service.OAuthUserInfo;
 import com.soma.yeolo.user.service.UserService;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,15 +53,15 @@ class AuthServiceTest {
     @Mock
     private RefreshTokenService refreshTokenService;
     @Mock
-    private TasteProfileRepository tasteProfileRepository;
+    private UserMbtiReader userMbtiReader;
     @Mock
-    private CourseRepository courseRepository;
+    private TasteProfileRepository tasteProfileRepository;
 
     @InjectMocks
     private AuthService authService;
 
-    /** 구글 인증 성공 흐름을 스텁한다. onboarding 신호(취향/코스 보유 여부)는 인자로 제어한다. */
-    private User stubGoogleLoginSuccess(UUID userId, boolean hasTasteProfile, boolean hasCourse) {
+    /** 구글 인증 성공 흐름을 스텁한다. onboarding 신호(MBTI/취향 프로필 보유 여부)는 인자로 제어한다. */
+    private User stubGoogleLoginSuccess(UUID userId, boolean hasMbti, boolean hasTasteProfile) {
         User user = User.createOAuthUser(Provider.GOOGLE, "sub-1", "u@gmail.com", "홍길동", "http://img");
         ReflectionTestUtils.setField(user, "id", userId);
 
@@ -69,10 +71,11 @@ class AuthServiceTest {
         when(jwtTokenProvider.createAccessToken(userId)).thenReturn("access-token");
         when(jwtTokenProvider.createRefreshToken(userId))
                 .thenReturn(new GeneratedToken("refresh-token", Instant.now().plusSeconds(1000)));
-        when(tasteProfileRepository.existsByUserId(userId)).thenReturn(hasTasteProfile);
-        // 코스 조회는 취향 프로필이 있을 때만 도달한다(doOnboarding의 && 단락 평가).
-        if (hasTasteProfile) {
-            when(courseRepository.existsByUserId(userId)).thenReturn(hasCourse);
+        when(userMbtiReader.findMbti(userId))
+                .thenReturn(hasMbti ? Optional.of(Mbti.ENFP) : Optional.empty());
+        // 취향 프로필 조회는 MBTI가 없을 때만 도달한다(doOnboarding의 && 단락 평가).
+        if (!hasMbti) {
+            when(tasteProfileRepository.existsByUserId(userId)).thenReturn(hasTasteProfile);
         }
         return user;
     }
@@ -102,7 +105,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void 취향프로필과_코스가_모두_없으면_doOnboarding은_true다() {
+    void MBTI도_취향프로필도_없으면_doOnboarding은_true다() {
         UUID userId = UUID.randomUUID();
         stubGoogleLoginSuccess(userId, false, false);
 
@@ -110,15 +113,27 @@ class AuthServiceTest {
     }
 
     @Test
-    void 취향프로필만_있고_코스가_없으면_doOnboarding은_true다() {
+    void MBTI만_입력했으면_doOnboarding은_false다() {
+        // REQ-2의 MBTI 경로로 온보딩을 마친 사용자. MBTI는 taste_profiles가 아니라
+        // user_preferences에 저장되므로, 취향 프로필만 보면 이 사용자가 영원히 온보딩으로 되돌아간다.
+        // 코스 보유 여부는 판정에 쓰지 않으므로, 코스를 한 번도 만들지 않았어도 false다.
         UUID userId = UUID.randomUUID();
         stubGoogleLoginSuccess(userId, true, false);
 
-        assertThat(login().doOnboarding()).isTrue();
+        assertThat(login().doOnboarding()).isFalse();
     }
 
     @Test
-    void 취향프로필과_코스를_모두_보유하면_doOnboarding은_false다() {
+    void 취향프로필만_있으면_doOnboarding은_false다() {
+        // REQ-2의 Skip → 사진 기반 취향 분석 경로로 온보딩을 마친 사용자.
+        UUID userId = UUID.randomUUID();
+        stubGoogleLoginSuccess(userId, false, true);
+
+        assertThat(login().doOnboarding()).isFalse();
+    }
+
+    @Test
+    void MBTI와_취향프로필을_모두_보유하면_doOnboarding은_false다() {
         UUID userId = UUID.randomUUID();
         stubGoogleLoginSuccess(userId, true, true);
 
@@ -136,7 +151,7 @@ class AuthServiceTest {
                 .isEqualTo(ErrorCode.GOOGLE_AUTH_FAILED);
 
         verifyNoInteractions(userService, jwtTokenProvider, refreshTokenService,
-                tasteProfileRepository, courseRepository);
+                userMbtiReader, tasteProfileRepository);
     }
 
     /** 애플 인증 성공 흐름을 스텁한다. emailVerified 신호는 인자로 제어한다. */
@@ -150,6 +165,7 @@ class AuthServiceTest {
         when(jwtTokenProvider.createAccessToken(userId)).thenReturn("access-token");
         when(jwtTokenProvider.createRefreshToken(userId))
                 .thenReturn(new GeneratedToken("refresh-token", Instant.now().plusSeconds(1000)));
+        when(userMbtiReader.findMbti(userId)).thenReturn(Optional.empty());
         when(tasteProfileRepository.existsByUserId(userId)).thenReturn(false);
         return user;
     }
@@ -200,7 +216,7 @@ class AuthServiceTest {
                 .isEqualTo(ErrorCode.APPLE_AUTH_FAILED);
 
         verifyNoInteractions(userService, jwtTokenProvider, refreshTokenService,
-                tasteProfileRepository, courseRepository);
+                userMbtiReader, tasteProfileRepository);
     }
 
     @Test

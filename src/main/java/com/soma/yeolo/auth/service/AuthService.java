@@ -9,11 +9,11 @@ import com.soma.yeolo.auth.dto.AppleLoginResponse;
 import com.soma.yeolo.auth.dto.GoogleLoginRequest;
 import com.soma.yeolo.auth.dto.GoogleLoginResponse;
 import com.soma.yeolo.auth.dto.TokenRefreshResponse;
-import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.security.JwtTokenProvider;
 import com.soma.yeolo.global.security.JwtTokenProvider.GeneratedToken;
+import com.soma.yeolo.preference.service.UserMbtiReader;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
 import com.soma.yeolo.user.domain.Provider;
 import com.soma.yeolo.user.entity.User;
@@ -38,8 +38,8 @@ public class AuthService {
     private final UserService userService;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
+    private final UserMbtiReader userMbtiReader;
     private final TasteProfileRepository tasteProfileRepository;
-    private final CourseRepository courseRepository;
 
     public GoogleLoginResponse loginWithGoogle(GoogleLoginRequest request) {
         // 1. Google 인증 (외부 호출 — 트랜잭션 밖). 이메일 미검증은 인증 실패(401)로 본다.
@@ -84,12 +84,22 @@ public class AuthService {
     }
 
     /**
-     * 온보딩(Intro) 유도 여부. 취향 프로필과 코스를 모두 보유한 사용자는 온보딩을 마친 것으로 보고 false,
-     * 둘 중 하나라도 없으면 true. 두 신호는 재로그인해도 유지되므로, 가입 직후 앱을 껐다 켜도
-     * 온보딩을 끝내기 전까지는 계속 온보딩으로 유도된다.
+     * 온보딩(Intro) 유도 여부. REQ-2의 두 진입 경로 — MBTI 입력, 또는 Skip 후 사진 기반 취향 분석 —
+     * 중 <b>하나라도 마쳤으면</b> 온보딩을 끝낸 것으로 보고 false, 둘 다 없을 때만 true.
+     * 두 신호 모두 DB에 남으므로 로그아웃 후 재로그인해도 판정이 유지된다.
+     *
+     * <p>MBTI를 함께 보는 것이 핵심이다. MBTI는 {@code user_preferences}에 저장되고
+     * {@code taste_profiles}에는 사진 분석(API-PREF-3)만 행을 쓰므로, 취향 프로필 존재 여부만 보면
+     * MBTI 경로로 온보딩을 마친 사용자가 영원히 온보딩으로 되돌아간다. {@code findMbti}는 행이 있어도
+     * {@code mbti}가 null이면 empty를 주므로 "값을 실제로 입력했는가"를 정확히 판정한다.
+     *
+     * <p>코스 보유 여부는 보지 않는다. 코스 생성은 온보딩이 아니라 본 기능(FUN-8)이고, 애초에
+     * {@code CourseCreationService}가 MBTI·취향 프로필이 둘 다 없으면 404로 끊으므로
+     * "코스가 있다"는 위 두 신호 중 하나를 이미 함의하는 중복 조건이다.
      */
     private boolean resolveDoOnboarding(UUID userId) {
-        return !(tasteProfileRepository.existsByUserId(userId) && courseRepository.existsByUserId(userId));
+        return userMbtiReader.findMbti(userId).isEmpty()
+                && !tasteProfileRepository.existsByUserId(userId);
     }
 
     /**
