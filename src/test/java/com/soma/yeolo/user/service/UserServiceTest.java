@@ -67,13 +67,12 @@ class UserServiceTest {
     void 사용자가_고친_프로필은_재로그인_upsert가_덮어쓰지_않는다() {
         User existing = User.createOAuthUser(Provider.GOOGLE, "google-sub-123",
                 "old@gmail.com", "옛이름", "http://old");
-        existing.updateProfile("mine@gmail.com", "내가고친이름", "http://my-img");
+        existing.updateProfile("내가고친이름", "http://my-img");
         when(userRepository.findByProviderAndProviderUserId(Provider.GOOGLE, "google-sub-123"))
                 .thenReturn(Optional.of(existing));
 
         User result = userService.upsertOnOAuthLogin(info("old@gmail.com", "옛이름"));
 
-        assertThat(result.getEmail()).isEqualTo("mine@gmail.com");
         assertThat(result.getDisplayName()).isEqualTo("내가고친이름");
         assertThat(result.getProfileImageUrl()).isEqualTo("http://my-img");
         verify(userRepository, never()).save(any(User.class));

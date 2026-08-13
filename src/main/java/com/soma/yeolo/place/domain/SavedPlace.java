@@ -12,28 +12,29 @@ import java.util.UUID;
  *
  * @param placeId      내부 장소 식별자 (코스 stop의 {@code placeId})
  * @param placeName    장소명
+ * @param placeEngName 장소 영문명 (없으면 null)
  * @param category     장소 분류
  * @param address      주소 (없으면 null)
  * @param latitude     위도
  * @param longitude    경도
  * @param rating       평점 (없으면 null)
- * @param photoUrls    사진 URL 목록 (없으면 빈 목록)
+ * @param photoUrl     대표 사진 URL (없으면 null)
  * @param openingHours 운영시간 문자열 목록 (없으면 빈 목록)
  */
 public record SavedPlace(
         UUID placeId,
         String placeName,
+        String placeEngName,
         String category,
         String address,
         double latitude,
         double longitude,
         Double rating,
-        List<String> photoUrls,
+        String photoUrl,
         List<String> openingHours
 ) {
 
     public SavedPlace {
-        photoUrls = photoUrls == null ? List.of() : List.copyOf(photoUrls);
         openingHours = openingHours == null ? List.of() : List.copyOf(openingHours);
     }
 }

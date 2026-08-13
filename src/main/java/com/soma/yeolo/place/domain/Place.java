@@ -15,23 +15,25 @@ import java.util.List;
  *
  * @param providerPlaceId provider 측 장소 식별자 (내부 전용, FE 비노출)
  * @param placeName       장소명
+ * @param placeEngName    장소 영문명 (없으면 null)
  * @param category        장소 분류
  * @param address         주소 (provider가 주지 않으면 null)
  * @param latitude        위도
  * @param longitude       경도
  * @param rating          평점 (provider가 주지 않으면 null)
- * @param photoUrls       사진 URL 목록 (없으면 빈 목록)
+ * @param photoUrl        대표 사진 URL (없으면 null) — 명세 개정으로 목록에서 단일 값이 됐다
  * @param openingHours    운영시간 문자열 목록 (없으면 빈 목록)
  */
 public record Place(
         String providerPlaceId,
         String placeName,
+        String placeEngName,
         String category,
         String address,
         double latitude,
         double longitude,
         Double rating,
-        List<String> photoUrls,
+        String photoUrl,
         List<String> openingHours
 ) {
 
@@ -42,7 +44,6 @@ public record Place(
         if (isBlank(placeName)) {
             throw new IllegalArgumentException("placeName is required");
         }
-        photoUrls = photoUrls == null ? List.of() : List.copyOf(photoUrls);
         openingHours = openingHours == null ? List.of() : List.copyOf(openingHours);
     }
 
@@ -59,8 +60,8 @@ public record Place(
         if (isBlank(category)) {
             return this;
         }
-        return new Place(providerPlaceId, placeName, category, address,
-                latitude, longitude, rating, photoUrls, openingHours);
+        return new Place(providerPlaceId, placeName, placeEngName, category, address,
+                latitude, longitude, rating, photoUrl, openingHours);
     }
 
     private static boolean isBlank(String value) {

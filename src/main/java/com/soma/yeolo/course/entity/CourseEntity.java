@@ -46,6 +46,9 @@ public class CourseEntity extends BaseTimeEntity {
     @Column(name = "destination_city", nullable = false)
     private String destinationCity;
 
+    @Column(name = "cover_image_url", columnDefinition = "text")
+    private String coverImageUrl;
+
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 
@@ -64,12 +67,13 @@ public class CourseEntity extends BaseTimeEntity {
 
     @Builder
     private CourseEntity(UUID userId, String title, String destinationCountry, String destinationCity,
-                         LocalDate startDate, int totalDays, List<String> tags,
+                         String coverImageUrl, LocalDate startDate, int totalDays, List<String> tags,
                          String recommendationReason, String itinerary) {
         this.userId = userId;
         this.title = title;
         this.destinationCountry = destinationCountry;
         this.destinationCity = destinationCity;
+        this.coverImageUrl = coverImageUrl;
         this.startDate = startDate;
         this.totalDays = totalDays;
         this.tags = tags;
@@ -84,6 +88,7 @@ public class CourseEntity extends BaseTimeEntity {
                 .title(course.title())
                 .destinationCountry(course.destinationCountry())
                 .destinationCity(course.destinationCity())
+                .coverImageUrl(course.coverImageUrl())
                 .startDate(course.startDate())
                 .totalDays(course.totalDays())
                 .tags(course.tags())
@@ -94,7 +99,7 @@ public class CourseEntity extends BaseTimeEntity {
 
     /** 영속 엔티티 → 조회용 읽기 모델 매핑 (API-FB-7 / API-FB-10). 부여된 식별자·생성 시각을 함께 담는다. */
     public SavedCourse toSavedCourse() {
-        return new SavedCourse(id, userId, title, destinationCountry, destinationCity,
+        return new SavedCourse(id, userId, title, destinationCountry, destinationCity, coverImageUrl,
                 startDate, totalDays, tags, recommendationReason, itinerary, getCreatedAt());
     }
 }

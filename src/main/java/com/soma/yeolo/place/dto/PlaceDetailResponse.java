@@ -16,23 +16,25 @@ public record PlaceDetailResponse(PlaceDetail place) {
      *
      * @param placeId      내부 장소 식별자 (코스 stop의 {@code placeId})
      * @param placeName    장소명
+     * @param placeEngName 장소 영문명 — 없으면 {@code null}
      * @param category     장소 분류
      * @param address      주소 — provider가 주지 않으면 {@code null}
      * @param latitude     위도
      * @param longitude    경도
      * @param rating       평점 — 없으면 {@code null}
-     * @param photoUrls    사진 URL 목록 — 없으면 빈 배열
+     * @param photoUrl     대표 사진 URL — 없으면 {@code null}
      * @param openingHours 운영시간 목록 — 없으면 빈 배열
      */
     public record PlaceDetail(
             String placeId,
             String placeName,
+            String placeEngName,
             String category,
             String address,
             double latitude,
             double longitude,
             Double rating,
-            List<String> photoUrls,
+            String photoUrl,
             List<String> openingHours
     ) {
     }
@@ -42,12 +44,13 @@ public record PlaceDetailResponse(PlaceDetail place) {
         return new PlaceDetailResponse(new PlaceDetail(
                 place.placeId().toString(),
                 place.placeName(),
+                place.placeEngName(),
                 place.category(),
                 place.address(),
                 place.latitude(),
                 place.longitude(),
                 place.rating(),
-                place.photoUrls(),
+                place.photoUrl(),
                 place.openingHours()
         ));
     }

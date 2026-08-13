@@ -77,36 +77,30 @@ class UserProfileServiceTest {
 
     @Test
     void 전달한_항목만_바뀌고_나머지는_유지된다() {
-        service.updateProfile(userId, new UserProfileUpdateRequest(null, "새이름", null));
+        service.updateProfile(userId, new UserProfileUpdateRequest("새이름", null));
 
         assertThat(user.getDisplayName()).isEqualTo("새이름");
-        assertThat(user.getEmail()).isEqualTo("old@gmail.com");
         assertThat(user.getProfileImageUrl()).isEqualTo("http://old");
     }
 
     /** 폼이 빈 파트를 보내는 경우가 흔하다 — 빈 문자열을 "지움"으로 해석하면 값이 사라진다. */
     @Test
     void 공백뿐인_값은_미전송과_같이_취급한다() {
-        service.updateProfile(userId, new UserProfileUpdateRequest("   ", "  ", null));
+        service.updateProfile(userId, new UserProfileUpdateRequest("  ", null));
 
-        assertThat(user.getEmail()).isEqualTo("old@gmail.com");
         assertThat(user.getDisplayName()).isEqualTo("옛이름");
     }
 
     @Test
     void 앞뒤_공백은_제거하고_저장한다() {
-        when(userRepository.existsByEmailAndDeletedAtIsNullAndIdNot(anyString(), any()))
-                .thenReturn(false);
+        service.updateProfile(userId, new UserProfileUpdateRequest(" 새이름 ", null));
 
-        service.updateProfile(userId, new UserProfileUpdateRequest(" new@gmail.com ", " 새이름 ", null));
-
-        assertThat(user.getEmail()).isEqualTo("new@gmail.com");
         assertThat(user.getDisplayName()).isEqualTo("새이름");
     }
 
     @Test
     void 이미지를_올리면_저장소_URL로_갱신한다() {
-        service.updateProfile(userId, new UserProfileUpdateRequest(null, null, pngFile()));
+        service.updateProfile(userId, new UserProfileUpdateRequest(null, pngFile()));
 
         assertThat(storage.stored).isNotNull();
         assertThat(user.getProfileImageUrl()).isEqualTo("https://cdn.test/%s.png".formatted(userId));
@@ -116,32 +110,16 @@ class UserProfileServiceTest {
     void 빈_파일_파트는_업로드하지_않고_기존_이미지를_유지한다() {
         MultipartFile empty = new MockMultipartFile("profileImage", "", "image/png", new byte[0]);
 
-        service.updateProfile(userId, new UserProfileUpdateRequest(null, "새이름", empty));
+        service.updateProfile(userId, new UserProfileUpdateRequest("새이름", empty));
 
         assertThat(storage.stored).isNull();
         assertThat(user.getProfileImageUrl()).isEqualTo("http://old");
     }
 
+    /** 명세 개정으로 이메일은 이 API의 수정 대상이 아니다 — 제공자 값이 그대로 남는다. */
     @Test
-    void 다른_사용자가_쓰는_이메일이면_409다() {
-        when(userRepository.existsByEmailAndDeletedAtIsNullAndIdNot("taken@gmail.com", userId))
-                .thenReturn(true);
-
-        assertThatThrownBy(() -> service.updateProfile(
-                userId, new UserProfileUpdateRequest("taken@gmail.com", null, null)))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.EMAIL_ALREADY_IN_USE);
-
-        assertThat(user.getEmail()).isEqualTo("old@gmail.com");
-    }
-
-    /** 같은 이메일을 그대로 다시 보내는 것은 중복이 아니다(자기 자신은 조회에서 제외). */
-    @Test
-    void 자기_이메일을_그대로_보내면_통과한다() {
-        when(userRepository.existsByEmailAndDeletedAtIsNullAndIdNot("old@gmail.com", userId))
-                .thenReturn(false);
-
-        service.updateProfile(userId, new UserProfileUpdateRequest("old@gmail.com", null, null));
+    void 프로필_수정은_이메일을_건드리지_않는다() {
+        service.updateProfile(userId, new UserProfileUpdateRequest("새이름", pngFile()));
 
         assertThat(user.getEmail()).isEqualTo("old@gmail.com");
     }
@@ -152,7 +130,7 @@ class UserProfileServiceTest {
                 "profileImage", "big.png", "image/png", new byte[(int) MAX_BYTES + 1]);
 
         assertThatThrownBy(() -> service.updateProfile(
-                userId, new UserProfileUpdateRequest(null, null, tooLarge)))
+                userId, new UserProfileUpdateRequest(null, tooLarge)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.PROFILE_IMAGE_TOO_LARGE);
 
@@ -166,7 +144,7 @@ class UserProfileServiceTest {
                 "profileImage", "evil.png", "image/png", "#!/bin/sh\nrm -rf /".getBytes());
 
         assertThatThrownBy(() -> service.updateProfile(
-                userId, new UserProfileUpdateRequest(null, null, fake)))
+                userId, new UserProfileUpdateRequest(null, fake)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.UNSUPPORTED_PROFILE_IMAGE_TYPE);
 
@@ -179,7 +157,7 @@ class UserProfileServiceTest {
         when(userRepository.findById(unknown)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.updateProfile(
-                unknown, new UserProfileUpdateRequest(null, "새이름", null)))
+                unknown, new UserProfileUpdateRequest("새이름", null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.USER_NOT_FOUND);
     }

@@ -90,7 +90,7 @@ class GooglePlaceLookupClientTest {
 
         Place candidate = client.lookup(QUERY).orElseThrow();
 
-        assertThat(candidate.photoUrls()).isEmpty();
+        assertThat(candidate.photoUrl()).isNull();
     }
 
     @Test

@@ -24,7 +24,7 @@ import org.springframework.web.util.UriComponentsBuilder;
  * OpenStreetMap(Nominatim) 기반 장소 조회. ({@code place.provider=osm}일 때 활성화)
  *
  * <p>API 키가 필요 없어 개발 환경에서 실제 좌표·주소를 확인하기 좋다. 다만 Nominatim은 평점·사진을
- * 제공하지 않으므로 {@code rating}은 null, {@code photoUrls}는 빈 목록으로 내려간다. 운영시간은
+ * 제공하지 않으므로 {@code rating}·{@code photoUrl}·{@code placeEngName}은 null로 내려간다. 운영시간은
  * {@code extratags.opening_hours}(OSM 원문 표기, 예: {@code Mo-Su 09:00-18:00})가 있을 때만 담는다.
  *
  * <p>공개 서버 정책(≤1req/s)은 역지오코딩과 공유하는 {@code nominatimRateLimiter}가 강제한다.
@@ -97,12 +97,13 @@ public class OsmPlaceLookupClient implements PlaceLookupClient {
                 providerPlaceId,
                 // name이 없으면 AI가 준 장소명을 그대로 유지한다.
                 text(result, "name") != null ? text(result, "name") : query.placeName(),
+                null,
                 category(result),
                 text(result, "display_name"),
                 latitude,
                 longitude,
                 null,
-                List.of(),
+                null,
                 openingHours == null ? List.of() : List.of(openingHours)
         ));
     }

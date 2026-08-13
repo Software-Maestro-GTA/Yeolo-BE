@@ -54,6 +54,7 @@ class CourseQueryControllerTest {
         when(jwtTokenProvider.parseAccessTokenUserId("valid-token")).thenReturn(userId);
         when(courseQueryService.getMyCourses(userId)).thenReturn(new CourseListResponse(List.of(
                 new CourseSummary(courseId.toString(), "제주 힐링 여행", "대한민국", "제주",
+                        "https://cdn.example.com/cover.jpg",
                         LocalDate.of(2026, 8, 1), 3, List.of("힐링", "자연"), "추천 이유",
                         Instant.parse("2026-07-01T00:00:00Z")))));
 
@@ -65,6 +66,8 @@ class CourseQueryControllerTest {
                 .andExpect(jsonPath("$.data.courses[0].title").value("제주 힐링 여행"))
                 .andExpect(jsonPath("$.data.courses[0].destinationCountry").value("대한민국"))
                 .andExpect(jsonPath("$.data.courses[0].destinationCity").value("제주"))
+                .andExpect(jsonPath("$.data.courses[0].coverImageUrl")
+                        .value("https://cdn.example.com/cover.jpg"))
                 .andExpect(jsonPath("$.data.courses[0].startDate").value("2026-08-01"))
                 .andExpect(jsonPath("$.data.courses[0].totalDays").value(3))
                 .andExpect(jsonPath("$.data.courses[0].tags").value(Matchers.contains("힐링", "자연")))

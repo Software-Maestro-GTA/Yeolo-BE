@@ -48,7 +48,7 @@ class AuthControllerTest {
         GoogleLoginResponse response = new GoogleLoginResponse(
                 new UserSummary("550e8400-e29b-41d4-a716-446655440000", "google", "u@gmail.com",
                         "홍길동", "http://img", "active", "2026-07-16T00:00:00Z"),
-                true, "access-token", "refresh-token");
+                true, "6f1b8c62-0f6e-4a2e-9d4a-1f0b2c3d4e5f", "access-token", "refresh-token");
         when(authService.loginWithGoogle(any())).thenReturn(response);
 
         mockMvc.perform(post("/api/auth/google")
@@ -64,6 +64,8 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.data.user.status").value("active"))
                 .andExpect(jsonPath("$.data.user.lastLoginAt").value("2026-07-16T00:00:00Z"))
                 .andExpect(jsonPath("$.data.doOnboarding").value(true))
+                .andExpect(jsonPath("$.data.recentCourseId")
+                        .value("6f1b8c62-0f6e-4a2e-9d4a-1f0b2c3d4e5f"))
                 .andExpect(jsonPath("$.data.accessToken").value("access-token"))
                 .andExpect(jsonPath("$.data.refreshToken").value("refresh-token"));
     }
@@ -84,7 +86,7 @@ class AuthControllerTest {
         AppleLoginResponse response = new AppleLoginResponse(
                 new AppleLoginResponse.UserSummary("550e8400-e29b-41d4-a716-446655440000", "apple",
                         "u@privaterelay.appleid.com", null, null, "active", "2026-07-16T00:00:00Z"),
-                true, "access-token", "refresh-token");
+                true, null, "access-token", "refresh-token");
         when(authService.loginWithApple(any())).thenReturn(response);
 
         mockMvc.perform(post("/api/auth/apple")
@@ -101,6 +103,8 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.data.user.profileImageUrl").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.data.user.status").value("active"))
                 .andExpect(jsonPath("$.data.doOnboarding").value(true))
+                // 코스가 하나도 없는 사용자는 null (명세: "string(UUID)|null")
+                .andExpect(jsonPath("$.data.recentCourseId").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.data.accessToken").value("access-token"))
                 .andExpect(jsonPath("$.data.refreshToken").value("refresh-token"));
     }
@@ -110,7 +114,7 @@ class AuthControllerTest {
         AppleLoginResponse response = new AppleLoginResponse(
                 new AppleLoginResponse.UserSummary("550e8400-e29b-41d4-a716-446655440000", "apple",
                         null, null, null, "active", "2026-07-16T00:00:00Z"),
-                true, "access-token", "refresh-token");
+                true, null, "access-token", "refresh-token");
         when(authService.loginWithApple(any())).thenReturn(response);
 
         mockMvc.perform(post("/api/auth/apple")

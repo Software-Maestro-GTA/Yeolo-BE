@@ -41,12 +41,13 @@ public class StubPlaceLookupClient implements PlaceLookupClient {
         return Optional.of(new Place(
                 "stub:" + Long.toHexString(hash),
                 query.placeName(),
+                null,
                 query.category() != null ? query.category() : "point_of_interest",
                 address(query),
                 coordinate(hash, MIN_LATITUDE, LATITUDE_SPAN),
                 coordinate(hash >> 11, MIN_LONGITUDE, LONGITUDE_SPAN),
                 4.5,
-                List.of(),
+                null,
                 List.of("월~일 09:00~18:00")
         ));
     }

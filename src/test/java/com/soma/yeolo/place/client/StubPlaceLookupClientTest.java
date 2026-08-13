@@ -40,7 +40,7 @@ class StubPlaceLookupClientTest {
         assertThat(candidate.latitude()).isBetween(33.2, 38.4);
         assertThat(candidate.longitude()).isBetween(126.2, 129.5);
         assertThat(candidate.address()).isEqualTo("대한민국 제주 성산일출봉");
-        assertThat(candidate.photoUrls()).isEmpty();
+        assertThat(candidate.photoUrl()).isNull();
         assertThat(candidate.openingHours()).isNotEmpty();
     }
 }

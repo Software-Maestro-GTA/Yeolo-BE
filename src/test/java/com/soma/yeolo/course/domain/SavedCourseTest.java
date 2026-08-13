@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 class SavedCourseTest {
 
     private SavedCourse courseOwnedBy(UUID userId) {
-        return new SavedCourse(UUID.randomUUID(), userId, "제주 코스", "대한민국", "제주",
+        return new SavedCourse(UUID.randomUUID(), userId, "제주 코스", "대한민국", "제주", null,
                 LocalDate.of(2026, 8, 1), 3, List.of("힐링"), "이유", "{\"days\":[]}", Instant.now());
     }
 

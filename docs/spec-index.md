@@ -36,7 +36,10 @@
 | API-USER-1 | `API-USER-1.md` | `PATCH /api/users/me/profile` — 사용자 프로필 등록/수정 | #51 |
 | API-USER-2 | `API-USER-2.md` | `DELETE /api/users/me` — 회원탈퇴 | #78 |
 
-미구현(스코프 밖): `API-BOOKING-1`(예약 제휴 링크).
+**`API-BOOKING-1`(예약 제휴 링크)은 명세에서 삭제됐다.** 제휴처가 아고다 → Trip.com으로 바뀌면서
+연동 방식이 **앱 클라이언트에 고정 제휴 URL을 상수로 심는 방식**으로 정해져(DOM-7 개정) 서버 역할이
+사라졌다 — BE는 이 API를 구현한 적이 없으므로 지울 코드도 없다. 개정된 DOM-7의 `TRIP_HOTEL_URL`·
+`TRIP_FLIGHT_URL`은 FE 몫이다.
 
 #### 미해소 명세 모순 — API-SHARE-3의 400 vs DOM-6의 "코스 상세로 이동" (#49)
 
@@ -65,9 +68,27 @@ Error Codes에 `401: 인증 실패`가 있었다.
 `Authorization` 헤더와 `401`이 빠져 있어(SPEC 저장소 PR #1) 원본·명세·구현 셋이 일치한다.
 
 > **주의 — pin 선택 시:** `specs/`는 Notion에서 `sync_notion_specs.py`가 **생성**하는 산출물이다.
-> 마지막 동기화 커밋은 `eedd7ba`(2026-08-03)로 **Notion의 LOC-2 수정보다 이전**이라 401이 남아
-> 있다. 따라서 "동기화 커밋 = 최신 Notion"이 항상 성립하지는 않는다. 현재 pin은 수정이 반영된
-> `7d5d6b4`다. 다음 동기화가 돌면 그 결과가 정본이 되므로, 그때 pin을 옮기고 이 절을 정리한다.
+> 과거 동기화 커밋 `eedd7ba`(2026-08-03)는 **Notion의 LOC-2 수정보다 이전**이라 401이 남아 있었다.
+> 따라서 "동기화 커밋 = 최신 Notion"이 항상 성립하지는 않는다. 현재 pin은 `e54d9bb`이며 LOC-2
+> 수정이 반영돼 있다.
+
+## 2026-08-13 명세 개정 반영 (pin `7d5d6b4` → `e54d9bb`)
+
+이번 갱신에서 바뀐 것과 BE 대응은 아래와 같다. 상세 근거는 각 코드의 주석에 남겼다.
+
+| 명세 | 변경 | BE 대응 |
+| :--- | :--- | :--- |
+| API-AI-2 | stop이 `place`·`transportToNext` **객체**로 재구성되고, AI가 장소 정보를 통째로 준다(provider 식별자·주소·평점·사진·운영시간). 코스에 `coverImageUrl` 추가 | `ItineraryPlaceNormalizer`가 provider 재조회 대신 **AI가 준 장소를 등록**하고 `place.placeId`만 내부 UUID로 치환. 정보가 부족하면 예전 장소명 조회로 폴백 |
+| API-COURSE-2 | stop 구조 동일 변경 + `coverImageUrl` | `Itinerary` DTO 재구성, `courses.cover_image_url` 컬럼 추가 |
+| API-COURSE-3 | `coverImageUrl` 추가 | 목록 요약에 필드 추가 |
+| API-AUTH-1/2 | `recentCourseId` 추가 | `RecentCourseReader` 포트로 최근 코스 1건 조회(소유+공유, 목록 최상단과 같은 코스) |
+| API-LOC-2 | `country` 선택 쿼리 파라미터 추가 | 국가로 좁힌 질의 2종 추가. `country`는 ISO alpha-2와 국가 한국어명을 모두 받는다(명세 미규정 → BE 결정) |
+| API-PLACE-1 | `placeEngName` 추가, `photoUrls[]` → `photoUrl` | 장소 도메인·엔티티·응답 반영(`docs/ddl/places.sql`) |
+| API-USER-1 | 요청에서 `email` 삭제 | 프로필 수정에서 이메일 제거. 이메일은 이제 OAuth 제공자 값만 따른다 |
+| API-BOOKING-1 / DOM-7 | 예약 API 삭제, 제휴가 Trip.com **클라이언트 상수** 방식으로 변경 | BE 대응 없음(구현한 적 없음) |
+
+**남은 명세 모순:** API-USER-1의 Error Codes에는 `409: 이미 사용 중인 이메일`이 그대로 있으나,
+요청에서 `email`이 빠져 **발생시킬 입력이 없다**. 구현하지 않았고 `ErrorCode`에서도 지웠다.
 
 ### BE ↔ AI 내부 API (BE가 호출)
 | API ID | 파일 | Method · Endpoint | 이슈 |

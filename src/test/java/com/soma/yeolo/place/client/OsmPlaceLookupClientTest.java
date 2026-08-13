@@ -76,7 +76,7 @@ class OsmPlaceLookupClientTest {
         assertThat(candidate.longitude()).isEqualTo(126.9425);
         // Nominatim은 평점·사진을 제공하지 않는다.
         assertThat(candidate.rating()).isNull();
-        assertThat(candidate.photoUrls()).isEmpty();
+        assertThat(candidate.photoUrl()).isNull();
         assertThat(candidate.openingHours()).containsExactly("Mo-Su 07:00-20:00");
         server.verify();
     }

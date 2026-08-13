@@ -37,12 +37,13 @@ public class LocationController {
                 locationAutocompleteService.searchCountries(keyword, limit));
     }
 
-    /** 도시 자동완성 조회 (API-LOC-2). */
+    /** 도시 자동완성 조회 (API-LOC-2). {@code country}는 선택이며, 주면 그 국가의 도시만 찾는다. */
     @GetMapping("/cities/autocomplete")
     public ApiResponse<CityAutocompleteResponse> autocompleteCities(
+            @RequestParam(required = false) String country,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer limit) {
         return ApiResponse.success("도시 자동완성 조회 성공",
-                locationAutocompleteService.searchCities(keyword, limit));
+                locationAutocompleteService.searchCities(country, keyword, limit));
     }
 }

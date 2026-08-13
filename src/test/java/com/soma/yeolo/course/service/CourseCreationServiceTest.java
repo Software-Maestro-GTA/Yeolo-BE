@@ -15,6 +15,8 @@ import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.sse.TestSseHeartbeat;
+import com.soma.yeolo.place.domain.Place;
+import com.soma.yeolo.place.domain.PlaceQuery;
 import com.soma.yeolo.place.domain.SavedPlace;
 import com.soma.yeolo.place.service.PlaceRegistry;
 import com.soma.yeolo.preference.domain.Mbti;
@@ -91,6 +93,12 @@ class CourseCreationServiceTest {
         }
 
         @Override
+        public java.util.Optional<UUID> findRecentCourseId(UUID userId,
+                                                           java.util.Collection<UUID> sharedCourseIds) {
+            throw new UnsupportedOperationException("코스 생성 테스트에서는 조회를 사용하지 않는다.");
+        }
+
+        @Override
         public java.util.Optional<com.soma.yeolo.course.domain.SavedCourse> findById(UUID courseId) {
             throw new UnsupportedOperationException("코스 생성 테스트에서는 조회를 사용하지 않는다.");
         }
@@ -137,10 +145,21 @@ class CourseCreationServiceTest {
     private final FakeAiCourseClient aiClient = new FakeAiCourseClient();
     private final FakeUserMbtiReader mbtiReader = new FakeUserMbtiReader();
 
-    /** 장소 정규화 fake: 모든 장소명을 고정 좌표의 내부 장소로 해결한다. */
-    private final PlaceRegistry placeRegistry = query -> Optional.of(
-            new SavedPlace(UUID.randomUUID(), query.placeName(), query.category(),
-                    "제주", 33.4581, 126.9425, null, List.of(), List.of()));
+    /** 장소 정규화 fake: AI가 준 장소는 그대로 등록하고, 폴백 조회는 고정 좌표로 해결한다. */
+    private final PlaceRegistry placeRegistry = new PlaceRegistry() {
+        @Override
+        public SavedPlace register(Place place) {
+            return new SavedPlace(UUID.randomUUID(), place.placeName(), place.placeEngName(),
+                    place.category(), place.address(), place.latitude(), place.longitude(),
+                    place.rating(), place.photoUrl(), place.openingHours());
+        }
+
+        @Override
+        public Optional<SavedPlace> resolve(PlaceQuery query) {
+            return Optional.of(new SavedPlace(UUID.randomUUID(), query.placeName(), null,
+                    query.category(), "제주", 33.4581, 126.9425, null, null, List.of()));
+        }
+    };
 
     private CourseCreationService service() {
         return new CourseCreationService(mbtiReader, tasteProfiles, aiClient,
@@ -163,12 +182,15 @@ class CourseCreationServiceTest {
                   "title": "2박 3일 제주 힐링 코스",
                   "destinationCountry": "대한민국",
                   "destinationCity": "제주",
+                  "coverImageUrl": "https://cdn.example.com/cover.jpg",
                   "startDate": "2026-08-01",
                   "totalDays": 3,
                   "tags": ["힐링"],
                   "recommendationReason": "여유로운 일정",
                   "itinerary": {"days": [{"day": 1, "stops": [
-                    {"sequence": 1, "placeName": "성산일출봉", "category": "nature"}
+                    {"sequence": 1, "place": {"placeId": "ChIJ_SEONGSAN", "placeName": "성산일출봉",
+                      "category": "nature", "latitude": 33.4581, "longitude": 126.9425},
+                     "transportToNext": {"type": "walking", "minutes": 10}}
                   ]}]}
                 }
                 """);
@@ -187,6 +209,8 @@ class CourseCreationServiceTest {
         assertThat(courses.saved).hasSize(1);
         assertThat(courses.saved.getFirst().userId()).isEqualTo(userId);
         assertThat(courses.saved.getFirst().title()).isEqualTo("2박 3일 제주 힐링 코스");
+        assertThat(courses.saved.getFirst().coverImageUrl())
+                .isEqualTo("https://cdn.example.com/cover.jpg");
         verify(emitter).complete();
     }
 
@@ -199,11 +223,11 @@ class CourseCreationServiceTest {
 
         service().createAndStream(userId, request(), emitter);
 
-        JsonNode stop = MAPPER.readTree(courses.saved.getFirst().itineraryJson())
-                .path("days").get(0).path("stops").get(0);
-        assertThat(UUID.fromString(stop.path("placeId").asText())).isNotNull();
-        assertThat(stop.path("latitude").asDouble()).isEqualTo(33.4581);
-        assertThat(stop.path("longitude").asDouble()).isEqualTo(126.9425);
+        JsonNode place = MAPPER.readTree(courses.saved.getFirst().itineraryJson())
+                .path("days").get(0).path("stops").get(0).path("place");
+        assertThat(UUID.fromString(place.path("placeId").asText())).isNotNull();
+        assertThat(place.path("latitude").asDouble()).isEqualTo(33.4581);
+        assertThat(place.path("longitude").asDouble()).isEqualTo(126.9425);
     }
 
     /** DOM-3: MBTI·취향 분석 결과가 <b>둘 다</b> 없을 때만 생성할 수 없다. */

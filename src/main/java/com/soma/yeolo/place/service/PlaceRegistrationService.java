@@ -1,6 +1,7 @@
 package com.soma.yeolo.place.service;
 
 import com.soma.yeolo.place.client.PlaceLookupClient;
+import com.soma.yeolo.place.domain.Place;
 import com.soma.yeolo.place.domain.PlaceQuery;
 import com.soma.yeolo.place.domain.SavedPlace;
 import com.soma.yeolo.place.service.port.PlaceRepository;
@@ -12,9 +13,9 @@ import org.springframework.stereotype.Service;
 /**
  * 장소 정규화·등록 (DOM-3 §"장소 정보 처리 기준").
  *
- * <p>AI가 장소명·분류만 주므로(API-AI-2), 외부 provider로 좌표·주소를 채운 뒤 내부 장소로 저장하고
- * 내부 {@code placeId}를 부여한다. 같은 장소는 provider 식별자 기준으로 한 번만 저장되어, 저장된
- * 행이 곧 외부 조회 결과의 캐시가 된다.
+ * <p>AI가 준 장소(API-AI-2의 stop {@code place})를 내부 장소로 저장하고 내부 {@code placeId}를
+ * 부여한다. AI가 장소 정보를 온전히 주지 못한 경우에만 외부 provider로 좌표·주소를 채운다. 같은
+ * 장소는 provider 식별자 기준으로 한 번만 저장되어, 저장된 행이 곧 조회 결과의 캐시가 된다.
  *
  * <p><b>캐시 갱신 정책:</b> 한 번 저장한 장소는 다시 조회하지 않고 기존 행을 그대로 돌려준다
  * (평점·운영시간·분류는 변할 수 있지만 갱신하지 않는다). 주기적 갱신·TTL은 운영 데이터를 보고 정할
@@ -27,6 +28,17 @@ public class PlaceRegistrationService implements PlaceRegistry {
 
     private final PlaceLookupClient placeLookupClient;
     private final PlaceRepository placeRepository;
+
+    /**
+     * AI가 준 장소를 그대로 등록한다. 외부 조회가 없으므로 실패 경로가 없다.
+     *
+     * <p>이미 저장된 장소면 <b>기존 행을 그대로 돌려준다</b> — AI가 같은 장소에 다른 값(갱신된 평점·
+     * 사진)을 실어 보내도 덮어쓰지 않는다. 캐시 갱신 정책은 조회 경로와 같다(위 문서 참고).
+     */
+    @Override
+    public SavedPlace register(Place place) {
+        return placeRepository.saveIfAbsent(place);
+    }
 
     /**
      * 장소를 조회해 등록한다. provider가 찾지 못하면 빈 값을 돌려준다 — 호출부(코스 생성)는 해당

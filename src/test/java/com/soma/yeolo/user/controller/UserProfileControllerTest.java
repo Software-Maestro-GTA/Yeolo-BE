@@ -126,7 +126,6 @@ class UserProfileControllerTest {
 
         mockMvc.perform(patchMultipart()
                         .file(image)
-                        .param("email", "new@gmail.com")
                         .param("displayName", "새이름")
                         .header("Authorization", "Bearer valid-token"))
                 .andExpect(status().isOk());
@@ -134,17 +133,34 @@ class UserProfileControllerTest {
         ArgumentCaptor<UserProfileUpdateRequest> captured =
                 ArgumentCaptor.forClass(UserProfileUpdateRequest.class);
         verify(userProfileService).updateProfile(eq(userId), captured.capture());
-        assertThat(captured.getValue().email()).isEqualTo("new@gmail.com");
         assertThat(captured.getValue().displayName()).isEqualTo("새이름");
         assertThat(captured.getValue().profileImage()).isNotNull();
     }
 
+    /**
+     * 명세 개정으로 요청에서 {@code email}이 빠졌다. 보내더라도 바인딩되는 필드가 없으므로 무시된다
+     * — 400이 아니라 "그냥 반영되지 않는" 것이 맞다(모르는 파트는 거절하지 않는다).
+     */
     @Test
-    void 이메일_형식이_틀리면_400과_명세_메시지로_응답한다() throws Exception {
+    void email_파트를_보내도_무시한다() throws Exception {
+        UUID userId = authenticate();
+        when(userProfileService.updateProfile(eq(userId), any()))
+                .thenReturn(savedUser(userId, "oauth@gmail.com", "새이름", null));
+
+        mockMvc.perform(patchMultipart()
+                        .param("email", "new@gmail.com")
+                        .param("displayName", "새이름")
+                        .header("Authorization", "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.user.email").value("oauth@gmail.com"));
+    }
+
+    @Test
+    void 표시_이름이_너무_길면_400과_명세_메시지로_응답한다() throws Exception {
         authenticate();
 
         mockMvc.perform(patchMultipart()
-                        .param("email", "not-an-email")
+                        .param("displayName", "가".repeat(51))
                         .header("Authorization", "Bearer valid-token"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
@@ -152,20 +168,6 @@ class UserProfileControllerTest {
                 .andExpect(jsonPath("$.data").value(Matchers.nullValue()));
 
         verify(userProfileService, never()).updateProfile(any(), any());
-    }
-
-    @Test
-    void 이미_사용_중인_이메일이면_409로_응답한다() throws Exception {
-        UUID userId = authenticate();
-        when(userProfileService.updateProfile(eq(userId), any()))
-                .thenThrow(new BusinessException(ErrorCode.EMAIL_ALREADY_IN_USE));
-
-        mockMvc.perform(patchMultipart()
-                        .param("email", "taken@gmail.com")
-                        .header("Authorization", "Bearer valid-token"))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.message").value("이미 사용 중인 이메일입니다."));
     }
 
     @Test

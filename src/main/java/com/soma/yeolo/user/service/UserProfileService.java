@@ -50,12 +50,7 @@ public class UserProfileService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        String email = normalize(request.email());
-        if (email != null && userRepository.existsByEmailAndDeletedAtIsNullAndIdNot(email, userId)) {
-            throw new BusinessException(ErrorCode.EMAIL_ALREADY_IN_USE);
-        }
-
-        user.updateProfile(email, normalize(request.displayName()), profileImageUrl);
+        user.updateProfile(normalize(request.displayName()), profileImageUrl);
         return user;
     }
 

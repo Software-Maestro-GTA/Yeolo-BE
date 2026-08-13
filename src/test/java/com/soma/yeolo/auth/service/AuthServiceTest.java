@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -18,6 +19,7 @@ import com.soma.yeolo.auth.dto.AppleLoginResponse;
 import com.soma.yeolo.auth.dto.GoogleLoginRequest;
 import com.soma.yeolo.auth.dto.GoogleLoginResponse;
 import com.soma.yeolo.auth.dto.TokenRefreshResponse;
+import com.soma.yeolo.course.service.RecentCourseReader;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.security.JwtTokenProvider;
@@ -56,6 +58,8 @@ class AuthServiceTest {
     private UserMbtiReader userMbtiReader;
     @Mock
     private TasteProfileRepository tasteProfileRepository;
+    @Mock
+    private RecentCourseReader recentCourseReader;
 
     @InjectMocks
     private AuthService authService;
@@ -77,11 +81,31 @@ class AuthServiceTest {
         if (!hasMbti) {
             when(tasteProfileRepository.existsByUserId(userId)).thenReturn(hasTasteProfile);
         }
+        lenient().when(recentCourseReader.findRecentCourseId(userId)).thenReturn(Optional.empty());
         return user;
     }
 
     private GoogleLoginResponse login() {
         return authService.loginWithGoogle(new GoogleLoginRequest("auth-code", "http://localhost/callback"));
+    }
+
+    /** 앱이 로그인 직후 열어 줄 코스 (API-AUTH-1 명세 개정). */
+    @Test
+    void 최근_코스가_있으면_recentCourseId로_내려준다() {
+        UUID userId = UUID.randomUUID();
+        UUID recentCourseId = UUID.randomUUID();
+        stubGoogleLoginSuccess(userId, true, false);
+        when(recentCourseReader.findRecentCourseId(userId)).thenReturn(Optional.of(recentCourseId));
+
+        assertThat(login().recentCourseId()).isEqualTo(recentCourseId.toString());
+    }
+
+    @Test
+    void 코스가_하나도_없으면_recentCourseId는_null이다() {
+        UUID userId = UUID.randomUUID();
+        stubGoogleLoginSuccess(userId, true, false);
+
+        assertThat(login().recentCourseId()).isNull();
     }
 
     @Test
@@ -167,6 +191,7 @@ class AuthServiceTest {
                 .thenReturn(new GeneratedToken("refresh-token", Instant.now().plusSeconds(1000)));
         when(userMbtiReader.findMbti(userId)).thenReturn(Optional.empty());
         when(tasteProfileRepository.existsByUserId(userId)).thenReturn(false);
+        lenient().when(recentCourseReader.findRecentCourseId(userId)).thenReturn(Optional.empty());
         return user;
     }
 

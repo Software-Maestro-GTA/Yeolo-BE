@@ -5,7 +5,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * 여행 코스 상세 조회 응답의 {@code data} 페이로드 (API-FB-7). 요약 정보에 더해 일자·방문지 전체
+ * 여행 코스 상세 조회 응답의 {@code data} 페이로드 (API-COURSE-2). 요약 정보에 더해 일자·방문지 전체
  * ({@code itinerary})를 명세 구조 그대로 담는다.
  */
 public record CourseDetailResponse(CourseDetail course) {
@@ -17,6 +17,7 @@ public record CourseDetailResponse(CourseDetail course) {
             String title,
             String destinationCountry,
             String destinationCity,
+            String coverImageUrl,
             LocalDate startDate,
             int totalDays,
             List<String> tags,
@@ -33,6 +34,7 @@ public record CourseDetailResponse(CourseDetail course) {
                 course.title(),
                 course.destinationCountry(),
                 course.destinationCity(),
+                course.coverImageUrl(),
                 course.startDate(),
                 course.totalDays(),
                 course.tags(),

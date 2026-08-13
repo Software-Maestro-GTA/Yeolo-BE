@@ -9,6 +9,7 @@ import com.soma.yeolo.auth.dto.AppleLoginResponse;
 import com.soma.yeolo.auth.dto.GoogleLoginRequest;
 import com.soma.yeolo.auth.dto.GoogleLoginResponse;
 import com.soma.yeolo.auth.dto.TokenRefreshResponse;
+import com.soma.yeolo.course.service.RecentCourseReader;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.security.JwtTokenProvider;
@@ -40,6 +41,7 @@ public class AuthService {
     private final RefreshTokenService refreshTokenService;
     private final UserMbtiReader userMbtiReader;
     private final TasteProfileRepository tasteProfileRepository;
+    private final RecentCourseReader recentCourseReader;
 
     public GoogleLoginResponse loginWithGoogle(GoogleLoginRequest request) {
         // 1. Google 인증 (외부 호출 — 트랜잭션 밖). 이메일 미검증은 인증 실패(401)로 본다.
@@ -57,8 +59,10 @@ public class AuthService {
         GeneratedToken refresh = jwtTokenProvider.createRefreshToken(user.getId());
         refreshTokenService.issue(user.getId(), refresh.token(), refresh.expiresAt());
 
-        // 4. 응답 구성 (온보딩 유도 여부 포함)
-        return GoogleLoginResponse.from(user, resolveDoOnboarding(user.getId()), accessToken, refresh.token());
+        // 4. 응답 구성 (온보딩 유도 여부·최근 코스 포함)
+        return GoogleLoginResponse.from(user, resolveDoOnboarding(user.getId()),
+                recentCourseReader.findRecentCourseId(user.getId()).orElse(null),
+                accessToken, refresh.token());
     }
 
     public AppleLoginResponse loginWithApple(AppleLoginRequest request) {
@@ -81,8 +85,10 @@ public class AuthService {
         GeneratedToken refresh = jwtTokenProvider.createRefreshToken(user.getId());
         refreshTokenService.issue(user.getId(), refresh.token(), refresh.expiresAt());
 
-        // 4. 응답 구성 (온보딩 유도 여부 포함)
-        return AppleLoginResponse.from(user, resolveDoOnboarding(user.getId()), accessToken, refresh.token());
+        // 4. 응답 구성 (온보딩 유도 여부·최근 코스 포함)
+        return AppleLoginResponse.from(user, resolveDoOnboarding(user.getId()),
+                recentCourseReader.findRecentCourseId(user.getId()).orElse(null),
+                accessToken, refresh.token());
     }
 
     /**

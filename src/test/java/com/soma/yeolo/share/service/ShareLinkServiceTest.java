@@ -138,6 +138,11 @@ class ShareLinkServiceTest {
         }
 
         @Override
+        public Optional<UUID> findRecentCourseId(UUID userId, Collection<UUID> sharedCourseIds) {
+            throw new UnsupportedOperationException("공유 테스트에서는 최근 코스 조회를 사용하지 않는다.");
+        }
+
+        @Override
         public Optional<SavedCourse> findById(UUID courseId) {
             return store.stream().filter(c -> c.courseId().equals(courseId)).findFirst();
         }
@@ -171,7 +176,7 @@ class ShareLinkServiceTest {
 
     private UUID givenCourse(UUID ownerId, String title) {
         UUID courseId = UUID.randomUUID();
-        courses.store.add(new SavedCourse(courseId, ownerId, title, "일본", "오사카",
+        courses.store.add(new SavedCourse(courseId, ownerId, title, "일본", "오사카", null,
                 LocalDate.of(2026, 9, 1), 4, List.of("맛집"), "이유", "{\"days\":[]}", Instant.now()));
         return courseId;
     }

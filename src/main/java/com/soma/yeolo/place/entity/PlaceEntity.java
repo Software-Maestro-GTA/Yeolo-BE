@@ -43,6 +43,9 @@ public class PlaceEntity extends BaseTimeEntity {
     @Column(name = "place_name", nullable = false, columnDefinition = "text")
     private String placeName;
 
+    @Column(name = "place_eng_name", columnDefinition = "text")
+    private String placeEngName;
+
     @Column(name = "category")
     private String category;
 
@@ -58,26 +61,26 @@ public class PlaceEntity extends BaseTimeEntity {
     @Column(name = "rating")
     private Double rating;
 
-    @Convert(converter = StringListJsonConverter.class)
-    @Column(name = "photo_urls", columnDefinition = "text")
-    private List<String> photoUrls;
+    @Column(name = "photo_url", columnDefinition = "text")
+    private String photoUrl;
 
     @Convert(converter = StringListJsonConverter.class)
     @Column(name = "opening_hours", columnDefinition = "text")
     private List<String> openingHours;
 
     @Builder
-    private PlaceEntity(String providerPlaceId, String placeName, String category, String address,
-                        double latitude, double longitude, Double rating,
-                        List<String> photoUrls, List<String> openingHours) {
+    private PlaceEntity(String providerPlaceId, String placeName, String placeEngName,
+                        String category, String address, double latitude, double longitude,
+                        Double rating, String photoUrl, List<String> openingHours) {
         this.providerPlaceId = providerPlaceId;
         this.placeName = placeName;
+        this.placeEngName = placeEngName;
         this.category = category;
         this.address = address;
         this.latitude = latitude;
         this.longitude = longitude;
         this.rating = rating;
-        this.photoUrls = photoUrls;
+        this.photoUrl = photoUrl;
         this.openingHours = openingHours;
     }
 
@@ -86,19 +89,20 @@ public class PlaceEntity extends BaseTimeEntity {
         return PlaceEntity.builder()
                 .providerPlaceId(place.providerPlaceId())
                 .placeName(place.placeName())
+                .placeEngName(place.placeEngName())
                 .category(place.category())
                 .address(place.address())
                 .latitude(place.latitude())
                 .longitude(place.longitude())
                 .rating(place.rating())
-                .photoUrls(place.photoUrls())
+                .photoUrl(place.photoUrl())
                 .openingHours(place.openingHours())
                 .build();
     }
 
     /** 영속 엔티티 → 조회용 읽기 모델 매핑 (API-PLACE-1). provider 식별자는 담지 않는다. */
     public SavedPlace toSavedPlace() {
-        return new SavedPlace(id, placeName, category, address, latitude, longitude,
-                rating, photoUrls, openingHours);
+        return new SavedPlace(id, placeName, placeEngName, category, address, latitude, longitude,
+                rating, photoUrl, openingHours);
     }
 }

@@ -33,7 +33,9 @@ public enum ErrorCode {
     // 사용자 프로필 (API-USER-1 / DOM-1)
     INVALID_USER_PROFILE(HttpStatus.BAD_REQUEST, "사용자 프로필 입력값을 확인해주세요."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
-    EMAIL_ALREADY_IN_USE(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
+    // API-USER-1의 409(이미 사용 중인 이메일)는 명세 개정으로 도달할 수 없게 됐다 — 요청에서
+    // email이 빠져 사용자가 이메일을 바꿀 수단이 없다. 에러 코드 목록에는 아직 남아 있으나
+    // 구현하지 않는다(발생시킬 입력이 없다).
     PROFILE_IMAGE_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "프로필 이미지 용량이 너무 큽니다."),
     UNSUPPORTED_PROFILE_IMAGE_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "지원하지 않는 이미지 형식입니다."),
     PROFILE_IMAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "프로필 이미지 저장에 실패했습니다."),

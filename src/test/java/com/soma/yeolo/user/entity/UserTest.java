@@ -51,12 +51,11 @@ class UserTest {
         // 제공자 프로필로 가입한 뒤 사용자가 직접 고친 상황 (API-USER-1).
         User user = User.createOAuthUser(Provider.GOOGLE, "sub-1",
                 "oauth@gmail.com", "구글이름", "http://oauth-img");
-        user.updateProfile("mine@gmail.com", "내가고친이름", "http://my-img");
+        user.updateProfile("내가고친이름", "http://my-img");
 
         user.updateOnLogin("oauth@gmail.com", "구글이름", "http://oauth-img");
 
         // 로그인이 제공자 값으로 되돌리면 안 된다 — 수정이 저장되지 않는 것처럼 보인다.
-        assertThat(user.getEmail()).isEqualTo("mine@gmail.com");
         assertThat(user.getDisplayName()).isEqualTo("내가고친이름");
         assertThat(user.getProfileImageUrl()).isEqualTo("http://my-img");
     }
@@ -66,7 +65,7 @@ class UserTest {
         // 이름만 고친 사용자. 부분 수정이므로 이메일·이미지는 여전히 제공자 소관이다.
         User user = User.createOAuthUser(Provider.GOOGLE, "sub-1",
                 "old@gmail.com", "구글이름", "http://old");
-        user.updateProfile(null, "내가고친이름", null);
+        user.updateProfile("내가고친이름", null);
 
         user.updateOnLogin("new@gmail.com", "바뀐구글이름", "http://new");
 
@@ -94,7 +93,7 @@ class UserTest {
         User user = User.createOAuthUser(Provider.GOOGLE, "sub-1",
                 "old@gmail.com", "옛이름", "http://old");
 
-        user.updateProfile(null, "새이름", null);
+        user.updateProfile("새이름", null);
 
         // 이름만 바꿨는데 이메일·이미지가 지워지면 안 된다 (API-USER-1 nullable 정책).
         assertThat(user.getDisplayName()).isEqualTo("새이름");
@@ -103,14 +102,29 @@ class UserTest {
     }
 
     @Test
-    void 프로필_수정으로_세_항목을_한번에_갱신할_수_있다() {
+    void 프로필_수정으로_두_항목을_한번에_갱신할_수_있다() {
         User user = User.createOAuthUser(Provider.GOOGLE, "sub-1", null, null, null);
 
-        user.updateProfile("new@gmail.com", "새이름", "http://new");
+        user.updateProfile("새이름", "http://new");
 
-        assertThat(user.getEmail()).isEqualTo("new@gmail.com");
         assertThat(user.getDisplayName()).isEqualTo("새이름");
         assertThat(user.getProfileImageUrl()).isEqualTo("http://new");
+    }
+
+    /**
+     * 명세 개정으로 이메일은 프로필 수정 대상에서 빠졌다(API-USER-1 요청에 {@code email} 없음).
+     * 즉 이메일은 언제나 제공자를 따라간다.
+     */
+    @Test
+    void 프로필을_수정해도_이메일은_제공자를_계속_따라간다() {
+        User user = User.createOAuthUser(Provider.GOOGLE, "sub-1",
+                "old@gmail.com", "옛이름", "http://old");
+        user.updateProfile("내가고친이름", "http://my-img");
+
+        user.updateOnLogin("new@gmail.com", "바뀐구글이름", "http://oauth-img");
+
+        assertThat(user.getEmail()).isEqualTo("new@gmail.com");
+        assertThat(user.getDisplayName()).isEqualTo("내가고친이름");
     }
 
     @Test

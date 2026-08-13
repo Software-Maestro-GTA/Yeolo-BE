@@ -68,7 +68,7 @@ class LocationControllerTest {
 
     @Test
     void 도시_자동완성은_소속_국가를_함께_응답한다() throws Exception {
-        when(locationAutocompleteService.searchCities("서울", 5))
+        when(locationAutocompleteService.searchCities(isNull(), eq("서울"), eq(5)))
                 .thenReturn(new CityAutocompleteResponse(List.of(
                         new CityAutocompleteResponse.City("1835848", "서울특별시", "KR", "대한민국"))));
 
@@ -81,12 +81,27 @@ class LocationControllerTest {
                 .andExpect(jsonPath("$.data.cities[0].countryId").value("KR"))
                 .andExpect(jsonPath("$.data.cities[0].countryNameKo").value("대한민국"));
 
-        verify(locationAutocompleteService).searchCities("서울", 5);
+        verify(locationAutocompleteService).searchCities(null, "서울", 5);
+    }
+
+    /** country는 선택 파라미터이며, 주면 그대로 서비스에 전달된다 (API-LOC-2 명세 개정). */
+    @Test
+    void 도시_자동완성에_country를_함께_보낼_수_있다() throws Exception {
+        when(locationAutocompleteService.searchCities(eq("KR"), eq("서울"), isNull()))
+                .thenReturn(new CityAutocompleteResponse(List.of(
+                        new CityAutocompleteResponse.City("1835848", "서울특별시", "KR", "대한민국"))));
+
+        mockMvc.perform(get("/api/locations/cities/autocomplete")
+                        .param("country", "KR").param("keyword", "서울"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.cities[0].countryId").value("KR"));
+
+        verify(locationAutocompleteService).searchCities("KR", "서울", null);
     }
 
     @Test
     void 결과가_없으면_빈_배열이_내려간다() throws Exception {
-        when(locationAutocompleteService.searchCities(eq("없는도시"), isNull()))
+        when(locationAutocompleteService.searchCities(isNull(), eq("없는도시"), isNull()))
                 .thenReturn(new CityAutocompleteResponse(List.of()));
 
         mockMvc.perform(get("/api/locations/cities/autocomplete").param("keyword", "없는도시"))

@@ -19,9 +19,9 @@ class PlaceRegistrationServiceTest {
     }
 
     private Place found() {
-        return new Place("google:ChIJ123", "성산일출봉", "tourist_attraction",
+        return new Place("google:ChIJ123", "성산일출봉", "Seongsan Ilchulbong", "tourist_attraction",
                 "제주특별자치도 서귀포시 성산읍", 33.4581, 126.9425, 4.6,
-                List.of(), List.of("월요일: 07:00~20:00"));
+                "https://cdn.example.com/seongsan.jpg", List.of("월요일: 07:00~20:00"));
     }
 
     private PlaceQuery query() {
@@ -60,5 +60,34 @@ class PlaceRegistrationServiceTest {
 
         assertThat(service.resolve(query())).isEmpty();
         assertThat(placeRepository.saveCount).isZero();
+    }
+
+    // ===== AI가 준 장소를 그대로 등록하는 경로 (API-AI-2 명세 개정) =====
+
+    @Test
+    void 이미_확보된_장소는_외부_조회_없이_등록한다() {
+        PlaceLookupClient neverCalled = q -> {
+            throw new AssertionError("등록 경로에서는 provider를 조회하지 않는다.");
+        };
+        PlaceRegistrationService service = serviceReturning(neverCalled);
+
+        SavedPlace place = service.register(found());
+
+        assertThat(place.placeId()).isNotNull();
+        assertThat(place.placeName()).isEqualTo("성산일출봉");
+        assertThat(place.placeEngName()).isEqualTo("Seongsan Ilchulbong");
+        assertThat(place.photoUrl()).isEqualTo("https://cdn.example.com/seongsan.jpg");
+        assertThat(placeRepository.findById(place.placeId())).isPresent();
+    }
+
+    @Test
+    void 등록도_같은_장소를_다시_저장하지_않는다() {
+        PlaceRegistrationService service = serviceReturning(q -> Optional.empty());
+
+        SavedPlace first = service.register(found());
+        SavedPlace second = service.register(found());
+
+        assertThat(second.placeId()).isEqualTo(first.placeId());
+        assertThat(placeRepository.saveCount).isEqualTo(1);
     }
 }

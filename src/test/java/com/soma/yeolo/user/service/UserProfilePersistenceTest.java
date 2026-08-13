@@ -67,15 +67,13 @@ class UserProfilePersistenceTest {
         em.flush();
         em.clear();
 
-        service().updateProfile(userId,
-                new UserProfileUpdateRequest("new@gmail.com", "새이름", pngFile()));
+        service().updateProfile(userId, new UserProfileUpdateRequest("새이름", pngFile()));
 
         // 영속성 컨텍스트를 비워, 캐시가 아니라 DB에서 다시 읽는다.
         em.flush();
         em.clear();
 
         User reloaded = userRepository.findById(userId).orElseThrow();
-        assertThat(reloaded.getEmail()).isEqualTo("new@gmail.com");
         assertThat(reloaded.getDisplayName()).isEqualTo("새이름");
         assertThat(reloaded.getProfileImageUrl()).isEqualTo("https://cdn.test/%s.png".formatted(userId));
     }
@@ -95,8 +93,8 @@ class UserProfilePersistenceTest {
         em.flush();
         em.clear();
 
-        // 이메일·이름만 고친다(이미지는 미전송 → 제공자 소관 그대로).
-        service().updateProfile(userId, new UserProfileUpdateRequest("mine@gmail.com", "내가고친이름", null));
+        // 이름만 고친다(이미지는 미전송 → 제공자 소관 그대로).
+        service().updateProfile(userId, new UserProfileUpdateRequest("내가고친이름", null));
         em.flush();
         em.clear();
 
@@ -107,9 +105,10 @@ class UserProfilePersistenceTest {
         em.clear();
 
         User reloaded = userRepository.findById(userId).orElseThrow();
-        assertThat(reloaded.getEmail()).isEqualTo("mine@gmail.com");
         assertThat(reloaded.getDisplayName()).isEqualTo("내가고친이름");
         assertThat(reloaded.getProfileImageUrl()).isEqualTo("http://new");
+        // 이메일은 명세 개정으로 수정 대상이 아니므로 언제나 제공자를 따라간다.
+        assertThat(reloaded.getEmail()).isEqualTo("new@gmail.com");
     }
 
     @Test
@@ -120,7 +119,7 @@ class UserProfilePersistenceTest {
         em.flush();
         em.clear();
 
-        service().updateProfile(userId, new UserProfileUpdateRequest(null, "새이름", null));
+        service().updateProfile(userId, new UserProfileUpdateRequest("새이름", null));
 
         em.flush();
         em.clear();

@@ -9,9 +9,9 @@ import org.junit.jupiter.api.Test;
 class PlaceTest {
 
     private Place found(String category) {
-        return new Place("google:ChIJ123", "성산일출봉", category,
+        return new Place("google:ChIJ123", "성산일출봉", "Seongsan Ilchulbong", category,
                 "제주특별자치도 서귀포시 성산읍", 33.4581, 126.9425, 4.6,
-                List.of(), List.of("월요일: 07:00~20:00"));
+                "https://cdn.example.com/seongsan.jpg", List.of("월요일: 07:00~20:00"));
     }
 
     @Test
@@ -25,6 +25,8 @@ class PlaceTest {
         assertThat(place.latitude()).isEqualTo(33.4581);
         assertThat(place.longitude()).isEqualTo(126.9425);
         assertThat(place.rating()).isEqualTo(4.6);
+        assertThat(place.placeEngName()).isEqualTo("Seongsan Ilchulbong");
+        assertThat(place.photoUrl()).isEqualTo("https://cdn.example.com/seongsan.jpg");
         assertThat(place.openingHours()).containsExactly("월요일: 07:00~20:00");
     }
 
@@ -45,24 +47,25 @@ class PlaceTest {
     }
 
     @Test
-    void 사진과_운영시간이_없으면_빈_목록으로_정규화한다() {
-        Place place = new Place("osm:N1", "협재 해수욕장", "beach", null,
+    void 운영시간이_없으면_빈_목록으로_정규화한다() {
+        Place place = new Place("osm:N1", "협재 해수욕장", null, "beach", null,
                 33.3948, 126.2396, null, null, null);
 
-        assertThat(place.photoUrls()).isEmpty();
         assertThat(place.openingHours()).isEmpty();
+        assertThat(place.photoUrl()).isNull();
+        assertThat(place.placeEngName()).isNull();
         assertThat(place.rating()).isNull();
         assertThat(place.address()).isNull();
     }
 
     @Test
     void provider_식별자나_장소명이_없으면_만들_수_없다() {
-        assertThatThrownBy(() -> new Place(" ", "협재 해수욕장", null, null,
-                33.3948, 126.2396, null, List.of(), List.of()))
+        assertThatThrownBy(() -> new Place(" ", "협재 해수욕장", null, null, null,
+                33.3948, 126.2396, null, null, List.of()))
                 .isInstanceOf(IllegalArgumentException.class);
 
-        assertThatThrownBy(() -> new Place("osm:N1", null, null, null,
-                33.3948, 126.2396, null, List.of(), List.of()))
+        assertThatThrownBy(() -> new Place("osm:N1", null, null, null, null,
+                33.3948, 126.2396, null, null, List.of()))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

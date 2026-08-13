@@ -24,9 +24,13 @@ import org.springframework.web.util.UriComponentsBuilder;
  * Place Details로 운영시간({@code opening_hours.weekday_text})만 보강한다. Details가 실패해도
  * Text Search 결과만으로 장소를 돌려준다 — 운영시간은 부가 정보라 조회 자체를 실패시킬 이유가 없다.
  *
- * <p><b>사진은 내려보내지 않는다({@code photoUrls}는 항상 빈 목록).</b> Places의 사진 URL은 API 키를
+ * <p><b>사진은 내려보내지 않는다({@code photoUrl}은 항상 null).</b> Places의 사진 URL은 API 키를
  * 쿼리 파라미터로 요구해서, 그대로 FE에 주면 키가 노출된다. 사진을 제공하려면 BE 이미지 프록시가
- * 필요하며 이번 범위 밖이다. (API-PLACE-1의 "사진 없음 → 빈 배열" 처리로 계약은 만족한다.)
+ * 필요하며 이번 범위 밖이다. (명세 개정으로 사진은 목록이 아니라 단일 {@code photoUrl}이 됐고,
+ * 코스 생성 경로에서는 AI가 준 사진 URL이 대신 저장된다 — {@code ItineraryPlaceNormalizer}.)
+ *
+ * <p><b>영문명도 내려보내지 않는다({@code placeEngName}은 항상 null).</b> Text Search는 요청한 언어
+ * 하나로만 이름을 주므로, 한국어명과 영문명을 함께 얻으려면 같은 장소를 두 번 조회해야 한다.
  *
  * <p>조회 실패는 포트 계약대로 예외 대신 빈 값으로 돌려준다. (docs/architecture.md §5)
  */
@@ -73,13 +77,14 @@ public class GooglePlaceLookupClient implements PlaceLookupClient {
                 providerPlaceId,
                 // name이 없으면 AI가 준 장소명을 그대로 유지한다.
                 text(result, "name") != null ? text(result, "name") : query.placeName(),
+                null,
                 // 분류는 types의 첫 값(가장 구체적인 유형)을 쓴다.
                 textList(result, "types").stream().findFirst().orElse(null),
                 text(result, "formatted_address"),
                 latitude,
                 longitude,
                 number(result, "rating"),
-                List.of(),
+                null,
                 openingHours(providerPlaceId, query)
         ));
     }

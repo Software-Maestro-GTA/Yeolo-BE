@@ -28,9 +28,9 @@ class FakePlaceRepository implements PlaceRepository {
         }
         saveCount++;
         UUID placeId = UUID.randomUUID();
-        SavedPlace saved = new SavedPlace(placeId, place.placeName(), place.category(),
-                place.address(), place.latitude(), place.longitude(), place.rating(),
-                place.photoUrls(), place.openingHours());
+        SavedPlace saved = new SavedPlace(placeId, place.placeName(), place.placeEngName(),
+                place.category(), place.address(), place.latitude(), place.longitude(),
+                place.rating(), place.photoUrl(), place.openingHours());
         byId.put(placeId, saved);
         idByProviderPlaceId.put(place.providerPlaceId(), placeId);
         return saved;

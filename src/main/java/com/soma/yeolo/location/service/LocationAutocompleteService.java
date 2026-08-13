@@ -11,11 +11,13 @@ import com.soma.yeolo.location.entity.CountryEntity;
 import com.soma.yeolo.location.repository.CityRepository;
 import com.soma.yeolo.location.repository.CountryRepository;
 import java.util.List;
+import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 /**
  * 국가·도시 자동완성 조회 (API-LOC-1 / API-LOC-2 / FUN-5).
@@ -59,16 +61,44 @@ public class LocationAutocompleteService {
         return CountryAutocompleteResponse.from(found);
     }
 
-    /** 도시 자동완성 (API-LOC-2). 명세대로 국가로 좁히지 않고 전체 국가를 대상으로 찾는다. */
-    public CityAutocompleteResponse searchCities(String keyword, Integer limit) {
+    /**
+     * 도시 자동완성 (API-LOC-2). {@code country}를 주면 그 국가의 도시만, 없으면 전 세계에서 찾는다.
+     *
+     * <p><b>{@code country}는 국가 식별자(ISO 3166-1 alpha-2)와 국가 한국어명을 모두 받는다.</b>
+     * 명세가 {@code "country": "string(optional)"} 이상을 규정하지 않아 BE에서 정한 것이다. 앞의
+     * 국가 자동완성(API-LOC-1)이 FE에 주는 식별자는 {@code countryId}(alpha-2)이므로 그것이 기본
+     * 경로지만, 화면에 보이는 것은 국가명이라 그대로 실어 보내기 쉽다. 둘 중 하나로만 받으면 다른
+     * 쪽을 보냈을 때 <b>400이 아니라 빈 목록</b>이 나가 원인을 알기 어렵다 — 조건 하나를 더 두는
+     * 비용으로 그 함정을 없앤다.
+     *
+     * <p>알 수 없는 국가 값은 거절하지 않고 빈 목록으로 둔다. 국가 목록은 자동완성이 제공하는
+     * 기준 데이터라 "검색할 수 없는 입력"(400)이 아니라 "후보 없음"에 해당한다.
+     */
+    public CityAutocompleteResponse searchCities(String country, String keyword, Integer limit) {
         String key = requireSearchKey(keyword, ErrorCode.INVALID_CITY_KEYWORD);
         Pageable page = pageOf(limit);
+        String countryFilter = normalizeCountry(country);
 
-        List<CityEntity> found = SearchKeys.isChosungOnly(key)
-                ? cityRepository.searchByChosung(LikePatterns.prefix(key), page)
-                : cityRepository.searchByName(LikePatterns.contains(key), LikePatterns.prefix(key), page);
+        List<CityEntity> found;
+        if (countryFilter == null) {
+            found = SearchKeys.isChosungOnly(key)
+                    ? cityRepository.searchByChosung(LikePatterns.prefix(key), page)
+                    : cityRepository.searchByName(LikePatterns.contains(key), LikePatterns.prefix(key), page);
+        } else {
+            // countryId는 대문자로 적재되므로 alpha-2 후보만 대문자로 맞춘다. 국가명은 원문 그대로 비교한다.
+            String countryId = countryFilter.toUpperCase(Locale.ROOT);
+            found = SearchKeys.isChosungOnly(key)
+                    ? cityRepository.searchByChosungInCountry(LikePatterns.prefix(key), countryId, countryFilter, page)
+                    : cityRepository.searchByNameInCountry(LikePatterns.contains(key), LikePatterns.prefix(key),
+                            countryId, countryFilter, page);
+        }
 
         return CityAutocompleteResponse.from(found);
+    }
+
+    /** 공백뿐인 국가 값은 미전송과 같이 취급한다(FE가 빈 파라미터를 붙이는 경우). */
+    private String normalizeCountry(String country) {
+        return StringUtils.hasText(country) ? country.strip() : null;
     }
 
     /**

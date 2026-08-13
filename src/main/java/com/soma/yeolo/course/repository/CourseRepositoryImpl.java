@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 /**
@@ -42,6 +44,15 @@ class CourseRepositoryImpl implements CourseRepository {
         return jpaRepository.findByIdInOrderByCreatedAtDesc(courseIds).stream()
                 .map(CourseEntity::toSavedCourse)
                 .toList();
+    }
+
+    @Override
+    public Optional<UUID> findRecentCourseId(UUID userId, Collection<UUID> sharedCourseIds) {
+        Pageable latestOne = PageRequest.of(0, 1);
+        List<UUID> found = sharedCourseIds.isEmpty()
+                ? jpaRepository.findIdsByUserIdLatestFirst(userId, latestOne)
+                : jpaRepository.findAccessibleIdsLatestFirst(userId, sharedCourseIds, latestOne);
+        return found.stream().findFirst();
     }
 
     @Override

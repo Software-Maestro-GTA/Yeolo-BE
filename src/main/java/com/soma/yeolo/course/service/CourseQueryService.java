@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 @RequiredArgsConstructor
-public class CourseQueryService {
+public class CourseQueryService implements RecentCourseReader {
 
     // 저장된 원본 itinerary JSON에 명세에 없는 필드가 섞일 수 있으므로 미지 필드는 무시하고 역직렬화한다.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
@@ -69,6 +70,19 @@ public class CourseQueryService {
         }
         merged.sort(Comparator.comparing(SavedCourse::createdAt).reversed());
         return CourseListResponse.from(merged);
+    }
+
+    /**
+     * 로그인 응답에 실을 최근 코스 식별자를 반환한다. (API-AUTH-1 / API-AUTH-2)
+     *
+     * <p>목록({@link #getMyCourses})의 맨 위 항목과 같은 코스를 가리킨다 — 소유·공유를 함께 보고
+     * 원본 코스 생성 시각 기준 최신순이라는 규칙이 같다. 다만 목록을 조립해 첫 항목을 꺼내지는
+     * 않는다(근거는 {@code CourseRepository.findRecentCourseId} 문서 참고).
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> findRecentCourseId(UUID userId) {
+        return courseRepository.findRecentCourseId(userId, courseSharing.findSharedCourseIds(userId));
     }
 
     /**

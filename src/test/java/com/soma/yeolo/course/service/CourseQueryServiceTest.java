@@ -53,6 +53,13 @@ class CourseQueryServiceTest {
         }
 
         @Override
+        public Optional<UUID> findRecentCourseId(UUID userId, Collection<UUID> sharedCourseIds) {
+            return latestFirst(store.stream()
+                    .filter(c -> c.userId().equals(userId) || sharedCourseIds.contains(c.courseId()))
+                    .toList()).stream().findFirst().map(SavedCourse::courseId);
+        }
+
+        @Override
         public Optional<SavedCourse> findById(UUID courseId) {
             return store.stream().filter(c -> c.courseId().equals(courseId)).findFirst();
         }
@@ -114,6 +121,7 @@ class CourseQueryServiceTest {
     private SavedCourse course(UUID courseId, UUID userId, String title, String itineraryJson,
                                Instant createdAt) {
         return new SavedCourse(courseId, userId, title, "대한민국", "제주",
+                "https://cdn.example.com/cover.jpg",
                 LocalDate.of(2026, 8, 1), 3, List.of("힐링"), "이유", itineraryJson, createdAt);
     }
 
@@ -137,6 +145,50 @@ class CourseQueryServiceTest {
         assertThat(service().getMyCourses(UUID.randomUUID()).courses()).isEmpty();
     }
 
+    /** 목록에도 대표 이미지가 실린다 (API-COURSE-3 명세 개정). */
+    @Test
+    void 목록에_대표_이미지_URL을_담는다() {
+        UUID me = UUID.randomUUID();
+        courses.store.add(course(UUID.randomUUID(), me, "내 코스", "{\"days\":[]}"));
+
+        assertThat(service().getMyCourses(me).courses())
+                .extracting(CourseListResponse.CourseSummary::coverImageUrl)
+                .containsExactly("https://cdn.example.com/cover.jpg");
+    }
+
+    // ===== 로그인 응답의 최근 코스 (API-AUTH-1 / API-AUTH-2) =====
+
+    /** 목록 맨 위 항목과 같은 코스를 가리켜야 한다. */
+    @Test
+    void 최근_코스는_가장_최근에_만들어진_코스다() {
+        UUID me = UUID.randomUUID();
+        UUID newest = UUID.randomUUID();
+        Instant base = Instant.parse("2026-08-01T00:00:00Z");
+        courses.store.add(course(UUID.randomUUID(), me, "옛 코스", "{\"days\":[]}", base));
+        courses.store.add(course(newest, me, "새 코스", "{\"days\":[]}", base.plusSeconds(60)));
+
+        assertThat(service().findRecentCourseId(me)).contains(newest);
+    }
+
+    /** 목록이 소유·공유를 구분하지 않으므로(DOM-6) 최근 코스도 공유받은 코스를 함께 본다. */
+    @Test
+    void 공유받은_코스가_더_최근이면_그것을_최근_코스로_본다() {
+        UUID me = UUID.randomUUID();
+        UUID friend = UUID.randomUUID();
+        UUID sharedId = UUID.randomUUID();
+        Instant base = Instant.parse("2026-08-01T00:00:00Z");
+        courses.store.add(course(UUID.randomUUID(), me, "내 옛 코스", "{\"days\":[]}", base));
+        courses.store.add(course(sharedId, friend, "공유 코스", "{\"days\":[]}", base.plusSeconds(60)));
+        sharing.grant(sharedId, me);
+
+        assertThat(service().findRecentCourseId(me)).contains(sharedId);
+    }
+
+    @Test
+    void 코스가_하나도_없으면_최근_코스는_빈_값이다() {
+        assertThat(service().findRecentCourseId(UUID.randomUUID())).isEmpty();
+    }
+
     @Test
     void 소유자면_상세를_itinerary_노드로_반환한다() {
         UUID me = UUID.randomUUID();
@@ -151,64 +203,107 @@ class CourseQueryServiceTest {
     }
 
     @Test
-    void 상세의_stop에_내부_placeId와_좌표를_담는다() {
+    void 상세의_stop에_장소와_이동_정보를_명세_구조로_담는다() {
         UUID me = UUID.randomUUID();
         UUID courseId = UUID.randomUUID();
         UUID placeId = UUID.randomUUID();
         courses.store.add(course(courseId, me, "내 코스", """
-                {"days":[{"day":1,"stops":[{"sequence":1,"placeId":"%s","placeName":"성산일출봉",
-                  "latitude":33.4581,"longitude":126.9425}]}]}
+                {"days":[{"day":1,"stops":[{"sequence":1,"arrivalTime":"09:00","stayMinutes":90,
+                  "memo":"일출","reason":"대표 명소",
+                  "place":{"placeId":"%s","placeName":"성산일출봉","category":"nature",
+                    "latitude":33.4581,"longitude":126.9425},
+                  "transportToNext":{"type":"driving","distance":12.5,"minutes":40,
+                    "cost":3000,"memo":"렌터카"}}]}]}
                 """.formatted(placeId)));
 
         Itinerary.Stop stop = service().getCourse(me, courseId)
                 .course().itinerary().days().get(0).stops().get(0);
 
-        assertThat(stop.placeId()).isEqualTo(placeId);
-        assertThat(stop.latitude()).isEqualTo(33.4581);
-        assertThat(stop.longitude()).isEqualTo(126.9425);
+        assertThat(stop.arrivalTime()).isEqualTo("09:00");
+        assertThat(stop.place().placeId()).isEqualTo(placeId);
+        assertThat(stop.place().placeName()).isEqualTo("성산일출봉");
+        assertThat(stop.place().latitude()).isEqualTo(33.4581);
+        assertThat(stop.place().longitude()).isEqualTo(126.9425);
+        assertThat(stop.transportToNext().type()).isEqualTo("driving");
+        assertThat(stop.transportToNext().distance()).isEqualTo(12.5);
+        assertThat(stop.transportToNext().minutes()).isEqualTo(40);
+        assertThat(stop.transportToNext().cost()).isEqualTo(3000);
+        assertThat(stop.transportToNext().memo()).isEqualTo("렌터카");
+    }
+
+    /** 상세는 코스 요약도 명세대로 담는다 — 대표 이미지는 명세 개정으로 추가됐다. */
+    @Test
+    void 상세에_대표_이미지_URL을_담는다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, me, "내 코스", "{\"days\":[]}"));
+
+        assertThat(service().getCourse(me, courseId).course().coverImageUrl())
+                .isEqualTo("https://cdn.example.com/cover.jpg");
     }
 
     /**
-     * 장소 정규화 이전에 저장된 코스에는 AI가 넣은 외부 식별자가 남아 있을 수 있다. 그 값은 응답에
-     * 실리지 않아야 하고(DOM-3: Google Place ID 비노출), 조회를 깨뜨려서도 안 된다.
+     * AI가 넣은 외부 식별자는 응답에 실리지 않아야 하고(DOM-3: Google Place ID 비노출), 조회를
+     * 깨뜨려서도 안 된다. 장소 정규화에 실패한 코스가 이 경로를 탄다.
      */
     @Test
     void 내부_placeId가_아닌_값은_응답에서_제외하고_조회는_성공한다() {
         UUID me = UUID.randomUUID();
         UUID courseId = UUID.randomUUID();
         courses.store.add(course(courseId, me, "예전 코스",
-                "{\"days\":[{\"day\":1,\"stops\":[{\"sequence\":1,\"placeId\":\"ChIJ_GOOGLE_ID\"}]}]}"));
+                "{\"days\":[{\"day\":1,\"stops\":[{\"sequence\":1,"
+                        + "\"place\":{\"placeId\":\"ChIJ_GOOGLE_ID\"}}]}]}"));
 
         CourseDetailResponse response = service().getCourse(me, courseId);
 
-        assertThat(response.course().itinerary().days().get(0).stops().get(0).placeId()).isNull();
+        assertThat(response.course().itinerary().days().get(0).stops().get(0).place().placeId()).isNull();
         assertThat(response.toString()).doesNotContain("ChIJ_GOOGLE_ID");
     }
 
     /**
      * placeId 자리에 객체·배열이 들어 있어도 그 값 전체를 건너뛰어야 한다. 열림 토큰만 남기고 넘어가면
-     * 뒤이은 필드를 값 안쪽부터 읽어 stop이 쪼개지는 등 조용히 깨진 응답이 나간다.
+     * 뒤이은 필드를 값 안쪽부터 읽어 장소가 쪼개지는 등 조용히 깨진 응답이 나간다.
      */
     @Test
-    void placeId가_객체나_배열이어도_나머지_stop_필드를_망가뜨리지_않는다() {
+    void placeId가_객체나_배열이어도_나머지_place_필드를_망가뜨리지_않는다() {
         UUID me = UUID.randomUUID();
         UUID objectCourse = UUID.randomUUID();
         UUID arrayCourse = UUID.randomUUID();
         courses.store.add(course(objectCourse, me, "객체 placeId",
-                "{\"days\":[{\"day\":1,\"stops\":[{\"placeId\":{\"id\":\"ChIJ_GOOGLE_ID\"},"
-                        + "\"placeName\":\"성산일출봉\"}]}]}"));
+                "{\"days\":[{\"day\":1,\"stops\":[{\"place\":{\"placeId\":{\"id\":\"ChIJ_GOOGLE_ID\"},"
+                        + "\"placeName\":\"성산일출봉\"}}]}]}"));
         courses.store.add(course(arrayCourse, me, "배열 placeId",
-                "{\"days\":[{\"day\":1,\"stops\":[{\"placeId\":[\"ChIJ_GOOGLE_ID\"],"
-                        + "\"placeName\":\"성산일출봉\"}]}]}"));
+                "{\"days\":[{\"day\":1,\"stops\":[{\"place\":{\"placeId\":[\"ChIJ_GOOGLE_ID\"],"
+                        + "\"placeName\":\"성산일출봉\"}}]}]}"));
 
         for (UUID courseId : List.of(objectCourse, arrayCourse)) {
             List<Itinerary.Stop> stops =
                     service().getCourse(me, courseId).course().itinerary().days().get(0).stops();
 
             assertThat(stops).hasSize(1);
-            assertThat(stops.get(0).placeId()).isNull();
-            assertThat(stops.get(0).placeName()).isEqualTo("성산일출봉");
+            assertThat(stops.get(0).place().placeId()).isNull();
+            assertThat(stops.get(0).place().placeName()).isEqualTo("성산일출봉");
         }
+    }
+
+    /**
+     * 명세 개정 전 저장된 코스는 {@code transportToNext}가 문자열이다. 객체로 읽으려다 예외가 나면
+     * 그 코스의 상세 조회 전체가 500이 되므로, 이동 수단만 담은 객체로 승격해 읽어야 한다.
+     */
+    @Test
+    void 옛_형식의_문자열_transportToNext도_읽을_수_있다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, me, "예전 코스",
+                "{\"days\":[{\"day\":1,\"stops\":[{\"sequence\":1,\"placeName\":\"성산일출봉\","
+                        + "\"transportToNext\":\"walking\"}]}]}"));
+
+        Itinerary.Stop stop = service().getCourse(me, courseId)
+                .course().itinerary().days().get(0).stops().get(0);
+
+        assertThat(stop.transportToNext().type()).isEqualTo("walking");
+        assertThat(stop.transportToNext().minutes()).isNull();
+        assertThat(stop.place()).isNull();
     }
 
     @Test

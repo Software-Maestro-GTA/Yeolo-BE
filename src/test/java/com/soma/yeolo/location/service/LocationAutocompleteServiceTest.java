@@ -88,7 +88,7 @@ class LocationAutocompleteServiceTest {
         when(cityRepository.searchByName(anyString(), anyString(), any(Pageable.class)))
                 .thenReturn(List.of(city("1835848", "서울특별시", "KR", "대한민국")));
 
-        CityAutocompleteResponse response = service.searchCities("서울", null);
+        CityAutocompleteResponse response = service.searchCities(null, "서울", null);
 
         verify(cityRepository).searchByName("%서울%", "서울%", Pageable.ofSize(10));
         assertThat(response.cities()).containsExactly(
@@ -100,9 +100,60 @@ class LocationAutocompleteServiceTest {
         when(cityRepository.searchByChosung(anyString(), any(Pageable.class)))
                 .thenReturn(List.of(city("1835848", "서울특별시", "KR", "대한민국")));
 
-        service.searchCities("ㅅㅇ", null);
+        service.searchCities(null, "ㅅㅇ", null);
 
         verify(cityRepository).searchByChosung("ㅅㅇ%", Pageable.ofSize(10));
+    }
+
+    // ===== country 필터 (API-LOC-2 명세 개정) =====
+
+    @Test
+    void 국가_코드를_주면_그_국가로_좁혀_조회한다() {
+        when(cityRepository.searchByNameInCountry(anyString(), anyString(), anyString(), anyString(),
+                any(Pageable.class))).thenReturn(List.of(city("1835848", "서울특별시", "KR", "대한민국")));
+
+        CityAutocompleteResponse response = service.searchCities("KR", "서울", null);
+
+        verify(cityRepository)
+                .searchByNameInCountry("%서울%", "서울%", "KR", "KR", Pageable.ofSize(10));
+        verify(cityRepository, never())
+                .searchByName(anyString(), anyString(), any(Pageable.class));
+        assertThat(response.cities()).hasSize(1);
+    }
+
+    /** FE가 화면에 보이는 국가명을 그대로 보낼 수 있어 둘 다 받는다. */
+    @Test
+    void 국가_한국어명으로도_좁힐_수_있다() {
+        when(cityRepository.searchByNameInCountry(anyString(), anyString(), anyString(), anyString(),
+                any(Pageable.class))).thenReturn(List.of());
+
+        service.searchCities("대한민국", "서울", null);
+
+        verify(cityRepository)
+                .searchByNameInCountry("%서울%", "서울%", "대한민국", "대한민국", Pageable.ofSize(10));
+    }
+
+    /** 소문자 alpha-2 로 와도 국가 코드로 맞춰 준다(적재는 대문자). */
+    @Test
+    void 소문자_국가_코드도_대문자로_맞춘다() {
+        when(cityRepository.searchByChosungInCountry(anyString(), anyString(), anyString(),
+                any(Pageable.class))).thenReturn(List.of());
+
+        service.searchCities("kr", "ㅅㅇ", null);
+
+        verify(cityRepository).searchByChosungInCountry("ㅅㅇ%", "KR", "kr", Pageable.ofSize(10));
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void 국가를_주지_않으면_전체_국가를_대상으로_조회한다(String country) {
+        when(cityRepository.searchByName(anyString(), anyString(), any(Pageable.class)))
+                .thenReturn(List.of());
+
+        service.searchCities(country, "서울", null);
+
+        verify(cityRepository).searchByName("%서울%", "서울%", Pageable.ofSize(10));
     }
 
     @Test
@@ -110,7 +161,7 @@ class LocationAutocompleteServiceTest {
         when(cityRepository.searchByName(anyString(), anyString(), any(Pageable.class)))
                 .thenReturn(List.of());
 
-        service.searchCities("New York", null);
+        service.searchCities(null, "New York", null);
 
         verify(cityRepository).searchByName("%newyork%", "newyork%", Pageable.ofSize(10));
     }
@@ -120,7 +171,7 @@ class LocationAutocompleteServiceTest {
         when(cityRepository.searchByName(anyString(), anyString(), any(Pageable.class)))
                 .thenReturn(List.of());
 
-        assertThat(service.searchCities("없는도시", null).cities()).isEmpty();
+        assertThat(service.searchCities(null, "없는도시", null).cities()).isEmpty();
     }
 
     @ParameterizedTest
@@ -131,7 +182,7 @@ class LocationAutocompleteServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_COUNTRY_KEYWORD);
 
-        assertThatThrownBy(() -> service.searchCities(keyword, null))
+        assertThatThrownBy(() -> service.searchCities(null, keyword, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_CITY_KEYWORD);
 
@@ -152,9 +203,9 @@ class LocationAutocompleteServiceTest {
                 .thenReturn(List.of());
         ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
 
-        service.searchCities("서울", 0);
-        service.searchCities("서울", 999);
-        service.searchCities("서울", 5);
+        service.searchCities(null, "서울", 0);
+        service.searchCities(null, "서울", 999);
+        service.searchCities(null, "서울", 5);
 
         verify(cityRepository, org.mockito.Mockito.times(3))
                 .searchByName(anyString(), anyString(), captor.capture());

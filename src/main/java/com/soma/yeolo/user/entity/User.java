@@ -133,18 +133,18 @@ public class User extends BaseTimeEntity {
     /**
      * 사용자가 직접 수정한 프로필을 반영한다 (API-USER-1).
      *
-     * <p>{@code null}인 항목은 <b>변경하지 않는다</b>. PATCH이고 DOM-1상 세 항목 모두 nullable이라
+     * <p>{@code null}인 항목은 <b>변경하지 않는다</b>. PATCH이고 DOM-1상 두 항목 모두 nullable이라
      * "안 보냄"과 "null로 지움"을 요청 본문만으로 구분할 수 없는데, 안 보낸 항목을 null로 덮으면
-     * 이름만 고쳐도 이메일이 지워진다. 지우는 쪽이 아니라 유지하는 쪽을 기본값으로 둔다.
+     * 이름만 고쳐도 프로필 이미지가 지워진다. 지우는 쪽이 아니라 유지하는 쪽을 기본값으로 둔다.
      *
      * <p>반영한 항목은 "사용자가 고쳤다"로 표시해, 이후 로그인이 제공자 값으로 되돌리지 않게 한다
      * ({@link #updateOnLogin}). 표시는 되돌리지 않는다 — 한 번 직접 정한 항목의 주인은 사용자다.
+     *
+     * <p><b>이메일은 더 이상 여기서 바뀌지 않는다</b> — 명세 개정으로 API-USER-1 요청에서 빠졌다.
+     * {@code emailCustomized}는 그래서 새로 켜지지 않지만, 이미 켜진 사용자(개정 전 이메일을 직접
+     * 고친 계정)의 값을 재로그인이 덮지 않도록 판정 자체는 남겨 둔다.
      */
-    public void updateProfile(String email, String displayName, String profileImageUrl) {
-        if (email != null) {
-            this.email = email;
-            this.emailCustomized = true;
-        }
+    public void updateProfile(String displayName, String profileImageUrl) {
         if (displayName != null) {
             this.displayName = displayName;
             this.displayNameCustomized = true;

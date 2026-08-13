@@ -15,6 +15,7 @@ import java.util.UUID;
  * @param title                코스 제목
  * @param destinationCountry   여행 국가
  * @param destinationCity      여행 도시
+ * @param coverImageUrl        코스 대표 이미지 URL (없으면 null)
  * @param startDate            여행 시작일
  * @param totalDays            총 여행 일수
  * @param tags                 코스 태그
@@ -28,6 +29,7 @@ public record SavedCourse(
         String title,
         String destinationCountry,
         String destinationCity,
+        String coverImageUrl,
         LocalDate startDate,
         int totalDays,
         List<String> tags,

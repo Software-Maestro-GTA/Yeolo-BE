@@ -141,7 +141,7 @@ class LocationRepositoryTest {
     }
 
     @Test
-    void 도시_검색은_국가로_좁히지_않고_소속_국가_정보를_함께_들고_있다() {
+    void 국가를_주지_않은_도시_검색은_전_세계를_대상으로_하고_소속_국가를_함께_들고_있다() {
         var found = cityRepository.searchByName(
                 LikePatterns.contains("도쿄"), LikePatterns.prefix("도쿄"), TOP_10);
 
@@ -150,5 +150,42 @@ class LocationRepositoryTest {
                     assertThat(city.getCountryId()).isEqualTo("JP");
                     assertThat(city.getCountryNameKo()).isEqualTo("일본");
                 });
+    }
+
+    // ===== country 필터 (API-LOC-2 명세 개정) =====
+
+    @Test
+    void 국가로_좁히면_다른_국가의_동명_후보가_빠진다() {
+        cityRepository.save(CityEntity.of("6", "서울식당시", "JP", "일본", 1_000L));
+
+        var found = cityRepository.searchByNameInCountry(
+                LikePatterns.contains("서울"), LikePatterns.prefix("서울"), "KR", "KR", TOP_10);
+
+        assertThat(found).extracting(CityEntity::getNameKo).containsExactly("서울특별시");
+    }
+
+    @Test
+    void 국가_한국어명으로도_좁혀진다() {
+        var found = cityRepository.searchByNameInCountry(
+                LikePatterns.contains("도쿄"), LikePatterns.prefix("도쿄"), "일본", "일본", TOP_10);
+
+        assertThat(found).extracting(CityEntity::getCityId).containsExactly("4");
+    }
+
+    @Test
+    void 국가로_좁힌_초성_검색도_인구순이다() {
+        var found = cityRepository.searchByChosungInCountry(
+                LikePatterns.prefix("ㅅ"), "KR", "KR", TOP_10);
+
+        assertThat(found).extracting(CityEntity::getNameKo)
+                .containsExactly("서울특별시", "서귀포시");
+    }
+
+    @Test
+    void 알_수_없는_국가로_좁히면_빈_목록이다() {
+        var found = cityRepository.searchByNameInCountry(
+                LikePatterns.contains("서울"), LikePatterns.prefix("서울"), "ZZ", "ZZ", TOP_10);
+
+        assertThat(found).isEmpty();
     }
 }
