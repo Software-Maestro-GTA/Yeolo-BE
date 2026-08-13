@@ -3,6 +3,8 @@ package com.soma.yeolo.tasteprofile.client;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
@@ -21,7 +23,7 @@ import org.springframework.web.client.RestClient;
 class GoogleReverseGeocodeClientTest {
 
     private static final String GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json";
-    private static final String NEARBY_URL = "https://maps.googleapis.com/maps/api/place/nearbysearch/json";
+    private static final String NEARBY_URL = "https://places.googleapis.com/v1/places:searchNearby";
 
     private static final String GEOCODE_OK = """
             {
@@ -39,14 +41,15 @@ class GoogleReverseGeocodeClientTest {
             }
             """;
 
+    private RestClient.Builder clientBuilder;
     private MockRestServiceServer server;
     private GoogleReverseGeocodeClient client;
 
     @BeforeEach
     void setUp() {
-        RestClient.Builder builder = RestClient.builder();
-        server = MockRestServiceServer.bindTo(builder).build();
-        client = new GoogleReverseGeocodeClient(builder.build(),
+        clientBuilder = RestClient.builder();
+        server = MockRestServiceServer.bindTo(clientBuilder).build();
+        client = new GoogleReverseGeocodeClient(clientBuilder.build(),
                 new GoogleGeocodeProperties("test-key", GEOCODE_URL, NEARBY_URL, 100, "ko"));
     }
 
@@ -54,18 +57,22 @@ class GoogleReverseGeocodeClientTest {
     void 행정구역은_geocoding_장소명유형은_nearby로_채운다() {
         String nearby = """
                 {
-                  "results": [{
-                    "name": "성산일출봉",
+                  "places": [{
+                    "displayName": {"text": "성산일출봉", "languageCode": "ko"},
                     "types": ["tourist_attraction","point_of_interest","establishment"]
-                  }],
-                  "status": "OK"
+                  }]
                 }
                 """;
         server.expect(requestTo(containsString("/geocode/json")))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(GEOCODE_OK, MediaType.APPLICATION_JSON));
-        server.expect(requestTo(containsString("/nearbysearch/json")))
-                .andExpect(method(HttpMethod.GET))
+        // 신 API는 POST + 헤더 키 + FieldMask, 반경은 body의 locationRestriction으로 간다.
+        server.expect(requestTo(NEARBY_URL))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Goog-Api-Key", "test-key"))
+                .andExpect(header("X-Goog-FieldMask", "places.displayName,places.types"))
+                .andExpect(jsonPath("$.locationRestriction.circle.center.latitude").value(33.45))
+                .andExpect(jsonPath("$.locationRestriction.circle.radius").value(100))
                 .andRespond(withSuccess(nearby, MediaType.APPLICATION_JSON));
 
         GeoLocation location = client.reverseGeocode(33.45, 126.94);
@@ -85,7 +92,7 @@ class GoogleReverseGeocodeClientTest {
     void nearby가_실패하면_geocoding_값으로_폴백한다() {
         server.expect(requestTo(containsString("/geocode/json")))
                 .andRespond(withSuccess(GEOCODE_OK, MediaType.APPLICATION_JSON));
-        server.expect(requestTo(containsString("/nearbysearch/json")))
+        server.expect(requestTo(NEARBY_URL))
                 .andRespond(withServerError());
 
         GeoLocation location = client.reverseGeocode(33.45, 126.94);
@@ -100,9 +107,8 @@ class GoogleReverseGeocodeClientTest {
     void nearby가_결과없음이면_geocoding_값으로_폴백한다() {
         server.expect(requestTo(containsString("/geocode/json")))
                 .andRespond(withSuccess(GEOCODE_OK, MediaType.APPLICATION_JSON));
-        server.expect(requestTo(containsString("/nearbysearch/json")))
-                .andRespond(withSuccess("{\"results\":[],\"status\":\"ZERO_RESULTS\"}",
-                        MediaType.APPLICATION_JSON));
+        server.expect(requestTo(NEARBY_URL))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
         GeoLocation location = client.reverseGeocode(33.45, 126.94);
 
@@ -110,14 +116,32 @@ class GoogleReverseGeocodeClientTest {
         assertThat(location.placeTypes()).containsExactly("political");
     }
 
+    /**
+     * Nearby는 Geocoding과 다른 API(Places API (New))라 키에 열려 있지 않으면 매번 403이다.
+     * 안 쓸 거면 사진마다 실패가 확정된 왕복을 붙이지 않는다 — 그 지연이 SSE 응답에 그대로 들어간다.
+     */
+    @Test
+    void nearby_url이_비어_있으면_호출하지_않고_geocoding_값만_쓴다() {
+        client = new GoogleReverseGeocodeClient(clientBuilder.build(),
+                new GoogleGeocodeProperties("test-key", GEOCODE_URL, "", 100, "ko"));
+        server.expect(requestTo(containsString("/geocode/json")))
+                .andRespond(withSuccess(GEOCODE_OK, MediaType.APPLICATION_JSON));
+
+        GeoLocation location = client.reverseGeocode(33.45, 126.94);
+
+        assertThat(location.city()).isEqualTo("서귀포시");
+        assertThat(location.placeName()).isEqualTo("대한민국 제주특별자치도 서귀포시 성산읍");
+        // Nearby 요청이 하나도 나가지 않았음을 확인한다(expect한 geocode 1건만 소비).
+        server.verify();
+    }
+
     @Test
     void geocoding이_결과없음이면_미상_위치를_반환한다() {
         server.expect(requestTo(containsString("/geocode/json")))
                 .andRespond(withSuccess("{\"results\":[],\"status\":\"ZERO_RESULTS\"}",
                         MediaType.APPLICATION_JSON));
-        server.expect(requestTo(containsString("/nearbysearch/json")))
-                .andRespond(withSuccess("{\"results\":[],\"status\":\"ZERO_RESULTS\"}",
-                        MediaType.APPLICATION_JSON));
+        server.expect(requestTo(NEARBY_URL))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
         GeoLocation location = client.reverseGeocode(0.0, 0.0);
 

@@ -6,6 +6,7 @@ import static com.soma.yeolo.global.client.JsonNodes.textList;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.soma.yeolo.place.domain.Place;
 import com.soma.yeolo.place.domain.PlaceQuery;
 import java.util.List;
@@ -13,21 +14,25 @@ import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.client.RestClientResponseException;
 
 /**
- * Google Places 기반 장소 조회. ({@code place.provider=google}일 때 활성화)
+ * Google Places API (New) 기반 장소 조회. ({@code place.provider=google}일 때 활성화)
  *
- * <p>두 단계로 호출한다. Text Search로 장소명 → 후보 1건(장소 식별자·좌표·주소·평점·유형)을 얻고,
- * Place Details로 운영시간({@code opening_hours.weekday_text})만 보강한다. Details가 실패해도
- * Text Search 결과만으로 장소를 돌려준다 — 운영시간은 부가 정보라 조회 자체를 실패시킬 이유가 없다.
+ * <p>Text Search({@code places:searchText})를 <b>한 번만</b> 호출한다. 구 Places API는 검색과 상세를
+ * 나눠 두 번 불러야 했지만, 신 API는 FieldMask로 요청한 필드를 한 응답에 담아주므로 운영시간까지
+ * 같이 받는다. 구 API는 2025-03 이후 생성된 프로젝트에서 활성화가 불가능해 선택지도 아니다.
+ *
+ * <p><b>FieldMask는 필요한 필드만 지정한다.</b> 신 API는 요청한 필드에 따라 과금 티어가 갈려서,
+ * {@code places.*}처럼 전체를 요청하면 최상위 티어로 청구된다.
  *
  * <p><b>사진은 내려보내지 않는다({@code photoUrl}은 항상 null).</b> Places의 사진 URL은 API 키를
- * 쿼리 파라미터로 요구해서, 그대로 FE에 주면 키가 노출된다. 사진을 제공하려면 BE 이미지 프록시가
- * 필요하며 이번 범위 밖이다. (명세 개정으로 사진은 목록이 아니라 단일 {@code photoUrl}이 됐고,
- * 코스 생성 경로에서는 AI가 준 사진 URL이 대신 저장된다 — {@code ItineraryPlaceNormalizer}.)
+ * 요구해서, 그대로 FE에 주면 키가 노출된다. 사진을 제공하려면 BE 이미지 프록시가 필요하며 이번
+ * 범위 밖이다. (명세 개정으로 사진은 목록이 아니라 단일 {@code photoUrl}이 됐고, 코스 생성
+ * 경로에서는 AI가 준 사진 URL이 대신 저장된다 — {@code ItineraryPlaceNormalizer}.)
  *
  * <p><b>영문명도 내려보내지 않는다({@code placeEngName}은 항상 null).</b> Text Search는 요청한 언어
  * 하나로만 이름을 주므로, 한국어명과 영문명을 함께 얻으려면 같은 장소를 두 번 조회해야 한다.
@@ -41,8 +46,19 @@ public class GooglePlaceLookupClient implements PlaceLookupClient {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    /** Details에서 받아올 필드 — 필요한 것만 지정해 호출 비용을 줄인다. */
-    private static final String DETAIL_FIELDS = "opening_hours/weekday_text";
+    private static final String API_KEY_HEADER = "X-Goog-Api-Key";
+    private static final String FIELD_MASK_HEADER = "X-Goog-FieldMask";
+
+    /** 응답에 담아올 필드 — 필요한 것만 지정해 호출 비용(티어)을 줄인다. */
+    private static final String FIELD_MASK = String.join(",",
+            "places.id",
+            "places.displayName",
+            "places.formattedAddress",
+            "places.location",
+            "places.rating",
+            "places.primaryType",
+            "places.types",
+            "places.regularOpeningHours.weekdayDescriptions");
 
     private final RestClient restClient;
     private final GooglePlaceProperties properties;
@@ -56,83 +72,78 @@ public class GooglePlaceLookupClient implements PlaceLookupClient {
     @Override
     public Optional<Place> lookup(PlaceQuery query) {
         try {
-            return searchFirstResult(query).flatMap(result -> toPlace(result, query));
+            return searchFirstResult(query).flatMap(place -> toPlace(place, query));
+        } catch (RestClientResponseException e) {
+            // 키 미설정·API 미활성화(403)가 여기로 온다 — 본문에 원인이 담겨 있어 함께 남긴다.
+            log.warn("Google Places 검색 거부 - '{}': {} {}",
+                    query.searchText(), e.getStatusCode(), e.getResponseBodyAsString());
+            return Optional.empty();
         } catch (Exception e) {
             log.warn("Google Places 검색 실패 - '{}': {}", query.searchText(), e.toString());
             return Optional.empty();
         }
     }
 
+    /** Text Search 호출 후 최상위 결과 1건을 반환한다. 결과가 없으면 빈 값. */
+    private Optional<JsonNode> searchFirstResult(PlaceQuery query) throws Exception {
+        ObjectNode body = OBJECT_MAPPER.createObjectNode()
+                .put("textQuery", query.searchText())
+                .put("maxResultCount", 1);
+        if (properties.language() != null && !properties.language().isBlank()) {
+            body.put("languageCode", properties.language());
+        }
+
+        String response = restClient.post()
+                .uri(properties.searchTextUrl())
+                .header(API_KEY_HEADER, properties.apiKey())
+                .header(FIELD_MASK_HEADER, FIELD_MASK)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(OBJECT_MAPPER.writeValueAsString(body))
+                .retrieve()
+                .body(String.class);
+
+        // 결과가 없으면 신 API는 에러가 아니라 빈 객체({})를 준다.
+        JsonNode places = OBJECT_MAPPER.readTree(response).path("places");
+        return (places.isArray() && !places.isEmpty())
+                ? Optional.of(places.get(0)) : Optional.empty();
+    }
+
     private Optional<Place> toPlace(JsonNode result, PlaceQuery query) {
-        String providerPlaceId = text(result, "place_id");
-        JsonNode location = result.path("geometry").path("location");
-        Double latitude = number(location, "lat");
-        Double longitude = number(location, "lng");
+        String providerPlaceId = text(result, "id");
+        JsonNode location = result.path("location");
+        Double latitude = number(location, "latitude");
+        Double longitude = number(location, "longitude");
         // 좌표나 식별자가 없는 결과는 저장할 수 없다(Place의 불변식) — 미정규화로 남긴다.
         if (providerPlaceId == null || latitude == null || longitude == null) {
             log.debug("Google Places 결과에 식별자/좌표가 없다 - '{}'", query.searchText());
             return Optional.empty();
         }
+        String displayName = text(result.path("displayName"), "text");
         return Optional.of(new Place(
                 providerPlaceId,
-                // name이 없으면 AI가 준 장소명을 그대로 유지한다.
-                text(result, "name") != null ? text(result, "name") : query.placeName(),
+                // 이름이 없으면 AI가 준 장소명을 그대로 유지한다.
+                displayName != null ? displayName : query.placeName(),
                 null,
-                // 분류는 types의 첫 값(가장 구체적인 유형)을 쓴다.
-                textList(result, "types").stream().findFirst().orElse(null),
-                text(result, "formatted_address"),
+                category(result),
+                text(result, "formattedAddress"),
                 latitude,
                 longitude,
                 number(result, "rating"),
                 null,
-                openingHours(providerPlaceId, query)
+                textList(result.path("regularOpeningHours"), "weekdayDescriptions")
         ));
     }
 
-    /** Text Search 호출 후 최상위 결과 1건을 반환한다. 결과가 없으면 빈 값. */
-    private Optional<JsonNode> searchFirstResult(PlaceQuery query) throws Exception {
-        String uri = UriComponentsBuilder.fromUriString(properties.textSearchUrl())
-                .queryParam("query", query.searchText())
-                .queryParam("language", properties.language())
-                .queryParam("key", properties.apiKey())
-                .build()
-                .toUriString();
-        JsonNode root = OBJECT_MAPPER.readTree(
-                restClient.get().uri(uri).retrieve().body(String.class));
-
-        String status = text(root, "status");
-        if (!"OK".equals(status)) {
-            // ZERO_RESULTS는 정상적인 "못 찾음"이고, 그 외(REQUEST_DENIED 등)는 설정 문제다.
-            if (!"ZERO_RESULTS".equals(status)) {
-                log.warn("Google Places 검색 상태 이상 - '{}': {} {}",
-                        query.searchText(), status, text(root, "error_message"));
-            }
-            return Optional.empty();
-        }
-        JsonNode results = root.path("results");
-        return (results.isArray() && !results.isEmpty())
-                ? Optional.of(results.get(0)) : Optional.empty();
-    }
-
     /**
-     * Place Details로 운영시간을 보강한다. 실패하거나 운영시간이 없으면 빈 목록 —
-     * 부가 정보이므로 장소 조회 자체를 실패시키지 않는다.
+     * 분류는 신 API가 직접 주는 {@code primaryType}(가장 구체적인 유형)을 쓰고, 없으면 {@code types}의
+     * 첫 값으로 폴백한다 — 구 API에서 {@code types[0]}를 쓰던 것과 같은 의미를 유지한다.
      */
-    private List<String> openingHours(String providerPlaceId, PlaceQuery query) {
-        String uri = UriComponentsBuilder.fromUriString(properties.detailsUrl())
-                .queryParam("place_id", providerPlaceId)
-                .queryParam("fields", DETAIL_FIELDS)
-                .queryParam("language", properties.language())
-                .queryParam("key", properties.apiKey())
-                .build()
-                .toUriString();
-        try {
-            JsonNode root = OBJECT_MAPPER.readTree(
-                    restClient.get().uri(uri).retrieve().body(String.class));
-            return textList(root.path("result").path("opening_hours"), "weekday_text");
-        } catch (Exception e) {
-            log.warn("Google Place Details 조회 실패 - '{}': {}", query.searchText(), e.toString());
-            return List.of();
+    private String category(JsonNode result) {
+        String primaryType = text(result, "primaryType");
+        if (primaryType != null) {
+            return primaryType;
         }
+        List<String> types = textList(result, "types");
+        return types.isEmpty() ? null : types.get(0);
     }
 }
