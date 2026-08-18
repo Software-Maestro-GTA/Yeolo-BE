@@ -163,6 +163,13 @@ jobs:
           AI_COURSE_PROVIDER: ${{ vars.AI_COURSE_PROVIDER }}
           GEOCODE_PROVIDER: ${{ vars.GEOCODE_PROVIDER }}
           GEOCODE_OSM_USER_AGENT: ${{ vars.GEOCODE_OSM_USER_AGENT }}
+          # 좌표 주변 POI 보강(Places API (New) Nearby Search) 엔드포인트.
+          # 비워두면 앱이 호출을 건너뛰고 Geocoding 결과로 채운다 — 즉 '미설정=기능 꺼짐'이
+          # 정상이라 아래 required-vars 가드 대상이 아니다. 켜려면 Google 콘솔에서
+          # 'Places API (New)' 활성화 + GOOGLE_MAPS_API_KEY 의 API 제한 목록에 추가한 뒤
+          # variables 에 https://places.googleapis.com/v1/places:searchNearby 를 넣는다.
+          # (키에 그 API 가 안 열려 있으면 사진 한 장마다 403 왕복이 붙어 SSE 가 느려진다.)
+          GEOCODE_SEARCH_NEARBY_URL: ${{ vars.GEOCODE_SEARCH_NEARBY_URL }}
           PLACE_PROVIDER: ${{ vars.PLACE_PROVIDER }}
           PROFILE_IMAGE_PROVIDER: ${{ vars.PROFILE_IMAGE_PROVIDER }}
           PROFILE_IMAGE_S3_BUCKET: ${{ vars.PROFILE_IMAGE_S3_BUCKET }}
@@ -178,7 +185,8 @@ jobs:
                    GOOGLE_MAPS_API_KEY \
                    APPLE_CLIENT_ID APPLE_TEAM_ID APPLE_KEY_ID APPLE_PRIVATE_KEY \
                    AI_BASE_URL INTERNAL_API_KEY AI_COURSE_PROVIDER \
-                   JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT PLACE_PROVIDER \
+                   JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT \
+                   GEOCODE_SEARCH_NEARBY_URL PLACE_PROVIDER \
                    PROFILE_IMAGE_PROVIDER PROFILE_IMAGE_S3_BUCKET PROFILE_IMAGE_S3_REGION \
                    PROFILE_IMAGE_BASE_URL; do
             v="${!k}"
@@ -316,6 +324,13 @@ jobs:
           AI_COURSE_PROVIDER: ${{ vars.AI_COURSE_PROVIDER }}
           GEOCODE_PROVIDER: ${{ vars.GEOCODE_PROVIDER }}
           GEOCODE_OSM_USER_AGENT: ${{ vars.GEOCODE_OSM_USER_AGENT }}
+          # 좌표 주변 POI 보강(Places API (New) Nearby Search) 엔드포인트.
+          # 비워두면 앱이 호출을 건너뛰고 Geocoding 결과로 채운다 — 즉 '미설정=기능 꺼짐'이
+          # 정상이라 아래 required-vars 가드 대상이 아니다. 켜려면 Google 콘솔에서
+          # 'Places API (New)' 활성화 + GOOGLE_MAPS_API_KEY 의 API 제한 목록에 추가한 뒤
+          # variables 에 https://places.googleapis.com/v1/places:searchNearby 를 넣는다.
+          # (키에 그 API 가 안 열려 있으면 사진 한 장마다 403 왕복이 붙어 SSE 가 느려진다.)
+          GEOCODE_SEARCH_NEARBY_URL: ${{ vars.GEOCODE_SEARCH_NEARBY_URL }}
           PLACE_PROVIDER: ${{ vars.PLACE_PROVIDER }}
           PROFILE_IMAGE_PROVIDER: ${{ vars.PROFILE_IMAGE_PROVIDER }}
           PROFILE_IMAGE_S3_BUCKET: ${{ vars.PROFILE_IMAGE_S3_BUCKET }}
@@ -331,7 +346,8 @@ jobs:
                    GOOGLE_MAPS_API_KEY \
                    APPLE_CLIENT_ID APPLE_TEAM_ID APPLE_KEY_ID APPLE_PRIVATE_KEY \
                    AI_BASE_URL INTERNAL_API_KEY AI_COURSE_PROVIDER \
-                   JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT PLACE_PROVIDER \
+                   JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT \
+                   GEOCODE_SEARCH_NEARBY_URL PLACE_PROVIDER \
                    PROFILE_IMAGE_PROVIDER PROFILE_IMAGE_S3_BUCKET PROFILE_IMAGE_S3_REGION \
                    PROFILE_IMAGE_BASE_URL; do
             v="${!k}"
