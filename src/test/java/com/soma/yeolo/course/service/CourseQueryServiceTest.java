@@ -209,7 +209,7 @@ class CourseQueryServiceTest {
         UUID placeId = UUID.randomUUID();
         courses.store.add(course(courseId, me, "내 코스", """
                 {"days":[{"day":1,"stops":[{"sequence":1,"arrivalTime":"09:00","stayMinutes":90,
-                  "memo":"일출","reason":"대표 명소",
+                  "memo":"일출","reason":"대표 명소","cost":5000,
                   "place":{"placeId":"%s","placeName":"성산일출봉","category":"nature",
                     "latitude":33.4581,"longitude":126.9425},
                   "transportToNext":{"type":"driving","distance":12.5,"minutes":40,
@@ -229,6 +229,41 @@ class CourseQueryServiceTest {
         assertThat(stop.transportToNext().minutes()).isEqualTo(40);
         assertThat(stop.transportToNext().cost()).isEqualTo(3000);
         assertThat(stop.transportToNext().memo()).isEqualTo("렌터카");
+    }
+
+    /**
+     * 명세 개정으로 stop에 방문 비용({@code cost})이 생겼다(API-AI-2 → API-COURSE-2). 이동 비용
+     * ({@code transportToNext.cost})과 이름이 같아 서로 섞이기 쉬우므로, 두 값이 각자 자리에 실리는지
+     * 함께 확인한다.
+     */
+    @Test
+    void 상세의_stop에_방문_비용을_이동_비용과_구분해_담는다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, me, "내 코스",
+                "{\"days\":[{\"day\":1,\"stops\":[{\"sequence\":1,\"cost\":5000,"
+                        + "\"transportToNext\":{\"type\":\"driving\",\"cost\":3000}}]}]}"));
+
+        Itinerary.Stop stop = service().getCourse(me, courseId)
+                .course().itinerary().days().get(0).stops().get(0);
+
+        assertThat(stop.cost()).isEqualTo(5000);
+        assertThat(stop.transportToNext().cost()).isEqualTo(3000);
+    }
+
+    /** 개정 전 저장된 코스에는 stop {@code cost}가 없다. 조회가 깨지지 않고 null로 나가야 한다. */
+    @Test
+    void 개정_전_저장된_코스는_stop_비용이_없어도_조회된다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, me, "예전 코스",
+                "{\"days\":[{\"day\":1,\"stops\":[{\"sequence\":1,\"arrivalTime\":\"09:00\"}]}]}"));
+
+        Itinerary.Stop stop = service().getCourse(me, courseId)
+                .course().itinerary().days().get(0).stops().get(0);
+
+        assertThat(stop.cost()).isNull();
+        assertThat(stop.arrivalTime()).isEqualTo("09:00");
     }
 
     /** 상세는 코스 요약도 명세대로 담는다 — 대표 이미지는 명세 개정으로 추가됐다. */

@@ -98,8 +98,13 @@ git submodule update --remote specs   # 최신 명세로 갱신 후, 커밋으�
 - **Postman 자산은 `docs/postman/Yeolo-BE-Dev.postman_collection.json` 하나뿐이다.**
   환경(Environment) 파일은 두지 않고 **변수를 컬렉션 변수로** 관리한다 — 파일이 둘이면 어느 쪽이
   최신인지 관리해야 하고, 환경 파일은 애초에 요청을 담지 못한다(`_postman_variable_scope`).
-  - **새 엔드포인트를 구현하면 이 파일에 요청을 함께 추가한다.** 코드만 고치고 컬렉션을 빠뜨리면
+  - **API 계약이 바뀌면 이 파일도 같은 커밋에서 고친다** — 새 엔드포인트뿐 아니라 기존 요청·응답의
+    필드 변경도 포함이다(판정 기준과 체크리스트는 §작업 흐름 5). 코드만 고치고 컬렉션을 빠뜨리면
     "Postman에 왜 없지?"가 된다. 새 변수가 필요하면(예: `shareToken`) 컬렉션 변수에도 추가한다.
+  - **이 파일이 `git ls-files docs/postman/` 에 잡히는지 확인한다.** `.gitignore` 의 `docs` 때문에
+    `git add -f` 를 한 번이라도 빠뜨리면 파일이 **추적되지 않은 채** 로컬에만 남고, 그 뒤로는
+    `git status` 에도 안 뜨고 diff에도 안 잡혀 아무도 눈치채지 못한다. 실제로 컬렉션을 최신으로
+    맞춰 놓고도 저장소에는 한 번도 올라간 적이 없는 상태였다(2026-08). 출력이 비면 미추적이다.
   - **시크릿(`internalApiKey`·`jwtSecret`)은 빈 값으로 커밋한다.** Postman 에서는 `Current value`
     칸에만 입력한다 — `Initial value` 에 넣으면 export 시 파일에 박힌다.
   - 스크립트는 `pm.collectionVariables` 를 쓴다(`pm.environment` 는 환경이 없어 동작하지 않는다).
@@ -131,9 +136,21 @@ git submodule update --remote specs   # 최신 명세로 갱신 후, 커밋으�
 3. 도메인 → 엔티티/리포지토리 → 서비스 → 컨트롤러/DTO 순으로 구현
 4. 인수 기준 및 예외 케이스에 대한 테스트 작성 → `./gradlew test`
    (도메인/서비스는 격리된 단위 테스트 우선, DB·AI 의존 부분만 슬라이스/목서버. 상세: `docs/architecture.md` §8)
-5. 커밋 메시지 초안 전, 변경 diff를 **별도 agent로 검증**: `/code-review high`
+5. **API 계약을 건드렸으면 Postman 컬렉션에 반영한다 — 생략 불가.** 판정 기준은 "새 엔드포인트"가
+   아니라 **"FE가 보내거나 받는 것이 달라졌는가"** 다. 아래 중 하나라도 해당하면 이 단계를 탄다:
+   - 엔드포인트 추가·삭제, 경로·HTTP 메서드 변경
+   - 요청 필드/쿼리 파라미터/헤더의 추가·삭제·이름 변경 (예: `email` 제거, `country` 추가)
+   - 응답 필드의 추가·삭제·이름·타입 변경 (예: `photoUrls`→`photoUrl`, `recentCourseId` 추가)
+   - Enum 허용값 변경, 에러 코드/HTTP status 변경
+   - AI 내부 API(`/internal/ai/*`) 요청·응답 변경 → `07. Internal AI` 폴더도 같이 고친다
+
+   반영 대상은 요청 본문·쿼리뿐 아니라 **요청 `description`과 테스트 스크립트**까지다 — 응답 필드가
+   바뀌면 `pm.collectionVariables.set(...)`이 조용히 `undefined`를 저장한다. 새 변수가 필요하면
+   컬렉션 변수에도 추가한다. **`docs`가 gitignore라 `git add -f` 로 함께 스테이징**하고, 커밋 메시지
+   초안에 이 파일이 포함되어 있는지 확인한다 — 이 단계의 실패는 대부분 "고쳤는데 커밋이 안 됨"이다.
+6. 커밋 메시지 초안 전, 변경 diff를 **별도 agent로 검증**: `/code-review high`
    (런타임 동작 확인이 필요하면 `/verify`). 지적사항 반영 후 재검증 → 통과 시 다음 단계.
-6. 이슈 단위 브랜치 생성(Claude) → 테스트·리뷰 통과 시 **커밋 메시지 초안 제시(Claude)**.
+7. 이슈 단위 브랜치 생성(Claude) → 테스트·리뷰 통과 시 **커밋 메시지 초안 제시(Claude)**.
    **실제 커밋·push·PR은 사용자가** 수행.
 
 ## Git · 커밋 규칙
