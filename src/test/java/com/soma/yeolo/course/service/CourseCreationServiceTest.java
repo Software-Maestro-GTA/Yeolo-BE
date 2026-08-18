@@ -188,7 +188,8 @@ class CourseCreationServiceTest {
                   "tags": ["힐링"],
                   "recommendationReason": "여유로운 일정",
                   "itinerary": {"days": [{"day": 1, "stops": [
-                    {"sequence": 1, "place": {"placeId": "ChIJ_SEONGSAN", "placeName": "성산일출봉",
+                    {"sequence": 1, "cost": 5000,
+                     "place": {"placeId": "ChIJ_SEONGSAN", "placeName": "성산일출봉",
                       "category": "nature", "latitude": 33.4581, "longitude": 126.9425},
                      "transportToNext": {"type": "walking", "minutes": 10}}
                   ]}]}
@@ -228,6 +229,23 @@ class CourseCreationServiceTest {
         assertThat(UUID.fromString(place.path("placeId").asText())).isNotNull();
         assertThat(place.path("latitude").asDouble()).isEqualTo(33.4581);
         assertThat(place.path("longitude").asDouble()).isEqualTo(126.9425);
+    }
+
+    /**
+     * 저장은 {@code itinerary}를 원본 JSON으로 보존하므로, 명세 개정으로 AI가 새로 주는 필드
+     * (stop {@code cost}, API-AI-2)는 정규화를 거쳐도 그대로 남아 상세 조회로 이어져야 한다.
+     */
+    @Test
+    void 정규화_후에도_AI가_준_stop_비용이_보존된다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        tasteProfiles.latest = Optional.of(savedProfile(userId));
+        aiClient.result = courseNode();
+
+        service().createAndStream(userId, request(), emitter);
+
+        JsonNode stop = MAPPER.readTree(courses.saved.getFirst().itineraryJson())
+                .path("days").get(0).path("stops").get(0);
+        assertThat(stop.path("cost").asInt()).isEqualTo(5000);
     }
 
     /** DOM-3: MBTI·취향 분석 결과가 <b>둘 다</b> 없을 때만 생성할 수 없다. */

@@ -30,6 +30,9 @@ public record Itinerary(List<Day> days) {
      *
      * <p>명세 개정으로 장소 정보는 {@link Place}, 다음 방문지까지의 이동은 {@link TransportToNext}로
      * 묶였다(예전에는 stop에 평평하게 붙어 있었다).
+     *
+     * @param cost 이 방문지에서 쓰는 비용(입장료 등). {@link TransportToNext#cost()}(이동 비용)와는
+     *             별개다 — 명세 개정으로 추가됐으므로 그 전에 저장된 코스에는 없고, 그때는 null이다.
      */
     public record Stop(
             Integer sequence,
@@ -37,6 +40,7 @@ public record Itinerary(List<Day> days) {
             Integer stayMinutes,
             String memo,
             String reason,
+            Integer cost,
             Place place,
             @JsonDeserialize(using = LenientTransportDeserializer.class) TransportToNext transportToNext
     ) {
