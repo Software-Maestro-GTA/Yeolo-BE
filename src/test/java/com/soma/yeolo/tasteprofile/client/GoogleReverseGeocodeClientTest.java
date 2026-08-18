@@ -41,6 +41,27 @@ class GoogleReverseGeocodeClientTest {
             }
             """;
 
+    /**
+     * 특별시·광역시 응답 — {@code locality}도 {@code administrative_area_level_2}도 없다.
+     * 이 두 타입만 보던 매핑에서는 {@code city}가 통째로 비었고, AI가 그 필드를 non-nullable로
+     * 받으므로 서울 사진 한 장이 요청 전체를 400으로 만들었다.
+     */
+    private static final String GEOCODE_SEOUL = """
+            {
+              "results": [{
+                "address_components": [
+                  {"long_name": "공덕동", "types": ["sublocality","sublocality_level_2","political"]},
+                  {"long_name": "마포구", "types": ["sublocality","sublocality_level_1","political"]},
+                  {"long_name": "서울특별시", "types": ["administrative_area_level_1","political"]},
+                  {"long_name": "대한민국", "types": ["country","political"]}
+                ],
+                "formatted_address": "대한민국 서울특별시 마포구 공덕동",
+                "types": ["political"]
+              }],
+              "status": "OK"
+            }
+            """;
+
     private RestClient.Builder clientBuilder;
     private MockRestServiceServer server;
     private GoogleReverseGeocodeClient client;
@@ -133,6 +154,89 @@ class GoogleReverseGeocodeClientTest {
         assertThat(location.placeName()).isEqualTo("대한민국 제주특별자치도 서귀포시 성산읍");
         // Nearby 요청이 하나도 나가지 않았음을 확인한다(expect한 geocode 1건만 소비).
         server.verify();
+    }
+
+    /**
+     * 회귀 방지 — 기존 픽스처(제주/서귀포시)는 {@code administrative_area_level_2}가 있어서 이
+     * 구멍을 못 잡았다. 서울은 그 타입이 없으므로 {@code sublocality_level_1}까지 폴백해야 한다.
+     */
+    @Test
+    void 특별시는_locality와_admin2가_없어도_city를_채운다() {
+        client = new GoogleReverseGeocodeClient(clientBuilder.build(),
+                new GoogleGeocodeProperties("test-key", GEOCODE_URL, "", 100, "ko"));
+        server.expect(requestTo(containsString("/geocode/json")))
+                .andRespond(withSuccess(GEOCODE_SEOUL, MediaType.APPLICATION_JSON));
+
+        GeoLocation location = client.reverseGeocode(37.5445, 126.9509);
+
+        assertThat(location.country()).isEqualTo("대한민국");
+        assertThat(location.region()).isEqualTo("서울특별시");
+        assertThat(location.city()).isEqualTo("마포구");
+        assertThat(location.district()).isEqualTo("공덕동");
+        assertThat(location.isAnalyzable()).isTrue();
+        server.verify();
+    }
+
+    /**
+     * 실제 응답에는 레벨 없는 {@code sublocality}로 <b>도로명</b>이 섞여 온다(서초구 좌표의
+     * "남부순환로"). 레벨이 붙은 {@code sublocality_level_1}(서초구)을 먼저 잡아야 도로명이
+     * 행정구역 자리에 들어가지 않는다.
+     */
+    @Test
+    void 레벨없는_sublocality_도로명은_행정구역으로_쓰지_않는다() {
+        String withRoadName = """
+                {
+                  "results": [{
+                    "address_components": [
+                      {"long_name": "남부순환로", "types": ["sublocality","political"]},
+                      {"long_name": "서초구", "types": ["sublocality","sublocality_level_1","political"]},
+                      {"long_name": "서울특별시", "types": ["administrative_area_level_1","political"]},
+                      {"long_name": "대한민국", "types": ["country","political"]}
+                    ],
+                    "formatted_address": "대한민국 서울특별시 서초구 남부순환로",
+                    "types": ["street_address"]
+                  }],
+                  "status": "OK"
+                }
+                """;
+        client = new GoogleReverseGeocodeClient(clientBuilder.build(),
+                new GoogleGeocodeProperties("test-key", GEOCODE_URL, "", 100, "ko"));
+        server.expect(requestTo(containsString("/geocode/json")))
+                .andRespond(withSuccess(withRoadName, MediaType.APPLICATION_JSON));
+
+        GeoLocation location = client.reverseGeocode(37.4839, 127.0330);
+
+        assertThat(location.city()).isEqualTo("서초구");
+        assertThat(location.district()).isEqualTo("서초구");
+        assertThat(location.isAnalyzable()).isTrue();
+    }
+
+    /** 구·동까지 안 내려오는 얕은 응답이어도 region으로 폴백해 city·district를 비우지 않는다. */
+    @Test
+    void 광역행정구역만_내려와도_city와_district가_비지_않는다() {
+        String shallow = """
+                {
+                  "results": [{
+                    "address_components": [
+                      {"long_name": "서울특별시", "types": ["administrative_area_level_1","political"]},
+                      {"long_name": "대한민국", "types": ["country","political"]}
+                    ],
+                    "formatted_address": "대한민국 서울특별시",
+                    "types": ["political"]
+                  }],
+                  "status": "OK"
+                }
+                """;
+        client = new GoogleReverseGeocodeClient(clientBuilder.build(),
+                new GoogleGeocodeProperties("test-key", GEOCODE_URL, "", 100, "ko"));
+        server.expect(requestTo(containsString("/geocode/json")))
+                .andRespond(withSuccess(shallow, MediaType.APPLICATION_JSON));
+
+        GeoLocation location = client.reverseGeocode(37.5665, 126.9780);
+
+        assertThat(location.city()).isEqualTo("서울특별시");
+        assertThat(location.district()).isEqualTo("서울특별시");
+        assertThat(location.isAnalyzable()).isTrue();
     }
 
     @Test

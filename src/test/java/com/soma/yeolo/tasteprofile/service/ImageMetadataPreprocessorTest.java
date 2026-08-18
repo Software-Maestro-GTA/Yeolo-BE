@@ -53,6 +53,37 @@ class ImageMetadataPreprocessorTest {
                 .extracting("errorCode").isEqualTo(ErrorCode.INSUFFICIENT_IMAGE_METADATA);
     }
 
+    /**
+     * AI의 {@code LocationSchema}는 placeTypes를 뺀 전 필드가 non-nullable이라, 좌표에 결과가 없는
+     * 사진 한 장이 섞이면 요청 <b>전체</b>가 400으로 반려된다. 그 한 장만 빼고 나머지는 분석한다.
+     */
+    @Test
+    void 위치가_불완전한_사진은_제외하고_나머지로_분석한다() {
+        when(reverseGeocodeClient.reverseGeocode(anyDouble(), anyDouble()))
+                .thenReturn(new GeoLocation(null, null, null, null, null, List.of()))
+                .thenReturn(new GeoLocation("대한민국", "마포구", "서울특별시", "공덕동", "프릳츠 도화",
+                        List.of("cafe")));
+
+        List<PreprocessedImage> result = preprocessor().preprocess(List.of(
+                new ImageMetadata("img-1", "2026-07-14T10:00:00+09:00", 0.0, 0.0),
+                new ImageMetadata("img-2", "2026-07-14T10:00:00+09:00", 37.54, 126.95)));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().sourceImageId()).isEqualTo("img-2");
+    }
+
+    @Test
+    void 위치가_불완전한_사진만_있으면_INSUFFICIENT_IMAGE_METADATA를_던진다() {
+        when(reverseGeocodeClient.reverseGeocode(anyDouble(), anyDouble()))
+                .thenReturn(new GeoLocation("대한민국", null, "서울특별시", "마포구", "프릳츠 도화",
+                        List.of("cafe")));
+
+        assertThatThrownBy(() -> preprocessor().preprocess(List.of(
+                new ImageMetadata("img-1", "2026-07-14T10:00:00+09:00", 37.54, 126.95))))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INSUFFICIENT_IMAGE_METADATA);
+    }
+
     @Test
     void capturedAt_형식이_잘못되면_INSUFFICIENT_IMAGE_METADATA를_던진다() {
         when(reverseGeocodeClient.reverseGeocode(anyDouble(), anyDouble()))

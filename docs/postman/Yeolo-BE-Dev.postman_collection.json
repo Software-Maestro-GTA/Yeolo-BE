@@ -578,7 +578,7 @@
 			"description": "AI 내부 API 직접 호출 (API-AI-1/2). ClusterIP 전용이라 kubectl -n app-dev port-forward deploy/ai 8000:8000 후 사용한다. BE 500 의 원인이 BE 인지 AI 인지 가를 때 쓴다.",
 			"item": [
 				{
-					"name": "POST 취향 분석 (API-AI-1, SSE)",
+					"name": "POST 취향 분석 — 인증만 확인 (빈 items → 400 기대)",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -596,10 +596,45 @@
 							}
 						],
 						"url": "{{aiBaseUrl}}/internal/ai/taste-profile/analysis",
-						"description": "X-Internal-Api-Key 는 BE 와 AI 가 공유하는 대칭 키다. 한쪽만 바꾸면 전부 401 이 된다.",
+						"description": "X-Internal-Api-Key 는 BE 와 AI 가 공유하는 대칭 키다. 한쪽만 바꾸면 전부 401 이 된다.\n\n400 = 인증 통과. 다만 이 400 은 스키마 검증 실패와 문구가 같으므로(AI 의 RequestValidationError 핸들러가 /taste-profile 경로면 같은 메시지로 400 을 낸다) 페이로드가 유효한지까지는 이 요청으로 알 수 없다 — 그건 아래 '유효 항목 1건' 요청으로 확인한다.",
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"images\": []\n}",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"items\": []\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "POST 취향 분석 — 유효 항목 1건 (200 기대)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Internal-Api-Key",
+								"value": "{{internalApiKey}}"
+							},
+							{
+								"key": "Accept",
+								"value": "text/event-stream"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{aiBaseUrl}}/internal/ai/taste-profile/analysis",
+						"description": "BE 의 ImageMetadataPreprocessor 가 만들어 보내는 것과 같은 모양의 전처리 결과다(FE 가 올리는 EXIF 원본이 아니다).\n\nlocation 은 placeTypes 를 뺀 전 필드가 AI 쪽에서 non-nullable 이다 — 한 항목이라도 null 이면 요청 전체가 400 '분석 가능한 전처리 메타데이터가 부족합니다.' 로 반려된다. 실제로 Google Geocoding 이 서울·부산 등 특별시·광역시에 locality/administrative_area_level_2 를 안 내려줘서 city 가 전부 비었고, 취향 분석이 통째로 죽은 적이 있다(2026-08-18).\n\n어느 필드가 걸렸는지는 AI 로그에 남는다: kubectl -n app-dev logs deploy/ai | grep 'Validation Error'",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"items\": [\n    {\n      \"sourceImageId\": \"img-1\",\n      \"location\": {\n        \"country\": \"대한민국\",\n        \"city\": \"마포구\",\n        \"region\": \"서울특별시\",\n        \"district\": \"공덕동\",\n        \"placeName\": \"프릳츠 도화\",\n        \"placeTypes\": [\"coffee_shop\", \"cafe\", \"food\", \"point_of_interest\"]\n      },\n      \"timeContext\": {\n        \"capturedAt\": \"2026-07-16T03:21:07.684Z\",\n        \"dayOfWeek\": \"thu\",\n        \"isWeekend\": false,\n        \"timeBucket\": \"dawn\",\n        \"season\": \"summer\"\n      }\n    }\n  ]\n}",
 							"options": {
 								"raw": {
 									"language": "json"

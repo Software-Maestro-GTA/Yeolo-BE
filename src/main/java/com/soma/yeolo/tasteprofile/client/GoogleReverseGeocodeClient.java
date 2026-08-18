@@ -111,32 +111,59 @@ public class GoogleReverseGeocodeClient implements ReverseGeocodeClient {
         }
     }
 
+    /**
+     * address_components를 DOM-4 §1의 국가/도시/지역/행정구역으로 매핑한다.
+     *
+     * <p><b>행정 단계를 먼저 모아 두고 폴백 체인으로 고른다.</b> 국가·지역별로 존재하는 단계가
+     * 달라서, 특정 타입 하나에 필드를 고정하면 그 타입이 없는 지역에서 통째로 {@code null}이 되기
+     * 때문이다. 실제로 <b>서울·부산 등 특별시·광역시는 {@code locality}도
+     * {@code administrative_area_level_2}도 내려오지 않는다</b>(서울특별시 =
+     * {@code administrative_area_level_1}, 마포구 = {@code sublocality_level_1}). 이 둘만 보던
+     * 이전 매핑에서는 서울 좌표의 {@code city}가 전부 비었고, AI({@code LocationSchema})가
+     * {@code city}를 non-nullable로 받으므로 <b>사진 한 장만 서울이어도 요청 전체가 400</b>
+     * ("분석 가능한 전처리 메타데이터가 부족합니다.")으로 반려됐다.
+     *
+     * <p>단계 선택은 OSM 구현({@link OsmReverseGeocodeClient})과 같은 의미론을 따른다 —
+     * region = 시·도, city = 시·군·구, district = 읍·면·동.
+     */
     private AdminAddress toAdminAddress(JsonNode result) {
         String country = null;
-        String region = null;
-        String city = null;
-        String district = null;
+        String region = null;          // administrative_area_level_1: 서울특별시, 경상북도
+        String adminLevel2 = null;     // administrative_area_level_2: 서귀포시
+        String locality = null;        // locality: 칠곡군, 大阪市, San Francisco
+        String sublocalityL1 = null;   // sublocality_level_1: 마포구, 서초구
+        String sublocalityL2 = null;   // sublocality_level_2: 공덕동, 왜관읍
+        String sublocality = null;     // 레벨 없는 sublocality: 남부순환로, 군청1길 (도로명)
 
         for (JsonNode component : result.path("address_components")) {
             List<String> types = textList(component.path("types"));
-            String longName = component.path("long_name").asText(null);
+            String longName = text(component.path("long_name"));
+            // 한 컴포넌트가 여러 타입을 갖는다(세종특별자치시 = locality + administrative_area_level_1,
+            // 마포구 = sublocality + sublocality_level_1). 넓은 단계부터 판정해 광역 행정구역이
+            // 아래 단계로 내려앉지 않게 하고, 레벨이 붙은 sublocality를 레벨 없는 쪽보다 먼저 잡는다.
             if (types.contains("country")) {
                 country = longName;
             } else if (types.contains("administrative_area_level_1")) {
                 region = longName;
+            } else if (types.contains("administrative_area_level_2")) {
+                adminLevel2 = longName;
             } else if (types.contains("locality")) {
-                city = longName;
-            } else if (city == null && types.contains("administrative_area_level_2")) {
-                city = longName;
-            }
-            if (types.contains("sublocality_level_1") || types.contains("sublocality")) {
-                district = longName;
-            } else if (district == null && types.contains("administrative_area_level_2")) {
-                district = longName;
+                locality = longName;
+            } else if (types.contains("sublocality_level_1")) {
+                sublocalityL1 = longName;
+            } else if (types.contains("sublocality_level_2")) {
+                sublocalityL2 = longName;
+            } else if (types.contains("sublocality")) {
+                sublocality = longName;
             }
         }
+
+        // 레벨 없는 sublocality는 도로명이 오기도 하므로 행정구역 후보 중 가장 뒤에 둔다.
+        String city = firstNonBlank(locality, adminLevel2, sublocalityL1, region);
+        String district = firstNonBlank(sublocalityL2, sublocalityL1, sublocality, adminLevel2, city);
+
         return new AdminAddress(country, city, region, district,
-                result.path("formatted_address").asText(null), textList(result.path("types")));
+                text(result.path("formatted_address")), textList(result.path("types")));
     }
 
     // ---- Places API (New) Nearby Search (POI) --------------------------------------
@@ -208,6 +235,22 @@ public class GoogleReverseGeocodeClient implements ReverseGeocodeClient {
     }
 
     // ---- helpers -------------------------------------------------------------------
+
+    /** 노드의 텍스트를 읽되 빈 문자열은 {@code null}로 취급한다(폴백 체인이 빈 값을 고르지 않도록). */
+    private String text(JsonNode node) {
+        String value = node.asText(null);
+        return (value == null || value.isBlank()) ? null : value;
+    }
+
+    /** 폴백 체인 — 앞에서부터 비어 있지 않은 첫 값을 고른다. 전부 비면 {@code null}. */
+    private String firstNonBlank(String... candidates) {
+        for (String candidate : candidates) {
+            if (candidate != null && !candidate.isBlank()) {
+                return candidate;
+            }
+        }
+        return null;
+    }
 
     private List<String> textList(JsonNode array) {
         if (array == null || !array.isArray()) {
