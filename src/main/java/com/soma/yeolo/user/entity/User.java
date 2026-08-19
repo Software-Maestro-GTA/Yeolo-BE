@@ -158,20 +158,50 @@ public class User extends BaseTimeEntity {
     /**
      * 회원탈퇴 (API-USER-2). 계정을 소프트 삭제(status=deleted)하면서 개인정보를 파기한다.
      *
-     * <p>OAuth 식별자는 지우지 않고 {@code deleted:<id>}로 치환한다. 원본 sub를 남기지 않으면서도
-     * {@code (provider, provider_user_id)} 유니크 제약을 비워 줘, 같은 계정으로 재가입하면
-     * 탈퇴한 옛 레코드가 아니라 새 사용자로 인식된다. 이미 탈퇴한 계정이면 아무것도 하지 않는다(멱등)
-     * — 두 번째 호출이 탈퇴 시각을 덮어써 파기 시점 기록이 흐트러지지 않게 한다.
+     * <p>이미 탈퇴한 계정이면 아무것도 하지 않는다(멱등) — 두 번째 호출이 탈퇴 시각을 덮어써
+     * 파기 시점 기록이 흐트러지지 않게 한다.
      */
     public void withdraw() {
-        if (this.status == UserStatus.DELETED) {
+        if (isWithdrawn()) {
             return;
         }
         this.status = UserStatus.DELETED;
         this.deletedAt = Instant.now();
+        releaseOAuthIdentity();
+    }
+
+    /**
+     * 탈퇴 처리된 계정인지. {@code deletedAt}은 탈퇴 시에만 채워지므로 이 값 하나로 판정한다
+     * — 인증 필터의 탈퇴자 차단({@code UserRepository.existsByIdAndDeletedAtIsNotNull})과 같은 기준이다.
+     */
+    public boolean isWithdrawn() {
+        return this.deletedAt != null;
+    }
+
+    /**
+     * OAuth 식별자를 회수하고 계정의 식별정보를 파기한다.
+     *
+     * <p>식별자는 지우지 않고 {@code deleted:<id>}로 치환한다. 원본 sub를 남기지 않으면서도
+     * {@code (provider, provider_user_id)} 유니크 제약을 비워 줘, 같은 계정으로 재가입하면
+     * 탈퇴한 옛 레코드가 아니라 새 사용자로 인식된다.
+     *
+     * <p>탈퇴({@link #withdraw})가 부르는 것이 정상 경로지만, <b>치환 없이 탈퇴 표시만 남은 옛 행</b>을
+     * 로그인 시점에 뒤늦게 정리하는 데도 쓴다({@code UserService.upsertOnOAuthLogin}). 그런 행이
+     * 실재한다 — 탈퇴 기능 최초 구현(#42)은 {@code status}·{@code deletedAt}만 설정했고, 식별자 치환은
+     * 그 다음 개정(#44)에서 추가됐다. 그 사이에 탈퇴한 계정은 원본 sub를 그대로 들고 있어, 재로그인이
+     * 새 사용자가 아니라 <b>탈퇴 계정 자체를 되살린다</b>.
+     *
+     * <p>탈퇴한 계정에만 허용한다. 살아 있는 계정에 부르면 로그인은 되는데 OAuth 조회로는 영영
+     * 찾을 수 없는 계정이 되므로("식별자를 회수했으면 탈퇴 상태"라는 불변식이 깨진다), 실수를
+     * 조용히 통과시키지 않고 막는다.
+     */
+    public void releaseOAuthIdentity() {
+        if (!isWithdrawn()) {
+            throw new IllegalStateException("탈퇴하지 않은 계정의 OAuth 식별자는 회수할 수 없다: " + this.id);
+        }
+        this.providerUserId = "deleted:" + this.id;
         this.email = null;
         this.displayName = null;
         this.profileImageUrl = null;
-        this.providerUserId = "deleted:" + this.id;
     }
 }

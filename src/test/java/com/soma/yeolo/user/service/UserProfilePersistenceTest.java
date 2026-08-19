@@ -99,7 +99,9 @@ class UserProfilePersistenceTest {
         em.clear();
 
         // 제공자가 세 항목 모두 새 값을 들고 재로그인한다.
-        new UserService(userRepository).upsertOnOAuthLogin(new OAuthUserInfo(
+        // (취향 프로필 파기는 탈퇴 행을 정리할 때만 쓰이므로 여기선 아무것도 하지 않는 구현으로 둔다)
+        new UserService(userRepository, erasedUserId -> {
+        }).upsertOnOAuthLogin(new OAuthUserInfo(
                 Provider.GOOGLE, "sub-3", "new@gmail.com", "바뀐구글이름", "http://new"));
         em.flush();
         em.clear();
