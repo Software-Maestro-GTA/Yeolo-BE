@@ -190,8 +190,15 @@ public class User extends BaseTimeEntity {
      * 실재한다 — 탈퇴 기능 최초 구현(#42)은 {@code status}·{@code deletedAt}만 설정했고, 식별자 치환은
      * 그 다음 개정(#44)에서 추가됐다. 그 사이에 탈퇴한 계정은 원본 sub를 그대로 들고 있어, 재로그인이
      * 새 사용자가 아니라 <b>탈퇴 계정 자체를 되살린다</b>.
+     *
+     * <p>탈퇴한 계정에만 허용한다. 살아 있는 계정에 부르면 로그인은 되는데 OAuth 조회로는 영영
+     * 찾을 수 없는 계정이 되므로("식별자를 회수했으면 탈퇴 상태"라는 불변식이 깨진다), 실수를
+     * 조용히 통과시키지 않고 막는다.
      */
     public void releaseOAuthIdentity() {
+        if (!isWithdrawn()) {
+            throw new IllegalStateException("탈퇴하지 않은 계정의 OAuth 식별자는 회수할 수 없다: " + this.id);
+        }
         this.providerUserId = "deleted:" + this.id;
         this.email = null;
         this.displayName = null;

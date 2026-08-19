@@ -11,6 +11,7 @@ import com.soma.yeolo.user.domain.Provider;
 import com.soma.yeolo.user.domain.UserStatus;
 import com.soma.yeolo.user.entity.User;
 import com.soma.yeolo.user.repository.UserRepository;
+import com.soma.yeolo.user.service.port.TasteProfileEraser;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,6 +28,9 @@ class UserServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private TasteProfileEraser tasteProfileEraser;
 
     @InjectMocks
     private UserService userService;
@@ -118,7 +122,10 @@ class UserServiceTest {
         assertThat(result.getEmail()).isEqualTo("new@gmail.com");
     }
 
-    /** 되살아난 계정에는 {@code updateOnLogin}이 실행돼, 탈퇴 때 파기한 개인정보가 복원된다. */
+    /**
+     * 계정을 되살리면 {@code updateOnLogin}이 실행돼 탈퇴 때 파기한 개인정보가 <b>복원되는</b> 것이
+     * 고치기 전 동작이었다. 되살리지 않으므로 옛 행은 비워진 채로 남아야 한다.
+     */
     @Test
     void 탈퇴_계정의_개인정보는_재로그인으로_복원되지_않고_식별자도_회수된다() {
         UUID withdrawnId = UUID.randomUUID();
@@ -152,5 +159,34 @@ class UserServiceTest {
         InOrder order = inOrder(userRepository);
         order.verify(userRepository).saveAndFlush(withdrawn);
         order.verify(userRepository).save(any(User.class));
+    }
+
+    /**
+     * 그 시절 탈퇴(#42)는 Refresh Token만 지웠다. 취향 프로필은 사진 EXIF에서 파생된 이동 이력이라
+     * 계정 행만 비우면 파기가 반쪽이 되고, {@code withdraw()}는 이미 탈퇴한 계정에 아무것도 하지
+     * 않으므로 탈퇴를 다시 태워 지울 수도 없다.
+     */
+    @Test
+    void 탈퇴_행을_정리할_때_취향_프로필도_파기한다() {
+        UUID withdrawnId = UUID.randomUUID();
+        when(userRepository.findByProviderAndProviderUserId(Provider.GOOGLE, "google-sub-123"))
+                .thenReturn(Optional.of(legacyWithdrawnUser(withdrawnId)));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        userService.upsertOnOAuthLogin(info("new@gmail.com", "재가입유저"));
+
+        verify(tasteProfileEraser).eraseAll(withdrawnId);
+    }
+
+    @Test
+    void 살아있는_계정의_재로그인은_취향_프로필을_건드리지_않는다() {
+        User existing = User.createOAuthUser(Provider.GOOGLE, "google-sub-123",
+                "old@gmail.com", "옛이름", "http://old");
+        when(userRepository.findByProviderAndProviderUserId(Provider.GOOGLE, "google-sub-123"))
+                .thenReturn(Optional.of(existing));
+
+        userService.upsertOnOAuthLogin(info("new@gmail.com", "새이름"));
+
+        verify(tasteProfileEraser, never()).eraseAll(any(UUID.class));
     }
 }

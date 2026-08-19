@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.soma.yeolo.course.entity.CourseEntity;
 import com.soma.yeolo.course.repository.CourseJpaRepository;
 import com.soma.yeolo.global.config.JpaAuditingConfig;
+import com.soma.yeolo.tasteprofile.domain.SourceType;
+import com.soma.yeolo.tasteprofile.entity.TasteProfileEntity;
+import com.soma.yeolo.tasteprofile.repository.TasteProfileJpaRepository;
 import com.soma.yeolo.user.domain.Provider;
 import com.soma.yeolo.user.entity.User;
 import com.soma.yeolo.user.repository.UserRepository;
@@ -19,7 +22,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
 
 /**
- * 탈퇴 후 재가입이 <b>새 사용자</b>가 되는지 DB에 붙여 확인한다 (API-USER-2 §재가입).
+ * 탈퇴 후 재가입이 <b>새 사용자</b>가 되는지 DB에 붙여 확인한다.
  *
  * <p>서비스 단위 테스트(목 리포지토리)로는 증명되지 않는 것이 두 가지라 여기서 검증한다 —
  * {@code (provider, provider_user_id)} 유니크 제약이 실제로 통과하는지(=식별자 회수와 신규 INSERT의
@@ -46,7 +49,15 @@ class UserReSignUpPersistenceTest {
     private CourseJpaRepository courseJpaRepository;
 
     @Autowired
+    private TasteProfileJpaRepository tasteProfileJpaRepository;
+
+    @Autowired
     private EntityManager em;
+
+    /** 슬라이스 테스트는 {@code @Service}를 안 집어 오므로 포트 구현을 리포지토리에 직접 위임한다. */
+    private UserService userService() {
+        return new UserService(userRepository, tasteProfileJpaRepository::deleteByUserId);
+    }
 
     /** #42 시절 탈퇴 데이터 재현: 상태·탈퇴 시각만 남기고 식별자·식별정보는 건드리지 않는다. */
     private UUID legacyWithdrawnUser() {
@@ -81,7 +92,7 @@ class UserReSignUpPersistenceTest {
     void 식별자가_남은_탈퇴_행이_있어도_재가입은_새_행으로_저장된다() {
         UUID withdrawnId = legacyWithdrawnUser();
 
-        User created = new UserService(userRepository).upsertOnOAuthLogin(
+        User created = userService().upsertOnOAuthLogin(
                 new OAuthUserInfo(Provider.GOOGLE, SUB, "new@gmail.com", "재가입유저", "http://new"));
         em.flush();
         em.clear();
@@ -98,7 +109,7 @@ class UserReSignUpPersistenceTest {
     void 재가입_시_옛_행의_식별자_회수와_개인정보_파기가_DB에_반영된다() {
         UUID withdrawnId = legacyWithdrawnUser();
 
-        new UserService(userRepository).upsertOnOAuthLogin(
+        userService().upsertOnOAuthLogin(
                 new OAuthUserInfo(Provider.GOOGLE, SUB, "new@gmail.com", "재가입유저", "http://new"));
         em.flush();
         em.clear();
@@ -120,7 +131,7 @@ class UserReSignUpPersistenceTest {
         UUID withdrawnId = legacyWithdrawnUser();
         UUID oldCourseId = saveCourse(withdrawnId);
 
-        User created = new UserService(userRepository).upsertOnOAuthLogin(
+        User created = userService().upsertOnOAuthLogin(
                 new OAuthUserInfo(Provider.GOOGLE, SUB, "new@gmail.com", "재가입유저", "http://new"));
         em.flush();
         em.clear();
@@ -130,5 +141,29 @@ class UserReSignUpPersistenceTest {
         // 코스 자체는 파기하지 않고 삭제된 소유자를 참조한 채 남는다 (API-USER-2)
         assertThat(courseJpaRepository.findIdsByUserIdLatestFirst(withdrawnId, PageRequest.of(0, 1)))
                 .containsExactly(oldCourseId);
+    }
+
+    /**
+     * 그 시절 탈퇴(#42)는 Refresh Token만 지웠으므로 옛 행에는 취향 프로필이 남아 있다. 사진 EXIF에서
+     * 파생된 이동 이력이라 계정 행만 비우면 파기가 반쪽이 되고, 이미 탈퇴한 계정은 탈퇴를 다시 태워도
+     * {@code withdraw()}가 멱등하게 아무것도 하지 않아 지울 방법이 없다.
+     */
+    @Test
+    void 재가입_시_옛_계정의_취향_프로필도_DB에서_파기된다() {
+        UUID withdrawnId = legacyWithdrawnUser();
+        tasteProfileJpaRepository.save(TasteProfileEntity.builder()
+                .userId(withdrawnId)
+                .sourceType(SourceType.BEHAVIOR)
+                .profile("{}")
+                .build());
+        em.flush();
+        em.clear();
+
+        userService().upsertOnOAuthLogin(
+                new OAuthUserInfo(Provider.GOOGLE, SUB, "new@gmail.com", "재가입유저", "http://new"));
+        em.flush();
+        em.clear();
+
+        assertThat(tasteProfileJpaRepository.findAll()).isEmpty();
     }
 }

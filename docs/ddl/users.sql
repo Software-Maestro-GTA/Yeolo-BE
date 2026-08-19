@@ -39,11 +39,29 @@ ALTER TABLE users
 -- 고쳤지만, 그 사용자가 다시 로그인하지 않으면 파기했어야 할 개인정보가 DB에 계속 남는다.
 -- 그래서 한 번은 직접 정리한다.
 --
+-- taste_profiles도 함께 지운다. 그 시절 탈퇴는 Refresh Token만 무효화했고 취향 프로필 파기는
+-- #44에서 추가됐는데, 취향 프로필은 사진 EXIF에서 파생된 개인의 이동 이력이다(2026-07-20 도입,
+-- 영향 구간보다 앞선다). users만 정리하면 파기가 반쪽이 된다.
+-- 반대로 대상이 아닌 것: 프로필 이미지 파일(저장소 업로드는 #78/2026-08 도입이라 그 시절 계정엔
+-- 우리 저장소의 파일이 없다. profile_image_url은 제공자 URL이었다), photo_analysis_consents
+-- (2026-08-06 도입으로 영향 구간 이후이고, 현재 탈퇴도 동의 이력은 파기 대상으로 보지 않는다).
+--
+-- 순서가 중요하다. UPDATE가 먼저 돌면 "회수되지 않은 행"이라는 표식이 사라져 대상 id를 다시는
+-- 특정할 수 없다. 그래서 taste_profiles 삭제를 앞에 두고, 한 트랜잭션으로 묶는다.
+--
 -- WHERE 절이 "탈퇴 표시는 있는데 식별자는 회수되지 않은 행"만 정확히 집는다. 정상 처리된 탈퇴 행
 -- (deleted:로 시작)과 살아 있는 계정은 건드리지 않으므로 여러 번 실행해도 안전하다.
 -- 적용 전 대상 확인:
 --   SELECT id, provider, provider_user_id, deleted_at FROM users
 --    WHERE deleted_at IS NOT NULL AND provider_user_id NOT LIKE 'deleted:%';
+BEGIN;
+
+DELETE FROM taste_profiles
+WHERE user_id IN (SELECT id
+                  FROM users
+                  WHERE deleted_at IS NOT NULL
+                    AND provider_user_id NOT LIKE 'deleted:%');
+
 UPDATE users
 SET provider_user_id  = 'deleted:' || id,
     email             = NULL,
@@ -51,3 +69,5 @@ SET provider_user_id  = 'deleted:' || id,
     profile_image_url = NULL
 WHERE deleted_at IS NOT NULL
   AND provider_user_id NOT LIKE 'deleted:%';
+
+COMMIT;
