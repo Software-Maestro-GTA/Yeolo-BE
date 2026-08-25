@@ -175,6 +175,14 @@ jobs:
           PROFILE_IMAGE_S3_BUCKET: ${{ vars.PROFILE_IMAGE_S3_BUCKET }}
           PROFILE_IMAGE_S3_REGION: ${{ vars.PROFILE_IMAGE_S3_REGION }}
           PROFILE_IMAGE_BASE_URL: ${{ vars.PROFILE_IMAGE_BASE_URL }}
+          # 공유 링크의 기준 주소(API-SHARE-1). FE 초대 페이지 경로와 **정확히 일치**해야 한다 —
+          # 현재 FE 라우트가 /invite/[shareToken] 이므로 값은 .../invite 로 끝난다. 어긋나면
+          # 발급된 링크가 전부 FE 404 로 떨어지는데, BE 응답은 200 이라 눌러 보기 전엔 모른다.
+          # 비우면 앱 기본값(https://yeolo.vercel.app/invite)을 쓰므로 required 가드 대상은 아니다.
+          # 커스텀 도메인으로 옮길 때 이 변수만 바꾸면 된다.
+          SHARE_LINK_BASE_URL: ${{ vars.SHARE_LINK_BASE_URL }}
+          # 링크 수명(ISO-8601 Duration). 비우면 앱 기본값 P7D. 0 이하면 무기한(expiresAt: null).
+          SHARE_LINK_TTL: ${{ vars.SHARE_LINK_TTL }}
           JWT_ACCESS_TTL: ${{ vars.JWT_ACCESS_TTL }}
           JWT_REFRESH_TTL: ${{ vars.JWT_REFRESH_TTL }}
         run: |
@@ -188,7 +196,7 @@ jobs:
                    JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT \
                    GEOCODE_SEARCH_NEARBY_URL PLACE_PROVIDER \
                    PROFILE_IMAGE_PROVIDER PROFILE_IMAGE_S3_BUCKET PROFILE_IMAGE_S3_REGION \
-                   PROFILE_IMAGE_BASE_URL; do
+                   PROFILE_IMAGE_BASE_URL SHARE_LINK_BASE_URL SHARE_LINK_TTL; do
             v="${!k}"
             [ -n "$v" ] && printf '%s=%s\n' "$k" "$v" >> was.env
           done
@@ -336,6 +344,14 @@ jobs:
           PROFILE_IMAGE_S3_BUCKET: ${{ vars.PROFILE_IMAGE_S3_BUCKET }}
           PROFILE_IMAGE_S3_REGION: ${{ vars.PROFILE_IMAGE_S3_REGION }}
           PROFILE_IMAGE_BASE_URL: ${{ vars.PROFILE_IMAGE_BASE_URL }}
+          # 공유 링크의 기준 주소(API-SHARE-1). FE 초대 페이지 경로와 **정확히 일치**해야 한다 —
+          # 현재 FE 라우트가 /invite/[shareToken] 이므로 값은 .../invite 로 끝난다. 어긋나면
+          # 발급된 링크가 전부 FE 404 로 떨어지는데, BE 응답은 200 이라 눌러 보기 전엔 모른다.
+          # 비우면 앱 기본값(https://yeolo.vercel.app/invite)을 쓰므로 required 가드 대상은 아니다.
+          # 커스텀 도메인으로 옮길 때 이 변수만 바꾸면 된다.
+          SHARE_LINK_BASE_URL: ${{ vars.SHARE_LINK_BASE_URL }}
+          # 링크 수명(ISO-8601 Duration). 비우면 앱 기본값 P7D. 0 이하면 무기한(expiresAt: null).
+          SHARE_LINK_TTL: ${{ vars.SHARE_LINK_TTL }}
           JWT_ACCESS_TTL: ${{ vars.JWT_ACCESS_TTL }}
           JWT_REFRESH_TTL: ${{ vars.JWT_REFRESH_TTL }}
         run: |
@@ -349,7 +365,7 @@ jobs:
                    JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT \
                    GEOCODE_SEARCH_NEARBY_URL PLACE_PROVIDER \
                    PROFILE_IMAGE_PROVIDER PROFILE_IMAGE_S3_BUCKET PROFILE_IMAGE_S3_REGION \
-                   PROFILE_IMAGE_BASE_URL; do
+                   PROFILE_IMAGE_BASE_URL SHARE_LINK_BASE_URL SHARE_LINK_TTL; do
             v="${!k}"
             [ -n "$v" ] && printf '%s=%s\n' "$k" "$v" >> was.env
           done
