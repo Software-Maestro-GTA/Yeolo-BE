@@ -171,7 +171,7 @@ class ShareLinkServiceTest {
 
     private ShareLinkService service(Duration ttl) {
         return new ShareLinkService(links, accesses, courses, profileReader,
-                new ShareLinkProperties("https://yeolo.app/share", ttl));
+                new ShareLinkProperties("https://yeolo.vercel.app/invite", ttl));
     }
 
     private UUID givenCourse(UUID ownerId, String title) {
@@ -191,7 +191,7 @@ class ShareLinkServiceTest {
         ShareLinkCreateResponse response = service().createShareLink(owner, courseId);
 
         assertThat(response.shareToken()).isNotBlank();
-        assertThat(response.shareUrl()).isEqualTo("https://yeolo.app/share/" + response.shareToken());
+        assertThat(response.shareUrl()).isEqualTo("https://yeolo.vercel.app/invite/" + response.shareToken());
         assertThat(response.expiresAt()).isNotNull();
     }
 

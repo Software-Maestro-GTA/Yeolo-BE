@@ -66,7 +66,7 @@ class ShareLinkControllerTest {
         UUID courseId = UUID.randomUUID();
         when(jwtTokenProvider.parseAccessTokenUserId("valid-token")).thenReturn(userId);
         when(shareLinkService.createShareLink(userId, courseId)).thenReturn(
-                new ShareLinkCreateResponse("https://yeolo.app/share/" + TOKEN, TOKEN,
+                new ShareLinkCreateResponse("https://yeolo.vercel.app/invite/" + TOKEN, TOKEN,
                         Instant.parse("2026-08-17T00:00:00Z")));
 
         mockMvc.perform(post("/api/courses/{courseId}/share-links", courseId)
@@ -74,7 +74,7 @@ class ShareLinkControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.message").value("여행 코스 공유 링크 생성 성공"))
-                .andExpect(jsonPath("$.data.shareUrl").value("https://yeolo.app/share/" + TOKEN))
+                .andExpect(jsonPath("$.data.shareUrl").value("https://yeolo.vercel.app/invite/" + TOKEN))
                 .andExpect(jsonPath("$.data.shareToken").value(TOKEN))
                 .andExpect(jsonPath("$.data.expiresAt").exists());
     }

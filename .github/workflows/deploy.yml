@@ -180,6 +180,11 @@ jobs:
           # 발급된 링크가 전부 FE 404 로 떨어지는데, BE 응답은 200 이라 눌러 보기 전엔 모른다.
           # 비우면 앱 기본값(https://yeolo.vercel.app/invite)을 쓰므로 required 가드 대상은 아니다.
           # 커스텀 도메인으로 옮길 때 이 변수만 바꾸면 된다.
+          # ★ dev·prod 가 같은 FE 한 곳을 가리킨다. FE 는 한 번에 한 BE 만 보므로, FE 가 보지
+          #   않는 쪽 BE 가 발급한 링크는 토큰이 그 DB 에만 있어 상대편에서 404 가 된다. 값이
+          #   같아도 정상인 이유이며, dev 에서 끝까지 확인하려면 FE 의 API base 를 dev 로 돌려야
+          #   한다. FE 프리뷰 배포가 따로 생기면 그때 환경별로 값을 갈라 준다.
+          #   (docs/share-link-deeplink-plan.md §7)
           SHARE_LINK_BASE_URL: ${{ vars.SHARE_LINK_BASE_URL }}
           # 링크 수명(ISO-8601 Duration). 비우면 앱 기본값 P7D. 0 이하면 무기한(expiresAt: null).
           SHARE_LINK_TTL: ${{ vars.SHARE_LINK_TTL }}
@@ -349,6 +354,11 @@ jobs:
           # 발급된 링크가 전부 FE 404 로 떨어지는데, BE 응답은 200 이라 눌러 보기 전엔 모른다.
           # 비우면 앱 기본값(https://yeolo.vercel.app/invite)을 쓰므로 required 가드 대상은 아니다.
           # 커스텀 도메인으로 옮길 때 이 변수만 바꾸면 된다.
+          # ★ dev·prod 가 같은 FE 한 곳을 가리킨다. FE 는 한 번에 한 BE 만 보므로, FE 가 보지
+          #   않는 쪽 BE 가 발급한 링크는 토큰이 그 DB 에만 있어 상대편에서 404 가 된다. 값이
+          #   같아도 정상인 이유이며, dev 에서 끝까지 확인하려면 FE 의 API base 를 dev 로 돌려야
+          #   한다. FE 프리뷰 배포가 따로 생기면 그때 환경별로 값을 갈라 준다.
+          #   (docs/share-link-deeplink-plan.md §7)
           SHARE_LINK_BASE_URL: ${{ vars.SHARE_LINK_BASE_URL }}
           # 링크 수명(ISO-8601 Duration). 비우면 앱 기본값 P7D. 0 이하면 무기한(expiresAt: null).
           SHARE_LINK_TTL: ${{ vars.SHARE_LINK_TTL }}
