@@ -3,8 +3,10 @@ package com.soma.yeolo.tasteprofile.controller;
 import com.soma.yeolo.consent.service.PhotoAnalysisConsentChecker;
 import com.soma.yeolo.global.sse.SseEmitters;
 import com.soma.yeolo.global.sse.SseProperties;
+import com.soma.yeolo.global.sse.SseResponses;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisRequest;
 import com.soma.yeolo.tasteprofile.service.BehaviorTasteProfileService;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -42,8 +44,12 @@ public class TasteProfileController {
      */
     @PostMapping(value = "/analysis", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter analyzeBehavior(@AuthenticationPrincipal UUID userId,
-                                      @Valid @RequestBody BehaviorAnalysisRequest request) {
+                                      @Valid @RequestBody BehaviorAnalysisRequest request,
+                                      HttpServletResponse response) {
         photoAnalysisConsentChecker.requireAgreed(userId);
+
+        // 엣지가 스트림을 압축·버퍼링하지 못하게 한다. emitter를 만들기 전에 붙여야 한다.
+        SseResponses.applyStreamingHeaders(response);
 
         SseEmitter emitter =
                 SseEmitters.create("taste-profile", sseProperties.streamTimeoutMs(), userId);

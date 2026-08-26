@@ -6,6 +6,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -116,7 +117,11 @@ class TasteProfileControllerTest {
                         .header("Authorization", "Bearer valid-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(BODY))
-                .andExpect(request().asyncStarted());
+                .andExpect(request().asyncStarted())
+                // 엣지(CloudFront/Cloudflare)가 스트림을 압축하면 15초 하트비트가 버퍼에 갇혀
+                // 무활동 타임아웃으로 스트림이 끊긴다. no-transform 이 그걸 막는 유일한 선언이다.
+                .andExpect(header().string("Cache-Control", Matchers.containsString("no-transform")))
+                .andExpect(header().string("X-Accel-Buffering", "no"));
 
         verify(behaviorTasteProfileService).analyzeAndStream(any(), any(), any());
     }
