@@ -760,7 +760,7 @@
 	"variable": [
 		{
 			"key": "baseUrl",
-			"value": "https://d1eicq4gephyts.cloudfront.net",
+			"value": "https://api-dev.yeolo.app",
 			"type": "string"
 		},
 		{
