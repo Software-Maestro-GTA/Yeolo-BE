@@ -95,12 +95,28 @@ git submodule update --remote specs   # 최신 명세로 갱신 후, 커밋으�
   배포 가드(`deploy.yml`)는 값이 **비었는지만** 검사하고, AI 디플로이먼트는 `envFrom ... optional: true`라
   키가 틀려도 파드는 정상 기동한다 — 즉 양쪽 다 초록불인데 런타임에만 터진다.
   값 대조는 노출 없이 해시로: `kubectl -n <ns> exec deploy/<was|ai> -- printenv INTERNAL_API_KEY | shasum -a 256`
-- **Postman 자산은 `docs/postman/Yeolo-BE-Dev.postman_collection.json` 하나뿐이다.**
-  환경(Environment) 파일은 두지 않고 **변수를 컬렉션 변수로** 관리한다 — 파일이 둘이면 어느 쪽이
-  최신인지 관리해야 하고, 환경 파일은 애초에 요청을 담지 못한다(`_postman_variable_scope`).
-  - **API 계약이 바뀌면 이 파일도 같은 커밋에서 고친다** — 새 엔드포인트뿐 아니라 기존 요청·응답의
+- **Postman 컬렉션은 dev·prod 두 개다. 손으로 고치는 것은 dev 하나뿐이다.**
+  `docs/postman/Yeolo-BE-Dev.postman_collection.json` 이 원본이고,
+  `Yeolo-BE-Prod.postman_collection.json` 은 `make-prod-collection.py` 로 **생성**한다.
+  환경(Environment) 파일은 여전히 두지 않고 **변수를 컬렉션 변수로** 관리한다 — 환경 파일은 애초에
+  요청을 담지 못한다(`_postman_variable_scope`).
+  - **왜 파일을 나눴나(2026-08-27).** `dev` 와 `main` 은 배포 시점이 달라 **API 계약이 다른 기간이
+    있다.** 한 파일에서 `baseUrl` 만 바꿔 쓰면 dev 에만 있는 엔드포인트가 prod 에서 404 로 나오는데,
+    그게 컬렉션이 틀린 건지 서버가 안 나간 건지 구분되지 않는다. 대신 **두 벌을 손으로 맞추지는
+    않는다** — prod 파일은 항상 생성물이며, 직접 편집하거나 Postman 에서 export 하지 않는다.
+  - **prod 파일은 dev→main 릴리스 직후에 재생성한다**(`python3 docs/postman/make-prod-collection.py`).
+    평소 dev 작업에서는 돌리지 않는다 — 아직 배포되지 않은 기능이 prod 컬렉션에 들어가면 파일을
+    나눈 의미가 없어진다.
+  - **API 계약이 바뀌면 dev 파일을 같은 커밋에서 고친다** — 새 엔드포인트뿐 아니라 기존 요청·응답의
     필드 변경도 포함이다(판정 기준과 체크리스트는 §작업 흐름 5). 코드만 고치고 컬렉션을 빠뜨리면
     "Postman에 왜 없지?"가 된다. 새 변수가 필요하면(예: `shareToken`) 컬렉션 변수에도 추가한다.
+  - **prod 컬렉션의 파괴적 요청(회원탈퇴·코스 삭제)은 `allowDestructive` 가드로 기본 차단**돼 있다.
+    생성기가 pre-request 스크립트를 넣으므로 손으로 지우지 않는다 — 실사용자 데이터가 걸려 있다.
+    차단의 실체는 **`throw`** 다. `pm.execution.skipRequest()` 는 Collection Runner·CLI 에서만
+    듣고 **개별 Send 에는 효력이 없어**, 그걸로만 막으면 이 컬렉션의 실제 사용 경로(수동 Send)에서
+    DELETE 가 그대로 나간다. 순서를 바꾸거나 throw 를 없애지 않는다.
+  - **prod 전용 값은 생성물이 아니라 `PROD_OVERRIDES`(생성기)에 적는다.** 생성된 JSON 을 손으로
+    고치면 다음 릴리스 재생성에서 조용히 되돌아가고, diff 에도 원인이 남지 않는다.
   - **이 파일이 `git ls-files docs/postman/` 에 잡히는지 확인한다.** `.gitignore` 의 `docs` 때문에
     `git add -f` 를 한 번이라도 빠뜨리면 파일이 **추적되지 않은 채** 로컬에만 남고, 그 뒤로는
     `git status` 에도 안 뜨고 diff에도 안 잡혀 아무도 눈치채지 못한다. 실제로 컬렉션을 최신으로
