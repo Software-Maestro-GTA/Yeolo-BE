@@ -7,7 +7,7 @@
 --
 -- DOM-1: "MBTI는 사용자 선호 입력값으로 별도 관리되며, 사용자 정보 자체의 필드로 저장하지 않는다."
 -- 사용자당 1행(user_id UNIQUE)이며, MBTI 재입력 시 이력을 남기지 않고 덮어쓴다.
-CREATE TABLE user_preferences (
+CREATE TABLE IF NOT EXISTS user_preferences (
     id         UUID                        NOT NULL,
     user_id    UUID                        NOT NULL,
     mbti       VARCHAR(4),

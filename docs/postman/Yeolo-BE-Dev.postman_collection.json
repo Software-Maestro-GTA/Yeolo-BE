@@ -707,7 +707,7 @@
 						"method": "POST",
 						"header": [],
 						"url": "{{baseUrl}}/api/courses/{{courseId}}/share-links",
-						"description": "코스 소유자만 발급 가능. 응답의 shareToken 을 환경변수에 저장한다. 호출할 때마다 새 토큰이 발급되며(토큰을 해시로만 저장하므로 재조회 불가) 이전 링크도 만료 전까지 함께 유효하다. 타인 코스면 403, 없는 코스면 404."
+						"description": "코스 소유자만 발급 가능. 응답의 shareToken 을 환경변수에 저장한다. 호출할 때마다 새 토큰이 발급되며(토큰을 해시로만 저장하므로 재조회 불가) 이전 링크도 만료 전까지 함께 유효하다. 타인 코스면 403, 없는 코스면 404. 응답의 shareUrl 은 FE 초대 페이지를 가리킨다 — https://yeolo.vercel.app/invite/<shareToken> (base 는 서버의 SHARE_LINK_BASE_URL, 미설정 시 앱 기본값). 이 값을 브라우저에 그대로 넣어 미리보기가 뜨는지 확인할 수 있는데, FE 가 보는 BE 와 링크를 발급한 BE 가 같아야 한다 — 토큰은 발급한 쪽 DB 에만 있어 다른 환경에서 열면 404 다."
 					},
 					"response": [],
 					"event": [
@@ -719,12 +719,25 @@
 									"const res = pm.response.json();",
 									"if (pm.response.code === 200 && res.data && res.data.shareToken) {",
 									"    pm.collectionVariables.set('shareToken', res.data.shareToken);",
+									"    pm.collectionVariables.set('shareUrl', res.data.shareUrl);",
 									"    console.log('shareToken 저장:', res.data.shareToken);",
 									"    console.log('shareUrl :', res.data.shareUrl);",
 									"}",
 									"pm.test('200 + 명세 메시지', function () {",
 									"    pm.expect(pm.response.code).to.eql(200);",
 									"    pm.expect(res.message).to.eql('여행 코스 공유 링크 생성 성공');",
+									"});",
+									"",
+									"// 링크가 FE 초대 페이지를 가리키는지. 경로가 어긋나면 발급은 200 인데 링크만 FE 404 가 되고,",
+									"// 그 사실은 링크를 눌러 보기 전까지 드러나지 않는다. 코드 검사를 먼저 둬 실패 응답에서",
+									"// res.data 가 null 일 때 TypeError 대신 깔끔한 실패 메시지가 나오게 한다.",
+									"pm.test('shareUrl 이 FE 초대 페이지(/invite/<token>)를 가리킨다', function () {",
+									"    pm.expect(pm.response.code).to.eql(200);",
+									"    pm.expect(res.data.shareUrl).to.include('/invite/');",
+									"    pm.expect(res.data.shareUrl).to.include(res.data.shareToken);",
+									"    // /invite/·토큰 포함은 서버 조립식상 항상 참이라, 실제 사고 유형인",
+									"    // 'SHARE_LINK_BASE_URL 이 BE 도메인으로 잘못 설정'을 별도로 잡는다.",
+									"    pm.expect(res.data.shareUrl).to.not.include(pm.collectionVariables.get('baseUrl'));",
 									"});"
 								]
 							}
@@ -805,6 +818,11 @@
 		},
 		{
 			"key": "shareToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "shareUrl",
 			"value": "",
 			"type": "string"
 		},
