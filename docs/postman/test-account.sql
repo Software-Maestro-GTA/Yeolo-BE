@@ -15,8 +15,8 @@
 -- ⚠️ dev 전용이다. prod 에는 넣지 않는다.
 --
 -- 📌 dev(yeolo-dev-postgres)에는 2026-08-07 에 이미 적용했다.
---    userId = 00000000-0000-4000-8000-000000000001
---    재실행해도 안전하다(ON CONFLICT). prod 이관이나 DB 초기화 후 재적용용으로 남겨둔다.
+--    재실행해도 안전하다(ON CONFLICT). dev DB 초기화 후 재적용용으로 남겨둔다.
+--    ⚠️ prod 에는 넣지 않는다 — prod 는 실사용자 테이블이다.
 --
 -- bastion 에서 실행하는 예:
 --   SECRET=$(aws secretsmanager get-secret-value --secret-id yeolo/dev/app-db \
@@ -27,11 +27,14 @@
 --   psql -v ON_ERROR_STOP=1 -f test-account.sql
 
 -- ===== 1. 계정 생성 =====
--- id 를 고정 UUID 로 박아 Postman 환경변수(userId)에 그대로 쓸 수 있게 한다.
--- 이미 있으면 갱신만 하고 실제 id 를 돌려준다(고정 UUID 와 다를 수 있으니 반환값을 쓸 것).
+-- id 는 gen_random_uuid() 로 만든다(PG13+ 내장). 고정 UUID 를 박으면 재실행 시 깨질 수 있다 —
+-- ON CONFLICT 의 추론 대상은 (provider, provider_user_id) 인데, 그 행이 탈퇴 처리로
+-- provider_user_id 가 'deleted:<id>' 로 바뀌어 있으면(docs/ddl/users.sql 이 실제로 하는 일)
+-- 충돌이 감지되지 않고 대신 users_pkey 중복으로 죽는다. ON_ERROR_STOP=1 이면 파일 전체가 중단된다.
+-- 실제 id 는 아래 RETURNING 으로 받는다.
 INSERT INTO users (id, provider, provider_user_id, email, display_name, profile_image_url,
                    status, last_login_at, created_at, updated_at)
-VALUES ('00000000-0000-4000-8000-000000000001',
+VALUES (gen_random_uuid(),
         'google',
         'postman-test-account',
         'postman-test@yeolo.invalid',
@@ -57,8 +60,7 @@ WHERE provider = 'google'
 -- 코스·성향 프로필·동의 이력 등 이 계정이 만든 데이터가 FK 없이 user_id 로만 묶여 있으므로,
 -- 계정만 지우면 고아 데이터가 남는다. 계정을 정리할 때는 파생 데이터부터 지운다.
 --
--- 계정 id 가 고정 UUID 라 재삽입 시 같은 값으로 돌아온다. 아래를 빠뜨리면 남은 행이 새로 만든
--- 계정에 그대로 다시 붙는다(특히 공유 테이블 둘은 FK 가 없어 아무 오류도 나지 않는다).
+-- 아래를 빠뜨리면 파생 행이 고아로 남는다(특히 공유 테이블 둘은 FK 가 없어 아무 오류도 나지 않는다).
 -- DELETE FROM course_accesses         WHERE user_id    = '<userId>';
 -- DELETE FROM course_share_links      WHERE inviter_id = '<userId>';
 -- DELETE FROM photo_analysis_consents WHERE user_id = '<userId>';

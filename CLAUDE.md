@@ -112,9 +112,10 @@ git submodule update --remote specs   # 최신 명세로 갱신 후, 커밋으�
     "Postman에 왜 없지?"가 된다. 새 변수가 필요하면(예: `shareToken`) 컬렉션 변수에도 추가한다.
   - **prod 컬렉션의 파괴적 요청(회원탈퇴·코스 삭제)은 `allowDestructive` 가드로 기본 차단**돼 있다.
     생성기가 pre-request 스크립트를 넣으므로 손으로 지우지 않는다 — 실사용자 데이터가 걸려 있다.
-    차단의 실체는 **`throw`** 다. `pm.execution.skipRequest()` 는 Collection Runner·CLI 에서만
-    듣고 **개별 Send 에는 효력이 없어**, 그걸로만 막으면 이 컬렉션의 실제 사용 경로(수동 Send)에서
-    DELETE 가 그대로 나간다. 순서를 바꾸거나 throw 를 없애지 않는다.
+    가드는 **세 겹**이다 — 요청 URL 을 도달 불가 주소로 교체, `skipRequest()`(러너 전용),
+    `throw`. `skipRequest()` 는 개별 Send 에 효력이 없고 `throw` 도 Postman 버전에 따라 전송을
+    막지 못할 수 있어, **실제 최후 방어선은 URL 교체**다. 한 겹이라도 빼지 않는다 — 틀렸을 때
+    대가가 실사용자 계정 삭제다.
   - **prod 전용 값은 생성물이 아니라 `PROD_OVERRIDES`(생성기)에 적는다.** 생성된 JSON 을 손으로
     고치면 다음 릴리스 재생성에서 조용히 되돌아가고, diff 에도 원인이 남지 않는다.
   - **이 파일이 `git ls-files docs/postman/` 에 잡히는지 확인한다.** `.gitignore` 의 `docs` 때문에

@@ -42,11 +42,19 @@ GUARD = [
     "// 정말 실행하려면 컬렉션 변수 allowDestructive 를 yes 로 바꾸고, 끝나면 되돌린다.",
     "if (String(pm.collectionVariables.get('allowDestructive')).toLowerCase() !== 'yes') {",
     "    const msg = 'prod 파괴적 요청 차단됨 — allowDestructive=yes 로 바꾸면 실행됩니다.';",
-    "    // 러너에서는 이걸로 '건너뜀'으로 깔끔히 표시되고, 개별 Send 에서는 아무 효과가 없다.",
+    "    // 세 겹으로 막는다. 틀렸을 때 대가가 '실사용자 계정 삭제'라 한 겹으로는 부족하다.",
+    "    // (1) 목적지를 도달 불가 주소로 바꾼다. 스크립트 중단이 전송을 못 막는 Postman",
+    "    //     버전에서도 요청이 prod 에 닿지 않게 하는 마지막 방어선이다. Url 객체를 새로",
+    "    //     만들지 않고 필드만 갈아끼운다 — require('postman-collection') 없이 동작한다.",
+    "    pm.request.url.protocol = 'http';",
+    "    pm.request.url.host = ['blocked', 'invalid'];",
+    "    pm.request.url.path = ['prod-destructive-request-blocked'];",
+    "    pm.request.url.query && pm.request.url.query.clear && pm.request.url.query.clear();",
+    "    // (2) 러너·CLI 에서는 '건너뜀'으로 깔끔히 표시된다(개별 Send 에는 효력이 없다).",
     "    if (pm.execution && typeof pm.execution.skipRequest === 'function') {",
     "        pm.execution.skipRequest();",
     "    }",
-    "    // 개별 Send 를 실제로 막는 것은 이 throw 다. 어떤 경로에서도 요청이 나가지 않는다.",
+    "    // (3) 스크립트를 중단해 사용자에게 이유를 빨간 글씨로 보여준다.",
     "    throw new Error(msg);",
     "}",
 ]
@@ -123,6 +131,14 @@ def main():
                           'shareToken', 'shareUrl', 'googleAuthCode', 'appleAuthCode',
                           'appleIdToken', 'internalApiKey', 'jwtSecret'):
             v['value'] = ''                          # 세션값·시크릿은 비운 채로 커밋
+    # dev 컬렉션에 없는 키를 PROD_OVERRIDES 에 적으면 위 루프가 못 만나 조용히 사라진다.
+    # "적었는데 반영이 안 된다"를 성공 메시지와 함께 흘려보내지 않도록 여기서 끊는다.
+    unknown = sorted(set(PROD_OVERRIDES) - seen)
+    if unknown:
+        raise SystemExit(
+            f"PROD_OVERRIDES 에 dev 컬렉션에 없는 키가 있다: {unknown}\n"
+            "  dev 컬렉션에 먼저 변수를 추가하거나, 오타를 고친다.")
+
     if 'allowDestructive' not in seen:
         col.setdefault('variable', []).append(
             {'key': 'allowDestructive', 'value': 'no', 'type': 'string'})
