@@ -1,7 +1,8 @@
 -- TSK-38 (#48) 장소 상세 조회 — dev/prod 배포 전 선적용 DDL
--- dev·prod는 ddl-auto=validate이므로, 이 테이블이 없으면 파드 기동이 실패한다.
+-- dev(ddl-auto=update)는 배포 시 Hibernate가 이 테이블을 자동 생성하므로 수동 적용이 필요 없다.
+-- prod(ddl-auto=validate)는 자동 생성하지 않으므로, 배포 전에 직접 적용해야 파드가 기동한다.
 -- 접근: SSM으로 bastion 경유 (Yeolo-Infra docs/dev-environment.md 참고)
-CREATE TABLE places (
+CREATE TABLE IF NOT EXISTS places (
     id                UUID                     NOT NULL,
     provider_place_id VARCHAR(255)             NOT NULL UNIQUE,
     place_name        TEXT                     NOT NULL,

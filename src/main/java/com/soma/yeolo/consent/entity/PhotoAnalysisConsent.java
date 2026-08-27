@@ -27,8 +27,13 @@ import lombok.NoArgsConstructor;
 @Getter
 @Entity
 @Table(name = "photo_analysis_consents", indexes = {
-        @Index(name = "idx_photo_analysis_consents_user_id_agreed_at",
-                columnList = "user_id, agreed_at DESC")
+        // 최신 동의 조회(findTopByUserIdOrderByAgreedAtDescCreatedAtDesc)의 ORDER BY와 같은 순서로
+        // 둔다. created_at 을 빼면 agreed_at 이 같은 행들이 남아 정렬 단계가 다시 붙는다.
+        // 이름을 옛 2컬럼 인덱스(…_user_id_agreed_at)와 다르게 둔 것은 의도다 — ddl-auto=update는
+        // 이름으로만 대조해 같은 이름이면 컬럼 구성이 달라도 손대지 않으므로, 이름을 바꿔야
+        // dev에 새 인덱스가 실제로 생긴다. 옛 인덱스 정리는 docs/ddl/photo_analysis_consents.sql.
+        @Index(name = "idx_photo_analysis_consents_latest",
+                columnList = "user_id, agreed_at DESC, created_at DESC")
 })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PhotoAnalysisConsent extends BaseTimeEntity {

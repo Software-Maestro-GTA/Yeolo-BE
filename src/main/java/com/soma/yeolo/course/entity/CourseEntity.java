@@ -10,6 +10,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.util.List;
@@ -25,7 +26,11 @@ import lombok.NoArgsConstructor;
  */
 @Getter
 @Entity
-@Table(name = "courses")
+@Table(name = "courses", indexes = {
+        // 사용자별 코스 조회 전부(목록 API-COURSE-3, 로그인 recentCourseId, existsByUserId)가
+        // user_id 필터 + created_at DESC 정렬이다. 행이 itinerary JSON으로 넓어 seq scan이 비싸다.
+        @Index(name = "idx_courses_user_id_created_at", columnList = "user_id, created_at DESC")
+})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CourseEntity extends BaseTimeEntity {
 

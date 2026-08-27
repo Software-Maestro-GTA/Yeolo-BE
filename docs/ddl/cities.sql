@@ -1,9 +1,10 @@
 -- TSK-32 (#46) 도시 자동완성 (API-LOC-2) — dev/prod 배포 전 선적용 DDL
--- dev·prod는 ddl-auto=validate이므로, 이 테이블이 없으면 파드 기동이 실패한다.
+-- dev(ddl-auto=update)는 배포 시 Hibernate가 이 테이블을 자동 생성하므로 수동 적용이 필요 없다.
+-- prod(ddl-auto=validate)는 자동 생성하지 않으므로, 배포 전에 직접 적용해야 파드가 기동한다.
 -- 접근: SSM으로 bastion 경유 (Yeolo-Infra docs/dev-environment.md 참고)
 --
 -- countries 와 함께 만든다(docs/ddl/countries.sql). 데이터는 앱이 기동 시 적재한다.
-CREATE TABLE cities (
+CREATE TABLE IF NOT EXISTS cities (
     city_id         VARCHAR(32) NOT NULL,  -- GeoNames geonameid
     name_ko         TEXT        NOT NULL,  -- 표시용 도시명. 한국어 이름이 없으면 원문(라틴) 표기
     search_name     TEXT        NOT NULL,  -- 부분 일치 검색 키(소문자·구분자 제거)
@@ -19,7 +20,11 @@ CREATE TABLE cities (
 
 -- 인덱스 전략은 countries.sql 주석과 같다 — 초성만 인덱스를 두고, PostgreSQL에서 LIKE 'ㄷ%'가
 -- 실제로 인덱스를 타도록 text_pattern_ops opclass로 만든다.
-CREATE INDEX idx_cities_search_chosung ON cities (search_chosung text_pattern_ops);
+-- 앱이 먼저 부팅한 환경에는 ddl-auto가 같은 이름의 평범한 btree를 이미 만들어 두었고,
+-- IF NOT EXISTS는 이름으로만 대조하므로 그대로면 opclass 인덱스 생성이 조용히 무시된다.
+-- 그래서 먼저 지운다(새 환경에서는 no-op).
+DROP INDEX IF EXISTS idx_cities_search_chosung;
+CREATE INDEX IF NOT EXISTS idx_cities_search_chosung ON cities (search_chosung text_pattern_ops);
 
 -- search_name 은 부분 일치라 인덱스를 두지 않는다(순차 스캔). 3만 건대에서 실측 1~2ms 수준이며,
 -- 자동완성 디바운스 안에 들어간다. 데이터가 더 커지면 pg_trgm GIN 인덱스를 검토한다.
