@@ -2,6 +2,8 @@ package com.soma.yeolo.tasteprofile.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.soma.yeolo.global.client.IntervalRateLimiter;
+import com.soma.yeolo.global.client.NominatimProperties;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.tasteprofile.domain.GeoLocation;
@@ -43,20 +45,26 @@ public class OsmReverseGeocodeClient implements ReverseGeocodeClient {
 
     /** 429 응답에 대한 최대 재시도 횟수(레이트리밋으로도 새는 순간적 초과에 대한 안전망). */
     private static final int MAX_RETRIES = 2;
+    /** {@code Retry-After}가 없을 때 쓰는 기본 백오프(ms). */
+    private static final long DEFAULT_BACKOFF_MS = 1000L;
     /** 캐시 키의 좌표 정밀도: 소수 4자리(약 11m) 단위로 뭉쳐 같은 장소의 재조회를 흡수한다. */
     private static final double COORD_SCALE = 10_000.0;
 
     private final RestClient restClient;
     private final OsmGeocodeProperties properties;
+    private final String userAgent;
     private final IntervalRateLimiter rateLimiter;
     /** 좌표(반올림)→위치 결과 LRU 캐시. 동시 접근을 위해 동기화 래핑한다. */
     private final Map<String, GeoLocation> cache;
 
     public OsmReverseGeocodeClient(@Qualifier("restClient") RestClient restClient,
-                                   OsmGeocodeProperties properties) {
+                                   OsmGeocodeProperties properties,
+                                   NominatimProperties nominatimProperties,
+                                   IntervalRateLimiter nominatimRateLimiter) {
         this.restClient = restClient;
         this.properties = properties;
-        this.rateLimiter = new IntervalRateLimiter(properties.minIntervalMs());
+        this.userAgent = nominatimProperties.userAgent();
+        this.rateLimiter = nominatimRateLimiter;
         this.cache = newLruCache(properties.cacheMaxSize());
     }
 
@@ -89,14 +97,14 @@ public class OsmReverseGeocodeClient implements ReverseGeocodeClient {
             try {
                 String body = restClient.get()
                         .uri(uri)
-                        .header(HttpHeaders.USER_AGENT, properties.userAgent())
+                        .header(HttpHeaders.USER_AGENT, userAgent)
                         .retrieve()
                         .body(String.class);
                 return parse(body);
             } catch (RestClientResponseException e) {
                 if (e.getStatusCode().value() == HttpStatus.TOO_MANY_REQUESTS.value() && attempt < MAX_RETRIES) {
                     attempt++;
-                    long backoffMs = retryAfterMillis(e).orElse(properties.minIntervalMs());
+                    long backoffMs = retryAfterMillis(e).orElse(DEFAULT_BACKOFF_MS);
                     log.warn("Nominatim 429 - {}번째 재시도까지 {}ms 대기", attempt, backoffMs);
                     sleep(backoffMs);
                     continue;

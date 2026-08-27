@@ -31,6 +31,8 @@ public class CourseAssembler {
                 requireText(course, "title"),
                 requireText(course, "destinationCountry"),
                 requireText(course, "destinationCity"),
+                // 대표 이미지는 없어도 코스는 성립한다(AI가 못 고를 수 있다) — 없으면 null.
+                text(course, "coverImageUrl"),
                 parseDate(requireText(course, "startDate")),
                 intValue(course, "totalDays"),
                 stringList(course, "tags"),

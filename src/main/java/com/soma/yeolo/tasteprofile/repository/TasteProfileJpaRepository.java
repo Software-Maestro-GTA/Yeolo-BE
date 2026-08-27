@@ -11,9 +11,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
  */
 public interface TasteProfileJpaRepository extends JpaRepository<TasteProfileEntity, UUID> {
 
-    /** 사용자의 최신 성향 프로필(갱신 시각 내림차순 첫 건)을 조회한다. (API-FB-8) */
+    /** 사용자의 최신 성향 프로필(갱신 시각 내림차순 첫 건)을 조회한다. (API-PREF-4) */
     Optional<TasteProfileEntity> findFirstByUserIdOrderByUpdatedAtDesc(UUID userId);
 
     /** 사용자가 저장한 성향 프로필 존재 여부. (온보딩 완료 판정) */
     boolean existsByUserId(UUID userId);
+
+    /** 사용자의 성향 프로필을 모두 삭제한다. (회원탈퇴 파기, API-USER-2) */
+    void deleteByUserId(UUID userId);
 }

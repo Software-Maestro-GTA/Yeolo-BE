@@ -30,6 +30,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final WithdrawnUserChecker withdrawnUserChecker;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -37,13 +38,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = resolveToken(request);
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
-                UUID userId = jwtTokenProvider.parseUserId(token);
+                UUID userId = jwtTokenProvider.parseAccessTokenUserId(token);
+                // 탈퇴자는 토큰이 아직 안 만료됐어도 인증하지 않는다 — 탈퇴 시 Refresh만 지워서는
+                // Access 수명(기본 1시간)만큼 계속 API를 쓸 수 있는 창이 남는다. (API-USER-2)
+                if (withdrawnUserChecker.isWithdrawn(userId)) {
+                    log.debug("Withdrawn user rejected: {}", userId);
+                    filterChain.doFilter(request, response);
+                    return;
+                }
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(userId, null, List.of());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (Exception e) {
-                // 서명/만료/형식 오류 → 미인증 상태로 진행. 인가 실패는 EntryPoint가 401로 응답.
+                // 서명/만료/형식 오류, 그리고 Access 아닌 토큰(Refresh 등) → 미인증 상태로 진행.
+                // 인가 실패는 EntryPoint가 401로 응답.
                 log.debug("Invalid JWT: {}", e.getMessage());
             }
         }

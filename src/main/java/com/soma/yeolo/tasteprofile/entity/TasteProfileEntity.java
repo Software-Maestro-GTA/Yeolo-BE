@@ -1,6 +1,7 @@
 package com.soma.yeolo.tasteprofile.entity;
 
 import com.soma.yeolo.global.entity.BaseTimeEntity;
+import com.soma.yeolo.global.entity.StringListJsonConverter;
 import com.soma.yeolo.tasteprofile.domain.SavedTasteProfile;
 import com.soma.yeolo.tasteprofile.domain.SourceType;
 import com.soma.yeolo.tasteprofile.domain.TasteProfile;

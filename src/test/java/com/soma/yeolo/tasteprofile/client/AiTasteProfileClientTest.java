@@ -24,7 +24,7 @@ import org.springframework.web.client.RestClient;
 
 class AiTasteProfileClientTest {
 
-    private static final String URL = "http://ai/internal/ai/taste-profile/behavior";
+    private static final String URL = "http://ai/internal/ai/taste-profile/analysis";
 
     private MockRestServiceServer server;
     private AiTasteProfileClient client;

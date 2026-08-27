@@ -15,17 +15,17 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
- * AI 성향 분석 내부 API(API-BA-6) 호출 어댑터. 전처리 메타데이터를 SSE로 전송받는 AI 서버에
+ * AI 취향 분석 내부 API(API-AI-1) 호출 어댑터. 전처리 메타데이터를 SSE로 전송받는 AI 서버에
  * POST하고, {@code complete} 이벤트의 {@code tasteProfile} 페이로드를 추출해 반환한다.
  *
  * <p>AI 호출 실패(연결/4xx/5xx)는 사용자에게 {@code AI_ANALYSIS_ERROR}(500)로 노출한다
- * (API-FB-2 §4: 500 — 서버 또는 AI 분석 오류). (docs/architecture.md §5)
+ * (API-PREF-3 §3: 500 — 서버 또는 AI 분석 오류). (docs/architecture.md §5)
  */
 @Slf4j
 @Component
 public class AiTasteProfileClient {
 
-    private static final String BEHAVIOR_PATH = "/internal/ai/taste-profile/behavior";
+    private static final String ANALYSIS_PATH = "/internal/ai/taste-profile/analysis";
     private static final String INTERNAL_API_KEY_HEADER = "X-Internal-Api-Key";
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -47,7 +47,7 @@ public class AiTasteProfileClient {
     public JsonNode analyzeBehavior(AiBehaviorAnalysisRequest request) {
         try {
             String stream = restClient.post()
-                    .uri(properties.baseUrl() + BEHAVIOR_PATH)
+                    .uri(properties.baseUrl() + ANALYSIS_PATH)
                     .header(INTERNAL_API_KEY_HEADER, properties.apiKey())
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.TEXT_EVENT_STREAM, MediaType.APPLICATION_JSON)

@@ -15,6 +15,12 @@ import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.sse.TestSseHeartbeat;
+import com.soma.yeolo.place.domain.Place;
+import com.soma.yeolo.place.domain.PlaceQuery;
+import com.soma.yeolo.place.domain.SavedPlace;
+import com.soma.yeolo.place.service.PlaceRegistry;
+import com.soma.yeolo.preference.domain.Mbti;
+import com.soma.yeolo.preference.service.UserMbtiReader;
 import com.soma.yeolo.tasteprofile.domain.SavedTasteProfile;
 import com.soma.yeolo.tasteprofile.domain.SourceType;
 import com.soma.yeolo.tasteprofile.domain.TasteProfile;
@@ -57,6 +63,11 @@ class CourseCreationServiceTest {
         public boolean existsByUserId(UUID userId) {
             return latest.isPresent();
         }
+
+        @Override
+        public void deleteByUserId(UUID userId) {
+            throw new UnsupportedOperationException("코스 생성 테스트에서는 성향 프로필 삭제를 사용하지 않는다.");
+        }
     }
 
     /** 코스 영속 포트 fake: 저장된 도메인을 기록하고 미리 정해둔 id를 돌려준다. */
@@ -76,8 +87,25 @@ class CourseCreationServiceTest {
         }
 
         @Override
+        public java.util.List<com.soma.yeolo.course.domain.SavedCourse> findAllByIdsLatestFirst(
+                java.util.Collection<UUID> courseIds) {
+            throw new UnsupportedOperationException("코스 생성 테스트에서는 조회를 사용하지 않는다.");
+        }
+
+        @Override
+        public java.util.Optional<UUID> findRecentCourseId(UUID userId,
+                                                           java.util.Collection<UUID> sharedCourseIds) {
+            throw new UnsupportedOperationException("코스 생성 테스트에서는 조회를 사용하지 않는다.");
+        }
+
+        @Override
         public java.util.Optional<com.soma.yeolo.course.domain.SavedCourse> findById(UUID courseId) {
             throw new UnsupportedOperationException("코스 생성 테스트에서는 조회를 사용하지 않는다.");
+        }
+
+        @Override
+        public void deleteById(UUID courseId) {
+            throw new UnsupportedOperationException("코스 생성 테스트에서는 삭제를 사용하지 않는다.");
         }
 
         @Override
@@ -90,9 +118,11 @@ class CourseCreationServiceTest {
     private static final class FakeAiCourseClient implements AiCourseClient {
         private JsonNode result;
         private BusinessException failure;
+        private AiCourseGenerationRequest lastRequest;
 
         @Override
         public JsonNode generateCourse(AiCourseGenerationRequest request) {
+            lastRequest = request;
             if (failure != null) {
                 throw failure;
             }
@@ -100,12 +130,40 @@ class CourseCreationServiceTest {
         }
     }
 
+    /** MBTI 조회 포트 fake: 미리 정해둔 값을 돌려준다(미입력이면 빈 값). */
+    private static final class FakeUserMbtiReader implements UserMbtiReader {
+        private Mbti mbti;
+
+        @Override
+        public Optional<Mbti> findMbti(UUID userId) {
+            return Optional.ofNullable(mbti);
+        }
+    }
+
     private final FakeTasteProfileRepository tasteProfiles = new FakeTasteProfileRepository();
     private final FakeCourseRepository courses = new FakeCourseRepository();
     private final FakeAiCourseClient aiClient = new FakeAiCourseClient();
+    private final FakeUserMbtiReader mbtiReader = new FakeUserMbtiReader();
+
+    /** 장소 정규화 fake: AI가 준 장소는 그대로 등록하고, 폴백 조회는 고정 좌표로 해결한다. */
+    private final PlaceRegistry placeRegistry = new PlaceRegistry() {
+        @Override
+        public SavedPlace register(Place place) {
+            return new SavedPlace(UUID.randomUUID(), place.placeName(), place.placeEngName(),
+                    place.category(), place.address(), place.latitude(), place.longitude(),
+                    place.rating(), place.photoUrl(), place.openingHours());
+        }
+
+        @Override
+        public Optional<SavedPlace> resolve(PlaceQuery query) {
+            return Optional.of(new SavedPlace(UUID.randomUUID(), query.placeName(), null,
+                    query.category(), "제주", 33.4581, 126.9425, null, null, List.of()));
+        }
+    };
 
     private CourseCreationService service() {
-        return new CourseCreationService(tasteProfiles, aiClient, new CourseAssembler(), courses,
+        return new CourseCreationService(mbtiReader, tasteProfiles, aiClient,
+                new ItineraryPlaceNormalizer(placeRegistry), new CourseAssembler(), courses,
                 TestSseHeartbeat.create());
     }
 
@@ -124,11 +182,17 @@ class CourseCreationServiceTest {
                   "title": "2박 3일 제주 힐링 코스",
                   "destinationCountry": "대한민국",
                   "destinationCity": "제주",
+                  "coverImageUrl": "https://cdn.example.com/cover.jpg",
                   "startDate": "2026-08-01",
                   "totalDays": 3,
                   "tags": ["힐링"],
                   "recommendationReason": "여유로운 일정",
-                  "itinerary": {"days": [{"day": 1, "stops": []}]}
+                  "itinerary": {"days": [{"day": 1, "stops": [
+                    {"sequence": 1, "cost": 5000,
+                     "place": {"placeId": "ChIJ_SEONGSAN", "placeName": "성산일출봉",
+                      "category": "nature", "latitude": 33.4581, "longitude": 126.9425},
+                     "transportToNext": {"type": "walking", "minutes": 10}}
+                  ]}]}
                 }
                 """);
     }
@@ -141,25 +205,108 @@ class CourseCreationServiceTest {
 
         service().createAndStream(userId, request(), emitter);
 
-        // LOADING_TASTE_PROFILE + GENERATING_COURSE + complete = send 3회, 정상 종료
+        // LOADING_TASTE_PREFERENCE + GENERATING_COURSE + complete = send 3회, 정상 종료
         verify(emitter, times(3)).send(any(SseEventBuilder.class));
         assertThat(courses.saved).hasSize(1);
         assertThat(courses.saved.getFirst().userId()).isEqualTo(userId);
         assertThat(courses.saved.getFirst().title()).isEqualTo("2박 3일 제주 힐링 코스");
+        assertThat(courses.saved.getFirst().coverImageUrl())
+                .isEqualTo("https://cdn.example.com/cover.jpg");
         verify(emitter).complete();
     }
 
+    /** 저장 전에 방문지가 내부 placeId·좌표로 정규화되어야 장소 상세(API-PLACE-1)로 이어진다. */
     @Test
-    void 성향_프로필이_없으면_error를_보내고_AI를_호출하지_않는다() throws Exception {
+    void 저장되는_코스의_방문지가_내부_장소로_정규화된다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        tasteProfiles.latest = Optional.of(savedProfile(userId));
+        aiClient.result = courseNode();
+
+        service().createAndStream(userId, request(), emitter);
+
+        JsonNode place = MAPPER.readTree(courses.saved.getFirst().itineraryJson())
+                .path("days").get(0).path("stops").get(0).path("place");
+        assertThat(UUID.fromString(place.path("placeId").asText())).isNotNull();
+        assertThat(place.path("latitude").asDouble()).isEqualTo(33.4581);
+        assertThat(place.path("longitude").asDouble()).isEqualTo(126.9425);
+    }
+
+    /**
+     * 저장은 {@code itinerary}를 원본 JSON으로 보존하므로, 명세 개정으로 AI가 새로 주는 필드
+     * (stop {@code cost}, API-AI-2)는 정규화를 거쳐도 그대로 남아 상세 조회로 이어져야 한다.
+     */
+    @Test
+    void 정규화_후에도_AI가_준_stop_비용이_보존된다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        tasteProfiles.latest = Optional.of(savedProfile(userId));
+        aiClient.result = courseNode();
+
+        service().createAndStream(userId, request(), emitter);
+
+        JsonNode stop = MAPPER.readTree(courses.saved.getFirst().itineraryJson())
+                .path("days").get(0).path("stops").get(0);
+        assertThat(stop.path("cost").asInt()).isEqualTo(5000);
+    }
+
+    /** DOM-3: MBTI·취향 분석 결과가 <b>둘 다</b> 없을 때만 생성할 수 없다. */
+    @Test
+    void MBTI와_성향_프로필이_모두_없으면_error를_보내고_AI를_호출하지_않는다() throws Exception {
         UUID userId = UUID.randomUUID();
         tasteProfiles.latest = Optional.empty();
+        mbtiReader.mbti = null;
 
         service().createAndStream(userId, request(), emitter);
 
         // LOADING progress(1) + error(1) = send 2회
         verify(emitter, times(2)).send(any(SseEventBuilder.class));
+        assertThat(aiClient.lastRequest).isNull();
         assertThat(courses.saved).isEmpty();
         verify(emitter).complete();
+    }
+
+    /** 인수 기준: 저장된 MBTI가 내부 AI 코스 생성 요청에 포함된다. */
+    @Test
+    void 저장된_MBTI가_AI_요청에_실린다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        tasteProfiles.latest = Optional.of(savedProfile(userId));
+        mbtiReader.mbti = Mbti.ENFP;
+        aiClient.result = courseNode();
+
+        service().createAndStream(userId, request(), emitter);
+
+        assertThat(aiClient.lastRequest.mbti()).isEqualTo("ENFP");
+        assertThat(aiClient.lastRequest.tasteProfile()).isNotNull();
+    }
+
+    /** DOM-3: 둘 중 하나만 있어도 생성한다 — 취향 분석 없이 MBTI만 입력한 사용자(FUN-8 경로). */
+    @Test
+    void 성향_프로필이_없어도_MBTI가_있으면_코스를_생성한다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        tasteProfiles.latest = Optional.empty();
+        mbtiReader.mbti = Mbti.INTJ;
+        aiClient.result = courseNode();
+
+        service().createAndStream(userId, request(), emitter);
+
+        assertThat(aiClient.lastRequest.mbti()).isEqualTo("INTJ");
+        assertThat(aiClient.lastRequest.tasteProfile()).isNull();
+        assertThat(courses.saved).hasSize(1);
+        verify(emitter).complete();
+    }
+
+    /** MBTI 미입력 사용자는 기존처럼 취향 분석 결과만으로 생성한다 — mbti는 명세대로 null. */
+    @Test
+    void MBTI가_없으면_AI_요청의_mbti는_null이다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        tasteProfiles.latest = Optional.of(savedProfile(userId));
+        mbtiReader.mbti = null;
+        aiClient.result = courseNode();
+
+        service().createAndStream(userId, request(), emitter);
+
+        assertThat(aiClient.lastRequest.mbti()).isNull();
+        assertThat(aiClient.lastRequest.tasteProfile()).isNotNull();
+        assertThat(courses.saved).hasSize(1);
     }
 
     @Test

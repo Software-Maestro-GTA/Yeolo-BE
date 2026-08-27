@@ -4,10 +4,13 @@ import com.soma.yeolo.course.domain.Course;
 import com.soma.yeolo.course.domain.SavedCourse;
 import com.soma.yeolo.course.entity.CourseEntity;
 import com.soma.yeolo.course.service.port.CourseRepository;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 /**
@@ -34,8 +37,32 @@ class CourseRepositoryImpl implements CourseRepository {
     }
 
     @Override
+    public List<SavedCourse> findAllByIdsLatestFirst(Collection<UUID> courseIds) {
+        if (courseIds.isEmpty()) {
+            return List.of();
+        }
+        return jpaRepository.findByIdInOrderByCreatedAtDesc(courseIds).stream()
+                .map(CourseEntity::toSavedCourse)
+                .toList();
+    }
+
+    @Override
+    public Optional<UUID> findRecentCourseId(UUID userId, Collection<UUID> sharedCourseIds) {
+        Pageable latestOne = PageRequest.of(0, 1);
+        List<UUID> found = sharedCourseIds.isEmpty()
+                ? jpaRepository.findIdsByUserIdLatestFirst(userId, latestOne)
+                : jpaRepository.findAccessibleIdsLatestFirst(userId, sharedCourseIds, latestOne);
+        return found.stream().findFirst();
+    }
+
+    @Override
     public Optional<SavedCourse> findById(UUID courseId) {
         return jpaRepository.findById(courseId).map(CourseEntity::toSavedCourse);
+    }
+
+    @Override
+    public void deleteById(UUID courseId) {
+        jpaRepository.deleteById(courseId);
     }
 
     @Override

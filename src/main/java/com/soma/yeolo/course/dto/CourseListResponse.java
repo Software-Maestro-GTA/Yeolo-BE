@@ -6,7 +6,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * 이전 생성 코스 목록 조회 응답의 {@code data} 페이로드 (API-FB-10). 상세(itinerary)를 제외한
+ * 이전 생성 코스 목록 조회 응답의 {@code data} 페이로드 (API-COURSE-3). 상세(itinerary)를 제외한
  * 요약 메타데이터만 최신순으로 담는다.
  */
 public record CourseListResponse(List<CourseSummary> courses) {
@@ -17,6 +17,7 @@ public record CourseListResponse(List<CourseSummary> courses) {
             String title,
             String destinationCountry,
             String destinationCity,
+            String coverImageUrl,
             LocalDate startDate,
             int totalDays,
             List<String> tags,
@@ -30,6 +31,7 @@ public record CourseListResponse(List<CourseSummary> courses) {
                     course.title(),
                     course.destinationCountry(),
                     course.destinationCity(),
+                    course.coverImageUrl(),
                     course.startDate(),
                     course.totalDays(),
                     course.tags(),

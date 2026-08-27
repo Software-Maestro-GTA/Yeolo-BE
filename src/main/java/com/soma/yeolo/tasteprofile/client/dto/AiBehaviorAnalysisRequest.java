@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * BE → AI 전처리 메타데이터 기반 성향 분석 요청 (API-BA-6 Request Body).
+ * BE → AI 전처리 메타데이터 기반 취향 분석 요청 (API-AI-1 Request Body).
  * 전송 스키마의 필드명(location/timeContext 등)을 명세 그대로 사용한다.
  */
 public record AiBehaviorAnalysisRequest(

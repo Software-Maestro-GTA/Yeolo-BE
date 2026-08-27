@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -16,17 +18,21 @@ import com.soma.yeolo.auth.dto.AppleLoginRequest;
 import com.soma.yeolo.auth.dto.AppleLoginResponse;
 import com.soma.yeolo.auth.dto.GoogleLoginRequest;
 import com.soma.yeolo.auth.dto.GoogleLoginResponse;
-import com.soma.yeolo.course.service.port.CourseRepository;
+import com.soma.yeolo.auth.dto.TokenRefreshResponse;
+import com.soma.yeolo.course.service.RecentCourseReader;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.security.JwtTokenProvider;
 import com.soma.yeolo.global.security.JwtTokenProvider.GeneratedToken;
+import com.soma.yeolo.preference.domain.Mbti;
+import com.soma.yeolo.preference.service.UserMbtiReader;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
 import com.soma.yeolo.user.domain.Provider;
 import com.soma.yeolo.user.entity.User;
 import com.soma.yeolo.user.service.OAuthUserInfo;
 import com.soma.yeolo.user.service.UserService;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,15 +55,17 @@ class AuthServiceTest {
     @Mock
     private RefreshTokenService refreshTokenService;
     @Mock
+    private UserMbtiReader userMbtiReader;
+    @Mock
     private TasteProfileRepository tasteProfileRepository;
     @Mock
-    private CourseRepository courseRepository;
+    private RecentCourseReader recentCourseReader;
 
     @InjectMocks
     private AuthService authService;
 
-    /** 구글 인증 성공 흐름을 스텁한다. onboarding 신호(취향/코스 보유 여부)는 인자로 제어한다. */
-    private User stubGoogleLoginSuccess(UUID userId, boolean hasTasteProfile, boolean hasCourse) {
+    /** 구글 인증 성공 흐름을 스텁한다. onboarding 신호(MBTI/취향 프로필 보유 여부)는 인자로 제어한다. */
+    private User stubGoogleLoginSuccess(UUID userId, boolean hasMbti, boolean hasTasteProfile) {
         User user = User.createOAuthUser(Provider.GOOGLE, "sub-1", "u@gmail.com", "홍길동", "http://img");
         ReflectionTestUtils.setField(user, "id", userId);
 
@@ -67,16 +75,37 @@ class AuthServiceTest {
         when(jwtTokenProvider.createAccessToken(userId)).thenReturn("access-token");
         when(jwtTokenProvider.createRefreshToken(userId))
                 .thenReturn(new GeneratedToken("refresh-token", Instant.now().plusSeconds(1000)));
-        when(tasteProfileRepository.existsByUserId(userId)).thenReturn(hasTasteProfile);
-        // 코스 조회는 취향 프로필이 있을 때만 도달한다(doOnboarding의 && 단락 평가).
-        if (hasTasteProfile) {
-            when(courseRepository.existsByUserId(userId)).thenReturn(hasCourse);
+        when(userMbtiReader.findMbti(userId))
+                .thenReturn(hasMbti ? Optional.of(Mbti.ENFP) : Optional.empty());
+        // 취향 프로필 조회는 MBTI가 없을 때만 도달한다(doOnboarding의 && 단락 평가).
+        if (!hasMbti) {
+            when(tasteProfileRepository.existsByUserId(userId)).thenReturn(hasTasteProfile);
         }
+        lenient().when(recentCourseReader.findRecentCourseId(userId)).thenReturn(Optional.empty());
         return user;
     }
 
     private GoogleLoginResponse login() {
         return authService.loginWithGoogle(new GoogleLoginRequest("auth-code", "http://localhost/callback"));
+    }
+
+    /** 앱이 로그인 직후 열어 줄 코스 (API-AUTH-1 명세 개정). */
+    @Test
+    void 최근_코스가_있으면_recentCourseId로_내려준다() {
+        UUID userId = UUID.randomUUID();
+        UUID recentCourseId = UUID.randomUUID();
+        stubGoogleLoginSuccess(userId, true, false);
+        when(recentCourseReader.findRecentCourseId(userId)).thenReturn(Optional.of(recentCourseId));
+
+        assertThat(login().recentCourseId()).isEqualTo(recentCourseId.toString());
+    }
+
+    @Test
+    void 코스가_하나도_없으면_recentCourseId는_null이다() {
+        UUID userId = UUID.randomUUID();
+        stubGoogleLoginSuccess(userId, true, false);
+
+        assertThat(login().recentCourseId()).isNull();
     }
 
     @Test
@@ -100,7 +129,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void 취향프로필과_코스가_모두_없으면_doOnboarding은_true다() {
+    void MBTI도_취향프로필도_없으면_doOnboarding은_true다() {
         UUID userId = UUID.randomUUID();
         stubGoogleLoginSuccess(userId, false, false);
 
@@ -108,15 +137,27 @@ class AuthServiceTest {
     }
 
     @Test
-    void 취향프로필만_있고_코스가_없으면_doOnboarding은_true다() {
+    void MBTI만_입력했으면_doOnboarding은_false다() {
+        // REQ-2의 MBTI 경로로 온보딩을 마친 사용자. MBTI는 taste_profiles가 아니라
+        // user_preferences에 저장되므로, 취향 프로필만 보면 이 사용자가 영원히 온보딩으로 되돌아간다.
+        // 코스 보유 여부는 판정에 쓰지 않으므로, 코스를 한 번도 만들지 않았어도 false다.
         UUID userId = UUID.randomUUID();
         stubGoogleLoginSuccess(userId, true, false);
 
-        assertThat(login().doOnboarding()).isTrue();
+        assertThat(login().doOnboarding()).isFalse();
     }
 
     @Test
-    void 취향프로필과_코스를_모두_보유하면_doOnboarding은_false다() {
+    void 취향프로필만_있으면_doOnboarding은_false다() {
+        // REQ-2의 Skip → 사진 기반 취향 분석 경로로 온보딩을 마친 사용자.
+        UUID userId = UUID.randomUUID();
+        stubGoogleLoginSuccess(userId, false, true);
+
+        assertThat(login().doOnboarding()).isFalse();
+    }
+
+    @Test
+    void MBTI와_취향프로필을_모두_보유하면_doOnboarding은_false다() {
         UUID userId = UUID.randomUUID();
         stubGoogleLoginSuccess(userId, true, true);
 
@@ -134,7 +175,7 @@ class AuthServiceTest {
                 .isEqualTo(ErrorCode.GOOGLE_AUTH_FAILED);
 
         verifyNoInteractions(userService, jwtTokenProvider, refreshTokenService,
-                tasteProfileRepository, courseRepository);
+                userMbtiReader, tasteProfileRepository);
     }
 
     /** 애플 인증 성공 흐름을 스텁한다. emailVerified 신호는 인자로 제어한다. */
@@ -148,7 +189,9 @@ class AuthServiceTest {
         when(jwtTokenProvider.createAccessToken(userId)).thenReturn("access-token");
         when(jwtTokenProvider.createRefreshToken(userId))
                 .thenReturn(new GeneratedToken("refresh-token", Instant.now().plusSeconds(1000)));
+        when(userMbtiReader.findMbti(userId)).thenReturn(Optional.empty());
         when(tasteProfileRepository.existsByUserId(userId)).thenReturn(false);
+        lenient().when(recentCourseReader.findRecentCourseId(userId)).thenReturn(Optional.empty());
         return user;
     }
 
@@ -198,7 +241,7 @@ class AuthServiceTest {
                 .isEqualTo(ErrorCode.APPLE_AUTH_FAILED);
 
         verifyNoInteractions(userService, jwtTokenProvider, refreshTokenService,
-                tasteProfileRepository, courseRepository);
+                userMbtiReader, tasteProfileRepository);
     }
 
     @Test
@@ -208,5 +251,61 @@ class AuthServiceTest {
         authService.logout(userId);
 
         verify(refreshTokenService).revoke(eq(userId));
+    }
+
+    @Test
+    void 재발급은_토큰을_검증하고_Access와_Refresh를_함께_회전시킨다() {
+        UUID userId = UUID.randomUUID();
+        Instant expiresAt = Instant.now().plusSeconds(1209600);
+        when(jwtTokenProvider.parseRefreshTokenUserId("old-refresh")).thenReturn(userId);
+        when(refreshTokenService.matches(userId, "old-refresh")).thenReturn(true);
+        when(jwtTokenProvider.createAccessToken(userId)).thenReturn("new-access");
+        when(jwtTokenProvider.createRefreshToken(userId))
+                .thenReturn(new GeneratedToken("new-refresh", expiresAt));
+
+        TokenRefreshResponse response = authService.refresh("old-refresh");
+
+        assertThat(response.accessToken()).isEqualTo("new-access");
+        assertThat(response.refreshToken()).isEqualTo("new-refresh");
+        // 새 토큰을 저장해야 방금 쓴 토큰이 무효가 된다(재사용 차단).
+        verify(refreshTokenService).issue(userId, "new-refresh", expiresAt);
+    }
+
+    @Test
+    void 재발급_토큰이_없으면_401로_처리하고_토큰을_발급하지_않는다() {
+        assertThatThrownBy(() -> authService.refresh(null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_REFRESH_TOKEN);
+
+        verifyNoInteractions(jwtTokenProvider, refreshTokenService);
+    }
+
+    @Test
+    void 서명이_깨진_재발급_토큰은_401로_처리한다() {
+        when(jwtTokenProvider.parseRefreshTokenUserId("broken"))
+                .thenThrow(new IllegalArgumentException("bad token"));
+
+        assertThatThrownBy(() -> authService.refresh("broken"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_REFRESH_TOKEN);
+
+        verifyNoInteractions(refreshTokenService);
+    }
+
+    @Test
+    void 무효화됐거나_이미_회전된_재발급_토큰은_401로_처리한다() {
+        UUID userId = UUID.randomUUID();
+        when(jwtTokenProvider.parseRefreshTokenUserId("stale")).thenReturn(userId);
+        // 서명·만료는 멀쩡해도 저장된 토큰과 다르면(로그아웃·탈퇴·회전) 살아 있는 세션이 아니다.
+        when(refreshTokenService.matches(userId, "stale")).thenReturn(false);
+
+        assertThatThrownBy(() -> authService.refresh("stale"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_REFRESH_TOKEN);
+
+        verify(jwtTokenProvider, never()).createAccessToken(userId);
     }
 }

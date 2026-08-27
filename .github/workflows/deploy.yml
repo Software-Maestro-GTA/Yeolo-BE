@@ -163,6 +163,31 @@ jobs:
           AI_COURSE_PROVIDER: ${{ vars.AI_COURSE_PROVIDER }}
           GEOCODE_PROVIDER: ${{ vars.GEOCODE_PROVIDER }}
           GEOCODE_OSM_USER_AGENT: ${{ vars.GEOCODE_OSM_USER_AGENT }}
+          # 좌표 주변 POI 보강(Places API (New) Nearby Search) 엔드포인트.
+          # 비워두면 앱이 호출을 건너뛰고 Geocoding 결과로 채운다 — 즉 '미설정=기능 꺼짐'이
+          # 정상이라 아래 required-vars 가드 대상이 아니다. 켜려면 Google 콘솔에서
+          # 'Places API (New)' 활성화 + GOOGLE_MAPS_API_KEY 의 API 제한 목록에 추가한 뒤
+          # variables 에 https://places.googleapis.com/v1/places:searchNearby 를 넣는다.
+          # (키에 그 API 가 안 열려 있으면 사진 한 장마다 403 왕복이 붙어 SSE 가 느려진다.)
+          GEOCODE_SEARCH_NEARBY_URL: ${{ vars.GEOCODE_SEARCH_NEARBY_URL }}
+          PLACE_PROVIDER: ${{ vars.PLACE_PROVIDER }}
+          PROFILE_IMAGE_PROVIDER: ${{ vars.PROFILE_IMAGE_PROVIDER }}
+          PROFILE_IMAGE_S3_BUCKET: ${{ vars.PROFILE_IMAGE_S3_BUCKET }}
+          PROFILE_IMAGE_S3_REGION: ${{ vars.PROFILE_IMAGE_S3_REGION }}
+          PROFILE_IMAGE_BASE_URL: ${{ vars.PROFILE_IMAGE_BASE_URL }}
+          # 공유 링크의 기준 주소(API-SHARE-1). FE 초대 페이지 경로와 **정확히 일치**해야 한다 —
+          # 현재 FE 라우트가 /invite/[shareToken] 이므로 값은 .../invite 로 끝난다. 어긋나면
+          # 발급된 링크가 전부 FE 404 로 떨어지는데, BE 응답은 200 이라 눌러 보기 전엔 모른다.
+          # 비우면 앱 기본값(https://yeolo.vercel.app/invite)을 쓰므로 required 가드 대상은 아니다.
+          # 커스텀 도메인으로 옮길 때 이 변수만 바꾸면 된다.
+          # ★ dev·prod 가 같은 FE 한 곳을 가리킨다. FE 는 한 번에 한 BE 만 보므로, FE 가 보지
+          #   않는 쪽 BE 가 발급한 링크는 토큰이 그 DB 에만 있어 상대편에서 404 가 된다. 값이
+          #   같아도 정상인 이유이며, dev 에서 끝까지 확인하려면 FE 의 API base 를 dev 로 돌려야
+          #   한다. FE 프리뷰 배포가 따로 생기면 그때 환경별로 값을 갈라 준다.
+          #   (docs/share-link-deeplink-plan.md §7)
+          SHARE_LINK_BASE_URL: ${{ vars.SHARE_LINK_BASE_URL }}
+          # 링크 수명(ISO-8601 Duration). 비우면 앱 기본값 P7D. 0 이하면 무기한(expiresAt: null).
+          SHARE_LINK_TTL: ${{ vars.SHARE_LINK_TTL }}
           JWT_ACCESS_TTL: ${{ vars.JWT_ACCESS_TTL }}
           JWT_REFRESH_TTL: ${{ vars.JWT_REFRESH_TTL }}
         run: |
@@ -173,7 +198,10 @@ jobs:
                    GOOGLE_MAPS_API_KEY \
                    APPLE_CLIENT_ID APPLE_TEAM_ID APPLE_KEY_ID APPLE_PRIVATE_KEY \
                    AI_BASE_URL INTERNAL_API_KEY AI_COURSE_PROVIDER \
-                   JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT; do
+                   JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT \
+                   GEOCODE_SEARCH_NEARBY_URL PLACE_PROVIDER \
+                   PROFILE_IMAGE_PROVIDER PROFILE_IMAGE_S3_BUCKET PROFILE_IMAGE_S3_REGION \
+                   PROFILE_IMAGE_BASE_URL SHARE_LINK_BASE_URL SHARE_LINK_TTL; do
             v="${!k}"
             [ -n "$v" ] && printf '%s=%s\n' "$k" "$v" >> was.env
           done
@@ -191,12 +219,18 @@ jobs:
             exit 1
           fi
           # 아래 variables 는 앱 기본값이 로컬 개발용이라 미설정 시 조용히 잘못 뜬다.
-          #   JPA_DDL_AUTO   앱 기본 update  → 운영 스키마 자동 변경(규약: dev·prod=validate)
+          #   JPA_DDL_AUTO   앱 기본 update  → 운영 스키마 자동 변경(규약: prod=validate)
           #   AI_BASE_URL    앱 기본 localhost:8000 → AI 호출 전부 실패
           #   GEOCODE_PROVIDER 앱 기본 stub → 지오코딩이 가짜 좌표/주소 반환
+          #   PROFILE_IMAGE_* 앱 기본 provider=stub → 프로필 이미지가 열리지 않는 합성 URL 로
+          #                    '저장'되고, 사용자가 다시 올리기 전까지 복구되지 않는다.
+          #                    s3 로 쓰려면 버킷·공개 base URL 이 함께 있어야 한다.
+          #   PLACE_PROVIDER   앱 기본 stub → 코스 장소가 가짜 좌표로 '저장'된다(지오코딩과
+          #                    달리 DB에 남고 재조회하지 않아 provider를 바꿔도 복구되지 않는다)
           # 워크플로가 기본값을 지어내는 대신, 없으면 배포를 끊는다.
           missing_vars=""
-          for req in JPA_DDL_AUTO AI_BASE_URL GEOCODE_PROVIDER; do
+          for req in JPA_DDL_AUTO AI_BASE_URL GEOCODE_PROVIDER PLACE_PROVIDER \
+                     PROFILE_IMAGE_PROVIDER PROFILE_IMAGE_S3_BUCKET PROFILE_IMAGE_BASE_URL; do
             grep -q "^${req}=" was.env || missing_vars="$missing_vars $req"
           done
           if [ -n "$missing_vars" ]; then
@@ -303,6 +337,31 @@ jobs:
           AI_COURSE_PROVIDER: ${{ vars.AI_COURSE_PROVIDER }}
           GEOCODE_PROVIDER: ${{ vars.GEOCODE_PROVIDER }}
           GEOCODE_OSM_USER_AGENT: ${{ vars.GEOCODE_OSM_USER_AGENT }}
+          # 좌표 주변 POI 보강(Places API (New) Nearby Search) 엔드포인트.
+          # 비워두면 앱이 호출을 건너뛰고 Geocoding 결과로 채운다 — 즉 '미설정=기능 꺼짐'이
+          # 정상이라 아래 required-vars 가드 대상이 아니다. 켜려면 Google 콘솔에서
+          # 'Places API (New)' 활성화 + GOOGLE_MAPS_API_KEY 의 API 제한 목록에 추가한 뒤
+          # variables 에 https://places.googleapis.com/v1/places:searchNearby 를 넣는다.
+          # (키에 그 API 가 안 열려 있으면 사진 한 장마다 403 왕복이 붙어 SSE 가 느려진다.)
+          GEOCODE_SEARCH_NEARBY_URL: ${{ vars.GEOCODE_SEARCH_NEARBY_URL }}
+          PLACE_PROVIDER: ${{ vars.PLACE_PROVIDER }}
+          PROFILE_IMAGE_PROVIDER: ${{ vars.PROFILE_IMAGE_PROVIDER }}
+          PROFILE_IMAGE_S3_BUCKET: ${{ vars.PROFILE_IMAGE_S3_BUCKET }}
+          PROFILE_IMAGE_S3_REGION: ${{ vars.PROFILE_IMAGE_S3_REGION }}
+          PROFILE_IMAGE_BASE_URL: ${{ vars.PROFILE_IMAGE_BASE_URL }}
+          # 공유 링크의 기준 주소(API-SHARE-1). FE 초대 페이지 경로와 **정확히 일치**해야 한다 —
+          # 현재 FE 라우트가 /invite/[shareToken] 이므로 값은 .../invite 로 끝난다. 어긋나면
+          # 발급된 링크가 전부 FE 404 로 떨어지는데, BE 응답은 200 이라 눌러 보기 전엔 모른다.
+          # 비우면 앱 기본값(https://yeolo.vercel.app/invite)을 쓰므로 required 가드 대상은 아니다.
+          # 커스텀 도메인으로 옮길 때 이 변수만 바꾸면 된다.
+          # ★ dev·prod 가 같은 FE 한 곳을 가리킨다. FE 는 한 번에 한 BE 만 보므로, FE 가 보지
+          #   않는 쪽 BE 가 발급한 링크는 토큰이 그 DB 에만 있어 상대편에서 404 가 된다. 값이
+          #   같아도 정상인 이유이며, dev 에서 끝까지 확인하려면 FE 의 API base 를 dev 로 돌려야
+          #   한다. FE 프리뷰 배포가 따로 생기면 그때 환경별로 값을 갈라 준다.
+          #   (docs/share-link-deeplink-plan.md §7)
+          SHARE_LINK_BASE_URL: ${{ vars.SHARE_LINK_BASE_URL }}
+          # 링크 수명(ISO-8601 Duration). 비우면 앱 기본값 P7D. 0 이하면 무기한(expiresAt: null).
+          SHARE_LINK_TTL: ${{ vars.SHARE_LINK_TTL }}
           JWT_ACCESS_TTL: ${{ vars.JWT_ACCESS_TTL }}
           JWT_REFRESH_TTL: ${{ vars.JWT_REFRESH_TTL }}
         run: |
@@ -313,7 +372,10 @@ jobs:
                    GOOGLE_MAPS_API_KEY \
                    APPLE_CLIENT_ID APPLE_TEAM_ID APPLE_KEY_ID APPLE_PRIVATE_KEY \
                    AI_BASE_URL INTERNAL_API_KEY AI_COURSE_PROVIDER \
-                   JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT; do
+                   JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT \
+                   GEOCODE_SEARCH_NEARBY_URL PLACE_PROVIDER \
+                   PROFILE_IMAGE_PROVIDER PROFILE_IMAGE_S3_BUCKET PROFILE_IMAGE_S3_REGION \
+                   PROFILE_IMAGE_BASE_URL SHARE_LINK_BASE_URL SHARE_LINK_TTL; do
             v="${!k}"
             [ -n "$v" ] && printf '%s=%s\n' "$k" "$v" >> was.env
           done
@@ -329,12 +391,18 @@ jobs:
             exit 1
           fi
           # 아래 variables 는 앱 기본값이 로컬 개발용이라 미설정 시 조용히 잘못 뜬다.
-          #   JPA_DDL_AUTO   앱 기본 update — dev 최초 부팅엔 update 가 맞지만, 명시적으로
-          #                  고른 값이어야 한다(스키마 생성 후 validate 로 되돌릴 것).
+          #   JPA_DDL_AUTO   앱 기본 update — dev 는 update 로 둔다(스키마가 자주 바뀌는 단계라
+          #                  배포마다 손으로 DDL 을 넣지 않는다). 그래도 명시적으로 고른 값이어야 한다.
           #   AI_BASE_URL    앱 기본 localhost:8000 → AI 호출 전부 실패
           #   GEOCODE_PROVIDER 앱 기본 stub → 지오코딩이 가짜 좌표/주소 반환
+          #   PROFILE_IMAGE_* 앱 기본 provider=stub → 프로필 이미지가 열리지 않는 합성 URL 로
+          #                    '저장'되고, 사용자가 다시 올리기 전까지 복구되지 않는다.
+          #                    s3 로 쓰려면 버킷·공개 base URL 이 함께 있어야 한다.
+          #   PLACE_PROVIDER   앱 기본 stub → 코스 장소가 가짜 좌표로 '저장'된다(지오코딩과
+          #                    달리 DB에 남고 재조회하지 않아 provider를 바꿔도 복구되지 않는다)
           missing_vars=""
-          for req in JPA_DDL_AUTO AI_BASE_URL GEOCODE_PROVIDER; do
+          for req in JPA_DDL_AUTO AI_BASE_URL GEOCODE_PROVIDER PLACE_PROVIDER \
+                     PROFILE_IMAGE_PROVIDER PROFILE_IMAGE_S3_BUCKET PROFILE_IMAGE_BASE_URL; do
             grep -q "^${req}=" was.env || missing_vars="$missing_vars $req"
           done
           if [ -n "$missing_vars" ]; then

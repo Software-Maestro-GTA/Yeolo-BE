@@ -1,4 +1,4 @@
-package com.soma.yeolo.tasteprofile.client;
+package com.soma.yeolo.global.client;
 
 /**
  * 연속 호출 사이에 최소 간격을 강제하는 단순 레이트 리미터.

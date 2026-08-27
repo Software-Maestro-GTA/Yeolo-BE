@@ -37,6 +37,11 @@ class MyTasteProfileServiceTest {
         public boolean existsByUserId(UUID userId) {
             return findLatestByUserId(userId).isPresent();
         }
+
+        @Override
+        public void deleteByUserId(UUID userId) {
+            stored = null;
+        }
     }
 
     private final FakeTasteProfileRepository repository = new FakeTasteProfileRepository();

@@ -36,4 +36,9 @@ class TasteProfileRepositoryImpl implements TasteProfileRepository {
     public boolean existsByUserId(UUID userId) {
         return jpaRepository.existsByUserId(userId);
     }
+
+    @Override
+    public void deleteByUserId(UUID userId) {
+        jpaRepository.deleteByUserId(userId);
+    }
 }

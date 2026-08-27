@@ -3,7 +3,9 @@ package com.soma.yeolo.course.controller;
 import com.soma.yeolo.course.dto.CourseCreationRequest;
 import com.soma.yeolo.course.service.CourseCreationService;
 import com.soma.yeolo.global.sse.SseEmitters;
+import com.soma.yeolo.global.sse.SseResponses;
 import com.soma.yeolo.global.sse.SseProperties;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +36,11 @@ public class CourseController {
      */
     @PostMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter createCourse(@AuthenticationPrincipal UUID userId,
-                                   @Valid @RequestBody CourseCreationRequest request) {
+                                   @Valid @RequestBody CourseCreationRequest request,
+                                   HttpServletResponse response) {
+        // 엣지가 스트림을 압축·버퍼링하지 못하게 한다. emitter를 만들기 전에 붙여야 한다.
+        SseResponses.applyStreamingHeaders(response);
+
         SseEmitter emitter = SseEmitters.create("course", sseProperties.streamTimeoutMs(), userId);
         sseTaskExecutor.execute(() -> courseCreationService.createAndStream(userId, request, emitter));
         return emitter;

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.soma.yeolo.global.response.ApiResponse;
 import java.lang.reflect.Method;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -11,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 class GlobalExceptionHandlerTest {
@@ -28,6 +30,25 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().status()).isEqualTo(404);
         assertThat(response.getBody().message()).isEqualTo("요청한 리소스를 찾을 수 없습니다.");
+        assertThat(response.getBody().data()).isNull();
+    }
+
+    /**
+     * 경로 변수의 타입 변환 실패는 catch-all에 걸리면 500이 된다. 잘못된 입력은 장애가 아니므로
+     * 명세의 400으로 내려가는지, 메시지가 어느 값이 문제인지 알려주는지 확인한다
+     * (API-PLACE-1: "잘못된 placeId").
+     */
+    @Test
+    void 경로_변수_형식_오류는_500이_아니라_400_봉투로_응답한다() {
+        MethodArgumentTypeMismatchException e = new MethodArgumentTypeMismatchException(
+                "not-a-uuid", UUID.class, "placeId", null, new IllegalArgumentException());
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleTypeMismatch(e);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().status()).isEqualTo(400);
+        assertThat(response.getBody().message()).isEqualTo("잘못된 placeId 입니다.");
         assertThat(response.getBody().data()).isNull();
     }
 

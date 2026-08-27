@@ -30,4 +30,10 @@ public interface TasteProfileRepository {
 
     /** 사용자가 저장한 성향 프로필이 하나라도 있는지 여부. (온보딩 완료 판정에 사용) */
     boolean existsByUserId(UUID userId);
+
+    /**
+     * 사용자의 성향 프로필을 모두 삭제한다. 없으면 무시(멱등). 회원탈퇴(API-USER-2)의 파기 경로.
+     * 재분석마다 새 행이 쌓이므로 최신본 하나가 아니라 전부를 지운다.
+     */
+    void deleteByUserId(UUID userId);
 }

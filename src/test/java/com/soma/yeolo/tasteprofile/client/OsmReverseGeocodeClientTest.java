@@ -10,6 +10,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import com.soma.yeolo.global.client.IntervalRateLimiter;
+import com.soma.yeolo.global.client.NominatimProperties;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.tasteprofile.domain.GeoLocation;
@@ -36,7 +38,9 @@ class OsmReverseGeocodeClientTest {
         server = MockRestServiceServer.bindTo(builder).build();
         // 테스트에서는 호출 간격(minIntervalMs)을 0으로 둬 레이트리밋 대기 없이 검증한다.
         client = new OsmReverseGeocodeClient(builder.build(),
-                new OsmGeocodeProperties(REVERSE_URL, USER_AGENT, 18, "ko", 0L, 4096));
+                new OsmGeocodeProperties(REVERSE_URL, 18, "ko", 4096),
+                new NominatimProperties(USER_AGENT, 0L),
+                new IntervalRateLimiter(0L));
     }
 
     @Test
