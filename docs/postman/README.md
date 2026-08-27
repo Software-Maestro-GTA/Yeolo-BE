@@ -1,22 +1,38 @@
 # Postman 컬렉션 — Yeolo BE
 
-dev 서버의 API를 손으로 찔러보기 위한 Postman 컬렉션입니다.
+서버의 API를 손으로 찔러보기 위한 Postman 컬렉션입니다. **dev용과 prod용 두 개**가 있습니다.
 
-> ## 두 가지 전제
+> ## 세 가지 전제
 >
-> **① 환경 파일 없이 컬렉션 하나로 씁니다.** 변수는 **컬렉션 변수**(Variables 탭)에 들어 있어
-> 임포트만 하면 바로 동작합니다. 환경(Environment)은 만들지 않습니다 — 파일이 둘로 나뉘면
-> 어느 쪽이 최신인지 관리해야 하기 때문입니다. **새 엔드포인트를 구현하면 이 컬렉션 파일에
-> 요청을 함께 추가**합니다.
+> **① 환경(Environment) 파일은 만들지 않습니다.** 변수는 **컬렉션 변수**(Variables 탭)에 들어 있어
+> 임포트만 하면 바로 동작합니다. 환경 파일은 애초에 요청을 담지 못해(`_postman_variable_scope`)
+> 컬렉션과 짝을 맞춰 관리해야 하는 부담만 늘립니다.
 >
-> **② 테스트 대상은 dev 서버 하나입니다.** `baseUrl`은 dev CloudFront를 가리키며 로컬
-> (`localhost:8080`)을 대상으로는 테스트하지 않습니다. 그래서 아래 2절(서버 띄우기)·6절(stub
-> provider)은 **평소에는 쓰지 않는 참고용**입니다.
+> **② 컬렉션은 환경별로 하나씩입니다.** `dev`와 `main`은 배포 시점이 달라 **API 계약이 서로 다를 수
+> 있습니다** — dev가 앞서 나간 기간에는 dev 컬렉션의 요청이 prod에 없습니다. 한 파일에 `baseUrl`만
+> 바꿔 쓰면 그 차이가 드러나지 않고 "prod에서 왜 404가 나지?"가 됩니다. 그래서 **파일을 나누되,
+> prod 파일은 dev 파일에서 생성**합니다(아래 10절) — 손으로 두 벌을 맞추지 않기 위해서입니다.
+>
+> **③ 대상은 배포된 서버입니다.** 로컬(`localhost:8080`)을 대상으로는 테스트하지 않습니다.
+> 그래서 아래 2절(서버 띄우기)·6절(stub provider)은 **평소에는 쓰지 않는 참고용**입니다.
 
 | 파일 | 용도 |
 | :--- | :--- |
-| `Yeolo-BE-Dev.postman_collection.json` | **유일한 Postman 파일.** 폴더 9개 / 요청 24개 + 컬렉션 변수 16개 |
-| `test-account.sql` | 테스트 계정 한 개를 넣는 SQL (로컬 DB용) |
+| `Yeolo-BE-Dev.postman_collection.json` | **dev 대상.** `baseUrl = https://api-dev.yeolo.app`. 여기가 원본이며, 새 엔드포인트는 이 파일에 추가합니다 |
+| `Yeolo-BE-Prod.postman_collection.json` | **prod 대상.** `baseUrl = https://api.yeolo.app`. dev 파일에서 **생성**되므로 직접 고치지 않습니다(10절) |
+| `make-prod-collection.py` | 위 prod 파일 생성기. 릴리스(dev→main) 때 돌립니다 |
+| `test-account.sql` | dev DB에 조회용 계정 행 하나를 넣는 SQL. 로그인 토큰은 나오지 않습니다(아래 주의) |
+
+> ## ⚠️ prod 컬렉션을 쓸 때
+>
+> **실사용자 데이터를 건드립니다.** 쓰기 API(프로필 수정·MBTI·동의 저장·코스 생성)는 즉시 영구
+> 반영됩니다. 파괴적 요청 둘(회원탈퇴·코스 삭제)은 prod 컬렉션에서 **기본 차단**돼 있습니다 —
+> 컬렉션 변수 `allowDestructive`가 `yes`가 아니면 pre-request 스크립트가 오류를 던져 요청이
+> 전송되지 않습니다(개별 Send·러너 모두). 정말 필요할 때만 `yes`로 바꾸고 **끝나면 반드시
+> `no`로 되돌리세요.**
+>
+> 가드는 실수를 막는 장치일 뿐 권한 통제가 아닙니다. 스크립트를 지우거나 `yes`로 둔 채 잊으면
+> 그대로 나갑니다.
 
 ### 시크릿은 파일에 넣지 않습니다
 
@@ -27,14 +43,18 @@ dev 서버의 API를 손으로 찔러보기 위한 Postman 컬렉션입니다.
 
 > `.gitignore` 에 `docs` 가 있어 이 파일을 커밋하려면 `git add -f` 가 필요합니다.
 
-> **Postman 파일은 이 하나로 유지합니다.** 로컬을 찔러야 할 일이 생기더라도 새 컬렉션이나 환경을
-> 만들지 말고 컬렉션 변수의 `baseUrl` 만 `http://localhost:8080` 으로 바꾸세요. 파일이 늘어나면
-> 어느 게 최신인지 알 수 없게 됩니다.
+> **파일은 위 표의 것들로 유지합니다.** 로컬을 찔러야 할 일이 생기더라도 새 컬렉션이나 환경을
+> 만들지 말고 dev 컬렉션의 `baseUrl` 만 `http://localhost:8080` 으로 바꿔 쓰고 되돌리세요.
+> 환경별 컬렉션을 늘리는 것은 **배포 대상이 실제로 다른 계약을 서빙할 때**만입니다(dev·prod).
 
 ## 1. 임포트
 
 Postman → **Import** → `Yeolo-BE-Dev.postman_collection.json` 드래그. 환경 선택은 필요 없습니다
 (변수가 컬렉션 안에 있습니다). 같은 이름의 컬렉션이 이미 있으면 Postman 이 교체할지 물어봅니다.
+
+prod 도 쓰려면 `Yeolo-BE-Prod.postman_collection.json` 을 같은 방식으로 임포트합니다. 사이드바에
+**`Yeolo BE`(dev)** 와 **`Yeolo BE (prod)`** 두 개가 뜹니다 — 이름으로 구분하세요. 두 컬렉션의
+`accessToken` 은 서로 다른 변수라 **환경별로 각각 로그인**해야 합니다(계정 DB가 다릅니다).
 
 ## 2. 서버 띄우기 (로컬을 쓸 때만 — 평소엔 불필요)
 
@@ -182,8 +202,8 @@ stub은 외부 호출 없이 합성 결과를 돌려주므로, 프로필 이미�
 
 ## 7. dev 서버 대상으로 테스트
 
-`baseUrl = https://d1eicq4gephyts.cloudfront.net` 으로 이미 채워져 있습니다. 이 값은 컬렉션 변수에 있습니다.
-컬렉션 변수에 채워져 있어 임포트하면 요청 24개가 전부 dev를 가리킵니다.
+dev 컬렉션은 `baseUrl = https://api-dev.yeolo.app` 로 이미 채워져 있어, 임포트하면 요청 전부가
+dev를 가리킵니다. prod 컬렉션은 같은 자리에 `https://api.yeolo.app` 이 들어 있습니다.
 
 ### 환경 변수 현재 상태
 
@@ -462,10 +482,50 @@ kubectl -n app-dev logs deploy/ai --since=1h | grep "Validation Error"
 
 ## 9. 컬렉션을 고쳤을 때
 
-Postman에서 수정한 뒤 **Export**해서 이 디렉터리 파일을 덮어쓰면 팀과 공유됩니다.
-**새 이름으로 만들지 말고 기존 파일을 덮어쓰세요.** 이 디렉터리의 파일은 아래 둘이 전부입니다.
+**고치는 대상은 언제나 dev 컬렉션입니다.** Postman에서 수정한 뒤 **Export**해서
+`Yeolo-BE-Dev.postman_collection.json` 을 덮어쓰세요. 새 이름으로 만들지 않습니다.
 
-| 파일 | 커밋 | export 시 주의 |
+| 파일 | 커밋 | 주의 |
 | :--- | :--- | :--- |
-| `Yeolo-BE.postman_collection.json` | O | 시크릿 없음 — 그대로 덮어쓰면 됨 |
 | `Yeolo-BE-Dev.postman_collection.json` | **O (`git add -f`)** | 시크릿 변수는 빈 값으로만 커밋 |
+| `Yeolo-BE-Prod.postman_collection.json` | **O (`git add -f`)** | **직접 고치지 않습니다** — 10절대로 생성 |
+
+Postman 에서 prod 컬렉션을 만졌다면 export 하지 말고 버리세요. 다음 생성 때 덮어쓰여집니다.
+
+## 10. prod 컬렉션 생성 — 릴리스(dev→main) 때 돌립니다
+
+prod 컬렉션은 dev 파일에서 기계적으로 만듭니다. 두 벌을 손으로 맞추면 반드시 어긋나기 때문입니다.
+
+```bash
+python3 docs/postman/make-prod-collection.py
+git add -f docs/postman/Yeolo-BE-Prod.postman_collection.json
+```
+
+스크립트가 하는 일은 여섯입니다 — `baseUrl` 을 prod 로 교체, 컬렉션 이름·`_postman_id` 를 별개로
+변경(같으면 Postman 이 한 컬렉션으로 취급해 덮어씁니다), 컬렉션 설명을 prod 경고문으로 교체,
+세션값·시크릿 변수 비우기, 설명문의 dev 전용 문구 치환(`-n app-dev`→`-n app` 등), 파괴적 요청
+둘에 `allowDestructive` 가드 삽입.
+
+**돌리는 시점은 dev→main 릴리스 직후입니다.** dev 에만 있는 기능이 prod 컬렉션에 들어가면
+"있는데 404" 가 되어 파일을 나눈 의미가 없어집니다. dev 컬렉션만 고치는 평소 작업에서는
+돌리지 않습니다.
+
+### prod 에서 값을 따로 확인해야 하는 변수
+
+생성기는 dev 값을 그대로 가져오므로, prod 서버 설정이 다르면 아래 둘은 손으로 맞춰야 합니다.
+
+**생성물(JSON)을 손으로 고치지 마세요** — 다음 재생성에서 조용히 되돌아갑니다. 값이 달라야 하면
+`make-prod-collection.py` 의 `PROD_OVERRIDES` 에 적습니다.
+
+| 변수 | 확인 |
+| :--- | :--- |
+| `googleClientId` | prod 값이 dev와 다르면 `PROD_OVERRIDES` 에 넣습니다 (확인 명령은 아래) |
+| `googleRedirectUri` | Google Cloud Console 의 **승인된 리디렉션 URI** 에 등록된 값이어야 합니다. 현재 값은 prod CloudFront 도메인인데, CloudFront 제거(Cloudflare 전환) 후에는 콘솔 등록값과 함께 바꿔야 합니다 |
+
+```bash
+# prod / dev 의 GOOGLE_CLIENT_ID 비교 (한 줄씩 실행)
+kubectl -n app     get secret was-secrets -o go-template='{{.data.GOOGLE_CLIENT_ID | base64decode}}{{"\n"}}'
+kubectl -n app-dev get secret was-secrets -o go-template='{{.data.GOOGLE_CLIENT_ID | base64decode}}{{"\n"}}'
+```
+
+`internalApiKey` · `jwtSecret` 은 빈 값으로 커밋되며 prod 용은 `-n app` 에서 각자 채웁니다(8절).
