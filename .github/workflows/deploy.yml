@@ -209,12 +209,23 @@ jobs:
           # 이 가드가 없으면 was-secrets 가 필수 설정 없이 만들어져 새 파드가 기동에
           # 실패하고, 그 사실이 'Verify rollout' 5분 타임아웃→롤백으로만 드러난다(#27 인시던트).
           # DB_USERNAME/DB_PASSWORD 는 db-credentials 가 채우므로 검사 대상이 아니다.
+          # GOOGLE_MAPS_API_KEY 는 GEOCODE_PROVIDER=google 일 때만 필수다. 값이 비면 역지오코딩이
+          # Google 에 키 없이 요청해 REQUEST_DENIED 를 받고, 취향 분석·코스 생성이 전처리 단계에서
+          # 전부 죽는다. 그런데 시크릿은 **이름만 있고 값이 비어도** GitHub 화면에서는 정상으로 보이고,
+          # 이 워크플로는 빈 값을 was.env 에서 제외하므로 배포는 초록불로 끝난다 — 즉 배포도 파드도
+          # 정상인데 기능만 죽는다(2026-08-27 prod 인시던트). 그래서 여기서 끊는다.
           missing=""
-          for req in DB_URL JWT_SECRET INTERNAL_API_KEY; do
+          required_secrets="DB_URL JWT_SECRET INTERNAL_API_KEY"
+          # if 문으로 감싼다. `grep && x=y` 로 쓰면 provider 가 google 이 아닐 때 AND 리스트가
+          # 비0으로 끝나고, GitHub Actions 의 기본 셸이 `bash -e` 라 그 자리에서 스텝이 죽는다.
+          if grep -q '^GEOCODE_PROVIDER=google$' was.env; then
+            required_secrets="$required_secrets GOOGLE_MAPS_API_KEY"
+          fi
+          for req in $required_secrets; do
             grep -q "^${req}=" was.env || missing="$missing $req"
           done
           if [ -n "$missing" ]; then
-            echo "::error::필수 시크릿 누락 →$missing. GitHub → Settings → Environments(prod) → Secrets 에 설정 후 재실행하세요."
+            echo "::error::필수 시크릿 누락 →$missing. GitHub → Settings → Environments(prod) → Secrets 에 설정 후 재실행하세요. (이름만 있고 값이 비어 있어도 누락으로 잡힙니다)"
             rm -f was.env
             exit 1
           fi
@@ -246,9 +257,22 @@ jobs:
       - name: Set image
         id: set_image
         run: |
+          before="$(kubectl -n "$K8S_NAMESPACE" get deployment "$DEPLOYMENT_NAME" \
+            -o jsonpath="{.spec.template.spec.containers[?(@.name=='${CONTAINER_NAME}')].image}")"
           kubectl -n "$K8S_NAMESPACE" set image \
             "deployment/${DEPLOYMENT_NAME}" \
             "${CONTAINER_NAME}=${IMAGE}"
+          # 같은 커밋을 다시 배포하면(workflow_dispatch 재실행, 시크릿만 고친 경우) set image 가
+          # no-op 이라 롤아웃이 일어나지 않는다. 그러면 방금 만든 was-secrets 가 돌고 있는 파드에
+          # 반영되지 않은 채 'Verify rollout' 이 즉시 성공한다 — 워크플로도 파드도 초록불인데
+          # 설정만 옛 값인 상태다(2026-08-27 GOOGLE_MAPS_API_KEY 인시던트: 값을 채우고 재배포했는데
+          # 증상이 그대로였다). Reloader 는 db-credentials 만 보므로 여기서 처리한다.
+          # 이미지가 바뀐 경우에는 그 롤아웃이 이미 새 시크릿을 물고 뜨므로 재시작하지 않는다
+          # (하면 롤아웃이 두 번 돈다).
+          if [ "$before" = "$IMAGE" ]; then
+            echo "이미지 동일($IMAGE) — was-secrets 반영을 위해 rollout restart 한다."
+            kubectl -n "$K8S_NAMESPACE" rollout restart "deployment/${DEPLOYMENT_NAME}"
+          fi
 
       # 무중단(rolling) rollout 검증.
       - name: Verify rollout
@@ -381,12 +405,21 @@ jobs:
           done
           # 필수 키 누락은 여기서 끊는다(#27 인시던트: 누락이 rollout 5분 타임아웃으로만 드러남).
           # DB_USERNAME/DB_PASSWORD 는 db-credentials 가 채우므로 검사 대상이 아니다.
+          #
+          # GOOGLE_MAPS_API_KEY 는 GEOCODE_PROVIDER=google 일 때만 필수다(prod job 주석 참고).
+          # 빈 값이면 배포는 통과하는데 취향 분석·코스 생성이 REQUEST_DENIED 로 전부 죽는다.
           missing=""
-          for req in DB_URL JWT_SECRET INTERNAL_API_KEY; do
+          required_secrets="DB_URL JWT_SECRET INTERNAL_API_KEY"
+          # if 문으로 감싼다. `grep && x=y` 로 쓰면 provider 가 google 이 아닐 때 AND 리스트가
+          # 비0으로 끝나고, GitHub Actions 의 기본 셸이 `bash -e` 라 그 자리에서 스텝이 죽는다.
+          if grep -q '^GEOCODE_PROVIDER=google$' was.env; then
+            required_secrets="$required_secrets GOOGLE_MAPS_API_KEY"
+          fi
+          for req in $required_secrets; do
             grep -q "^${req}=" was.env || missing="$missing $req"
           done
           if [ -n "$missing" ]; then
-            echo "::error::필수 시크릿 누락 →$missing. GitHub → Settings → Environments(dev) → Secrets 에 설정 후 재실행하세요."
+            echo "::error::필수 시크릿 누락 →$missing. GitHub → Settings → Environments(dev) → Secrets 에 설정 후 재실행하세요. (이름만 있고 값이 비어 있어도 누락으로 잡힙니다)"
             rm -f was.env
             exit 1
           fi
@@ -418,9 +451,22 @@ jobs:
       - name: Set image
         id: set_image
         run: |
+          before="$(kubectl -n "$K8S_NAMESPACE" get deployment "$DEPLOYMENT_NAME" \
+            -o jsonpath="{.spec.template.spec.containers[?(@.name=='${CONTAINER_NAME}')].image}")"
           kubectl -n "$K8S_NAMESPACE" set image \
             "deployment/${DEPLOYMENT_NAME}" \
             "${CONTAINER_NAME}=${IMAGE}"
+          # 같은 커밋을 다시 배포하면(workflow_dispatch 재실행, 시크릿만 고친 경우) set image 가
+          # no-op 이라 롤아웃이 일어나지 않는다. 그러면 방금 만든 was-secrets 가 돌고 있는 파드에
+          # 반영되지 않은 채 'Verify rollout' 이 즉시 성공한다 — 워크플로도 파드도 초록불인데
+          # 설정만 옛 값인 상태다(2026-08-27 GOOGLE_MAPS_API_KEY 인시던트: 값을 채우고 재배포했는데
+          # 증상이 그대로였다). Reloader 는 db-credentials 만 보므로 여기서 처리한다.
+          # 이미지가 바뀐 경우에는 그 롤아웃이 이미 새 시크릿을 물고 뜨므로 재시작하지 않는다
+          # (하면 롤아웃이 두 번 돈다).
+          if [ "$before" = "$IMAGE" ]; then
+            echo "이미지 동일($IMAGE) — was-secrets 반영을 위해 rollout restart 한다."
+            kubectl -n "$K8S_NAMESPACE" rollout restart "deployment/${DEPLOYMENT_NAME}"
+          fi
 
       # 무중단(rolling) rollout 검증. dev 도 prod 와 같은 grace 90s 설정을 상속한다.
       - name: Verify rollout
