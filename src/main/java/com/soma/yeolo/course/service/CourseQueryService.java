@@ -10,10 +10,13 @@ import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.course.service.port.CourseSharing;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
+import com.soma.yeolo.location.service.LocationImageReader;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -42,6 +45,7 @@ public class CourseQueryService implements RecentCourseReader {
 
     private final CourseRepository courseRepository;
     private final CourseSharing courseSharing;
+    private final LocationImageReader locationImageReader;
 
     /**
      * 사용자의 코스를 최신순 요약 목록으로 반환한다. 없으면 빈 목록. (API-COURSE-3)
@@ -69,7 +73,25 @@ public class CourseQueryService implements RecentCourseReader {
             }
         }
         merged.sort(Comparator.comparing(SavedCourse::createdAt).reversed());
-        return CourseListResponse.from(merged);
+        // 같은 목적지의 코스가 여럿이면(같은 도시를 여러 번 생성) 사진 조회(최대 6 질의)를 한 번만 한다.
+        // 목적지가 전부 다르면 목적지 수만큼 조회가 는다 — 목록이 수십 건 규모라 받아들이고, 커지면
+        // (국가, 도시) 집합을 한 번에 묻는 일괄 조회나 저장 시점 고정으로 바꾼다.
+        Map<List<String>, Optional<String>> cityImages = new HashMap<>();
+        return CourseListResponse.from(merged, course -> coverImageUrl(course, cityImages));
+    }
+
+    /**
+     * 목록의 대표 이미지(API-COURSE-3 {@code coverImageUrl}). AI 계약(API-AI-2)에서 대표 이미지가
+     * 빠져 새 코스는 저장값이 없으므로 목적지 도시 사진(#97 데이터셋)으로 채운다. 그것도 없으면 null.
+     */
+    private String coverImageUrl(SavedCourse course, Map<List<String>, Optional<String>> cityImages) {
+        if (course.coverImageUrl() != null) {
+            return course.coverImageUrl();
+        }
+        List<String> destination = List.of(course.destinationCountry(), course.destinationCity());
+        return cityImages.computeIfAbsent(destination, key ->
+                locationImageReader.findCityImageUrl(course.destinationCountry(), course.destinationCity()))
+                .orElse(null);
     }
 
     /**

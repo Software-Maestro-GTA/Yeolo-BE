@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.soma.yeolo.location.domain.LikePatterns;
-import com.soma.yeolo.location.domain.SearchKeys;
 import com.soma.yeolo.location.entity.CountryEntity;
+import com.soma.yeolo.location.repository.CityImageRepository;
 import com.soma.yeolo.location.repository.CityRepository;
 import com.soma.yeolo.location.repository.CountryRepository;
 import java.io.ByteArrayInputStream;
@@ -44,6 +44,9 @@ class LocationSeedLoaderTest {
     @Autowired
     private CityRepository cityRepository;
 
+    @Autowired
+    private CityImageRepository cityImageRepository;
+
     private LocationSeedWriter writer;
     private LocationSeedLoader loader;
 
@@ -54,21 +57,26 @@ class LocationSeedLoaderTest {
         writer = new LocationSeedWriter(new JdbcTemplate(dataSource));
         loader = new LocationSeedLoader(
                 new LocationSeedProperties(true,
-                        "data/locations/countries.tsv", "data/locations/cities.tsv"),
+                        "data/locations/countries.tsv", "data/locations/cities.tsv",
+                        "data/locations/city_images.tsv"),
                 writer);
     }
 
     /** 실제 데이터셋 파일을 파싱한다 — 적재기를 거치지 않고 writer 를 직접 부르는 테스트용. */
     private LocationSeedFile parseResource(String location, int columns) {
+        return parseResource(location, columns, columns);
+    }
+
+    private LocationSeedFile parseResource(String location, int columns, int requiredColumns) {
         try (InputStream in = new ClassPathResource(location).getInputStream()) {
-            return LocationSeedFile.parse(in, columns);
+            return LocationSeedFile.parse(in, columns, requiredColumns);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
     }
 
     private LocationSeedFile countriesFile() {
-        return parseResource("data/locations/countries.tsv", 2);
+        return parseResource("data/locations/countries.tsv", 5, 2);
     }
 
     private LocationSeedFile citiesFile() {
@@ -86,40 +94,48 @@ class LocationSeedLoaderTest {
     }
 
     @Test
-    void 국가_초성_검색_인수기준이_실데이터에서_동작한다() {
+    void 국가의_수도와_통화가_실데이터에서_적재된다() {
         loader.run(null);
 
-        var found = countryRepository.searchByChosung(LikePatterns.prefix("ㄷ"), TOP_10);
-
-        assertThat(found).isNotEmpty();
-        assertThat(found).extracting(CountryEntity::getNameKo)
-                .allSatisfy(name -> assertThat(SearchKeys.chosung(name)).startsWith("ㄷ"));
-        assertThat(countryRepository.searchByChosung(LikePatterns.prefix("ㄷㅎㅁㄱ"), TOP_10))
-                .extracting(CountryEntity::getCountryId)
-                .containsExactly("KR");
+        CountryEntity japan = countryRepository.findById("JP").orElseThrow();
+        assertThat(japan.getCapitalCityId()).isEqualTo("1850147");
+        assertThat(japan.getCurrencyCode()).isEqualTo("JPY");
+        assertThat(japan.getCurrencySymbol()).isEqualTo("¥");
+        // 통화가 없는 영토(남극)는 비어 있어도 적재가 실패하지 않는다.
+        assertThat(countryRepository.findById("AQ")).map(CountryEntity::getCurrencyCode).isEmpty();
     }
 
     @Test
-    void 도시_검색은_소속_국가와_함께_후보를_돌려준다() {
+    void 도시_접두어_검색_인수기준이_실데이터에서_동작한다() {
         loader.run(null);
 
-        var found = cityRepository.searchByName(
-                LikePatterns.contains("서울"), LikePatterns.prefix("서울"), TOP_10);
-
+        var found = cityRepository.searchByPrefix(LikePatterns.prefix("서울"));
         assertThat(found).isNotEmpty();
         assertThat(found).first().satisfies(city -> {
             assertThat(city.getCountryId()).isEqualTo("KR");
             assertThat(city.getCountryNameKo()).isEqualTo("대한민국");
         });
+        assertThat(countryRepository.findBySearchName("대한민국")).map(CountryEntity::getCountryId).contains("KR");
     }
 
     @Test
     void 후보가_없으면_빈_목록이다() {
         loader.run(null);
 
-        assertThat(cityRepository.searchByName(
-                LikePatterns.contains("존재하지않는도시명"),
-                LikePatterns.prefix("존재하지않는도시명"), TOP_10)).isEmpty();
+        assertThat(cityRepository.searchByPrefix(LikePatterns.prefix("존재하지않는도시명"))).isEmpty();
+    }
+
+    /** 도시 사진은 도시 데이터셋에 있는 도시만 들어온다 — 사진만 남은 고아 행은 조회 경로가 없다. */
+    @Test
+    void 도시_사진이_적재되고_도시에_없는_사진은_들어오지_않는다() {
+        loader.run(null);
+
+        assertThat(cityImageRepository.count()).isGreaterThan(0);
+        Long orphans = new JdbcTemplate(dataSource).queryForObject("""
+                select count(*) from city_images i
+                where not exists (select 1 from cities c where c.city_id = i.city_id)
+                """, Long.class);
+        assertThat(orphans).isZero();
     }
 
     @Test
@@ -183,7 +199,7 @@ class LocationSeedLoaderTest {
                 "select version from location_seed_state where dataset = ?", String.class, "countries");
         long citiesBefore = cityRepository.count();
 
-        writer.replace(countriesFile(), true, citiesFile(), true);
+        writer.replace(countriesFile(), true, citiesFile(), true, null, false);
 
         assertThat(cityRepository.count()).isEqualTo(citiesBefore);
         assertThat(jdbc.queryForObject("select version from location_seed_state where dataset = ?",
@@ -199,7 +215,7 @@ class LocationSeedLoaderTest {
                 1\t중복도시\tKR\t100
                 """.getBytes(StandardCharsets.UTF_8)), 4);
 
-        assertThatThrownBy(() -> writer.replace(countriesFile(), true, broken, true))
+        assertThatThrownBy(() -> writer.replace(countriesFile(), true, broken, true, null, false))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
