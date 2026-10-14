@@ -776,7 +776,7 @@
 							}
 						],
 						"url": "{{baseUrl}}/api/courses/{{courseId}}",
-						"description": "소유자 또는 공유받은 사용자만 조회 가능(그 외 403). 명세 개정(2026-10, #96): course 에 totalCost 가 추가되고 coverImageUrl·recommendationReason·day.memo·stop.arrivalTime 은 빠졌다(개정 전 코스도 응답에서 제외된다). stop 의 cost 는 방문 비용이며 transportToNext.cost(이동 비용, 새 코스는 null)와 별개다. totalCostExRate·exRateIcon 은 #100 에서 추가된다."
+						"description": "소유자 또는 공유받은 사용자만 조회 가능(그 외 403). 명세 개정(2026-10, #96·#100): course 에 totalCost(AI 가 주는 원화 금액)·totalCostExRate(목적지 현지 통화로 환산한 반올림 정수)·exRateIcon(현지 통화 기호 ¥·$·₩ 등, 국가 데이터셋)이 추가되고 coverImageUrl·recommendationReason·day.memo·stop.arrivalTime 은 빠졌다. 국내 코스는 환산값이 원화 금액 그대로. 환율을 못 구하면(제공처 장애·통화 미지원·개정 전 코스) totalCostExRate 는 null, 통화를 모르는 국가면 exRateIcon 은 빈 문자열. stop 의 cost 는 방문 비용이며 transportToNext.cost(이동 비용, 새 코스는 null)와 별개다. 환율 제공처: fawazahmed0/currency-api(키 불필요, 기본값). EXCHANGE_RATE_PROVIDER=stub 은 테스트용."
 					},
 					"response": [],
 					"event": [
@@ -786,9 +786,12 @@
 								"type": "text/javascript",
 								"exec": [
 									"const res = pm.response.json();",
-									"pm.test('개정 계약: totalCost 있음, 제거 필드 없음', () => {",
+									"pm.test('개정 계약: totalCost·totalCostExRate·exRateIcon 있음, 제거 필드 없음', () => {",
 									"    const c = res.data.course;",
 									"    pm.expect(c).to.have.property('totalCost');",
+									"    pm.expect(c).to.have.property('totalCostExRate');",
+									"    pm.expect(c).to.have.property('exRateIcon');",
+									"    pm.expect(c.exRateIcon).to.be.a('string');",
 									"    pm.expect(c).to.not.have.property('coverImageUrl');",
 									"    pm.expect(c).to.not.have.property('recommendationReason');",
 									"});"

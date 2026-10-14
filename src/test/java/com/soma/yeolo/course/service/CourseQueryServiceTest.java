@@ -10,6 +10,11 @@ import com.soma.yeolo.course.dto.CourseListResponse;
 import com.soma.yeolo.course.dto.Itinerary;
 import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.course.service.port.CourseSharing;
+import com.soma.yeolo.course.client.ExchangeRateProperties;
+import com.soma.yeolo.course.service.port.ExchangeRateProvider;
+import com.soma.yeolo.location.service.CountryCurrencyReader;
+import java.math.BigDecimal;
+import java.time.Duration;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.location.service.LocationImageReader;
@@ -18,8 +23,10 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -122,12 +129,37 @@ class CourseQueryServiceTest {
         }
     }
 
+    /** 국가 통화 포트 fake: 국가명별 (코드, 기호). */
+    private static final class FakeCountryCurrencyReader implements CountryCurrencyReader {
+        private final Map<String, CountryCurrency> currencies = new HashMap<>();
+
+        @Override
+        public Optional<CountryCurrency> findCurrency(String countryName) {
+            return Optional.ofNullable(currencies.get(countryName));
+        }
+    }
+
+    /** 환율 포트 fake: (from→to) 쌍별 환율. 같은 통화는 1. */
+    private static final class FakeExchangeRateProvider implements ExchangeRateProvider {
+        private final Map<String, BigDecimal> rates = new HashMap<>();
+        private int calls;
+
+        @Override
+        public Optional<BigDecimal> rate(String from, String to) {
+            calls++;
+            return from.equals(to) ? Optional.of(BigDecimal.ONE) : Optional.ofNullable(rates.get(from + "->" + to));
+        }
+    }
+
     private final FakeCourseRepository courses = new FakeCourseRepository();
     private final FakeCourseSharing sharing = new FakeCourseSharing();
     private final FakeLocationImageReader cityImages = new FakeLocationImageReader();
+    private final FakeCountryCurrencyReader currencies = new FakeCountryCurrencyReader();
+    private final FakeExchangeRateProvider exchangeRates = new FakeExchangeRateProvider();
 
     private CourseQueryService service() {
-        return new CourseQueryService(courses, sharing, cityImages);
+        return new CourseQueryService(courses, sharing, cityImages, currencies, exchangeRates,
+                new ExchangeRateProperties("KRW", "stub", null, null, Duration.ZERO));
     }
 
     private SavedCourse course(UUID courseId, UUID userId, String title, String itineraryJson) {
@@ -350,6 +382,101 @@ class CourseQueryServiceTest {
         courses.store.add(course(courseId, me, "내 코스", "{\"days\":[]}"));
 
         assertThat(service().getCourse(me, courseId).course().totalCost()).isEqualTo(350_000L);
+    }
+
+    // ===== 환율 환산 (API-COURSE-2 totalCostExRate·exRateIcon, #100) =====
+
+    /** AI 가 준 원화 totalCost 를 목적지 현지 통화로 환산해 반올림 정수로 내리고, 그 통화 기호를 함께 내린다. */
+    @Test
+    void 상세에_현지_통화_환산값과_기호를_담는다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(new SavedCourse(courseId, me, "일본 코스", "일본", "도쿄", null,
+                LocalDate.of(2026, 8, 1), 3, 424_894L, List.of(), "{\"days\":[]}", Instant.now()));
+        currencies.currencies.put("일본", new CountryCurrencyReader.CountryCurrency("JPY", "¥"));
+        exchangeRates.rates.put("KRW->JPY", new BigDecimal("0.1177"));
+
+        CourseDetailResponse.CourseDetail detail = service().getCourse(me, courseId).course();
+
+        assertThat(detail.totalCost()).isEqualTo(424_894L);            // 원화 그대로
+        assertThat(detail.exRateIcon()).isEqualTo("¥");
+        assertThat(detail.totalCostExRate()).isEqualTo(50_010L);       // 424,894 × 0.1177 = 50,010.0 → 50010
+    }
+
+    /** 국내 코스는 현지 통화가 원화라 환산값이 원래 금액이고 환율 제공처를 부르지 않는다(같은 통화 → 1). */
+    @Test
+    void 국내_코스는_환산값이_원화_금액_그대로다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, me, "내 코스", "{\"days\":[]}"));   // 대한민국/제주, totalCost 350,000
+        currencies.currencies.put("대한민국", new CountryCurrencyReader.CountryCurrency("KRW", "₩"));
+
+        CourseDetailResponse.CourseDetail detail = service().getCourse(me, courseId).course();
+
+        assertThat(detail.exRateIcon()).isEqualTo("₩");
+        assertThat(detail.totalCostExRate()).isEqualTo(350_000L);
+    }
+
+    @Test
+    void 환율을_못_구하면_환산값은_null이고_기호는_남는다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(new SavedCourse(courseId, me, "일본 코스", "일본", "도쿄", null,
+                LocalDate.of(2026, 8, 1), 3, 424_894L, List.of(), "{\"days\":[]}", Instant.now()));
+        currencies.currencies.put("일본", new CountryCurrencyReader.CountryCurrency("JPY", "¥"));   // KRW->JPY 미등록
+
+        CourseDetailResponse.CourseDetail detail = service().getCourse(me, courseId).course();
+
+        assertThat(detail.totalCostExRate()).isNull();
+        assertThat(detail.exRateIcon()).isEqualTo("¥");
+    }
+
+    /** 국가 데이터셋에 없는 목적지(또는 통화 없는 영토)면 기호는 빈 문자열, 환산은 시도하지 않는다. */
+    @Test
+    void 통화를_모르는_국가면_기호는_빈_문자열이고_환율을_조회하지_않는다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, me, "내 코스", "{\"days\":[]}"));
+
+        CourseDetailResponse.CourseDetail detail = service().getCourse(me, courseId).course();
+
+        assertThat(detail.exRateIcon()).isEmpty();
+        assertThat(detail.totalCostExRate()).isNull();
+        assertThat(exchangeRates.calls).isZero();
+    }
+
+    /** 개정 전 코스(totalCost 없음)는 기호만 내리고 환율을 조회하지 않는다. */
+    @Test
+    void 총비용이_없으면_환산값은_null이고_환율을_조회하지_않는다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(new SavedCourse(courseId, me, "예전 코스", "일본", "도쿄", null,
+                LocalDate.of(2026, 8, 1), 3, null, List.of(), "{\"days\":[]}", Instant.now()));
+        currencies.currencies.put("일본", new CountryCurrencyReader.CountryCurrency("JPY", "¥"));
+
+        CourseDetailResponse.CourseDetail detail = service().getCourse(me, courseId).course();
+
+        assertThat(detail.exRateIcon()).isEqualTo("¥");
+        assertThat(detail.totalCostExRate()).isNull();
+        assertThat(exchangeRates.calls).isZero();
+    }
+
+    /** 환율 어댑터가 예외를 던져도 상세 조회는 성공하고 환산값만 비운다 — 비용은 참고값이다. */
+    @Test
+    void 환율_조회가_예외를_던져도_상세는_환산값_없이_성공한다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(new SavedCourse(courseId, me, "일본 코스", "일본", "도쿄", null,
+                LocalDate.of(2026, 8, 1), 3, 424_894L, List.of(), "{\"days\":[]}", Instant.now()));
+        currencies.currencies.put("일본", new CountryCurrencyReader.CountryCurrency("JPY", "¥"));
+        CourseQueryService service = new CourseQueryService(courses, sharing, cityImages, currencies,
+                (from, to) -> { throw new IllegalStateException("provider down"); },
+                new ExchangeRateProperties("KRW", "stub", null, null, Duration.ZERO));
+
+        CourseDetailResponse.CourseDetail detail = service.getCourse(me, courseId).course();
+
+        assertThat(detail.totalCostExRate()).isNull();
+        assertThat(detail.exRateIcon()).isEqualTo("¥");
     }
 
     /**

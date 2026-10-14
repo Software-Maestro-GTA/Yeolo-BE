@@ -70,10 +70,18 @@ SPEC 커밋 `3d7b0f9`("UI/UX 변경에 따른 API 수정")의 변경과 BE 대�
 - **`recommendCity.imageUrl` 출처(명세 미규정)** — Pixabay에서 빌드 스크립트로 내려받아 S3에 저장한다.
   Wikidata P18은 84%가 저작자 표시 필수라 출처 필드 없이는 쓸 수 없어 기각했다. 출처 필드는 API에
   두지 않는다(사용자 결정). 상세는 #97.
-- **`exRateIcon`(명세 미규정)** — 현지 통화 기호(CLDR 좁은 기호 우선). `totalCost`는 현지 통화.
-  기호·코드·수도는 #97에서 `countries.tsv`에 적재했다(`docs/location-dataset.md`).
-- **API-LOC-2의 400 문구(명세 미규정)** — 실패 응답 예시가 500뿐이라 LOC-3의 400 문구와 같은 꼴로
-  `국가명을 입력해주세요.`로 정했다. 404는 `해당 국가를 찾을 수 없습니다.`
+- **`totalCost`의 통화(명세 미규정)** — AI 는 목적지와 무관하게 **원화**로 준다(AI 팀 확인, 2026-10-14).
+  설정 `exchange-rate.source-currency=KRW`로 드러내 두었다.
+- **`exRateIcon`·`totalCostExRate`(명세 미규정)** — 원화 `totalCost`를 목적지 **현지 통화**로 환산한 금액이
+  `totalCostExRate`, 그 현지 통화의 기호(CLDR 좁은 기호 우선: ¥·$·฿)가 `exRateIcon`이다. FE 가 "₩424,894
+  (¥50,000)" 처럼 나란히 보여준다. 국내 코스는 환산값이 원화 금액 그대로. 기호·코드·수도는 #97에서
+  `countries.tsv`에 적재했다(`docs/location-dataset.md`). 환율은 fawazahmed0/currency-api(jsDelivr CDN,
+  Cloudflare Pages 폴백, 키·출처 표시 불필요, 통화 340개)에서 통화별로 받아 12시간 캐시하고, 갱신 실패 시
+  지난 값을 쓰며 실패 후 1분은 재시도하지 않는다(ECB 기반은 VND·TWD 등이 없고, open.er-api 는 출처 링크를
+  요구). 환산은 조회 시점에 반올림 정수로 한다. **명세는 `totalCostExRate`를 `number`로만 적지만 BE는
+  `number|null`로 내린다** — 제공처 장애·미지원 통화·개정 전 코스(총비용 없음)에 정해진 값이 없고, 0 같은
+  가짜 값은 더 해롭다. FE가 null 을 다뤄야 하며 명세에 `number|null` 반영을 요청한다. 언어 설정은 환산에
+  관여하지 않는다(처음 계획했던 "언어별 기준 통화"는 AI 가 원화로 준다는 확인으로 철회). #100
 - **API-PREF-4의 요약 없는 프로필(명세 미규정)** — 개정 전 AI 응답으로 저장된 프로필에는 `summary`가 없어
   보여줄 본문이 없다. 명세의 404(`저장된 성향 프로필이 없습니다.`)로 응답해 FE가 재분석을 유도하게 한다.
   AI가 `summary`를 빼고 보내도 분석 자체는 실패시키지 않는다(지표만으로 코스 생성은 되므로). #98
