@@ -4,13 +4,20 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.soma.yeolo.course.domain.SavedCourse;
 import com.soma.yeolo.course.dto.CourseDetailResponse;
+import com.soma.yeolo.course.dto.CourseDetailResponse.CostConversion;
 import com.soma.yeolo.course.dto.CourseListResponse;
 import com.soma.yeolo.course.dto.Itinerary;
 import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.course.service.port.CourseSharing;
+import com.soma.yeolo.course.service.port.ExchangeRateProvider;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
+import com.soma.yeolo.course.client.ExchangeRateProperties;
+import com.soma.yeolo.location.service.CountryCurrencyReader;
+import com.soma.yeolo.location.service.CountryCurrencyReader.CountryCurrency;
 import com.soma.yeolo.location.service.LocationImageReader;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -21,6 +28,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 소유 코스와 공유 코스를 구분해 표시하지는 않는다 — DOM-6이 이번 스프린트엔 구분하지 않아도
  * 된다고 명시하며, 명세(API-COURSE-3)에 구분용 필드가 없다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CourseQueryService implements RecentCourseReader {
@@ -46,6 +55,9 @@ public class CourseQueryService implements RecentCourseReader {
     private final CourseRepository courseRepository;
     private final CourseSharing courseSharing;
     private final LocationImageReader locationImageReader;
+    private final CountryCurrencyReader countryCurrencyReader;
+    private final ExchangeRateProvider exchangeRateProvider;
+    private final ExchangeRateProperties exchangeRateProperties;
 
     /**
      * 사용자의 코스를 최신순 요약 목록으로 반환한다. 없으면 빈 목록. (API-COURSE-3)
@@ -111,14 +123,49 @@ public class CourseQueryService implements RecentCourseReader {
      * 코스 상세를 반환한다. 코스가 없으면 404, 소유자도 공유받은 사용자도 아니면 403으로 응답한다.
      * (API-COURSE-2 / DOM-6 §권한 정책 — "공유받은 코스 상세 조회")
      */
-    @Transactional(readOnly = true)
+    /**
+     * 상세 조회. 트랜잭션을 걸지 않는다 — 환율 조회({@link #convertCost})가 외부 HTTP 호출이라 트랜잭션
+     * 안에서 돌리면 제공처가 느릴 때 커넥션 풀의 연결을 수 초씩 붙들어 다른 API 까지 끌려 들어간다.
+     * 코스·공유 조회는 각각 읽기 전용 모델을 돌려주는 단일 쿼리라 하나의 트랜잭션으로 묶을 이유가 없다.
+     */
     public CourseDetailResponse getCourse(UUID userId, UUID courseId) {
         SavedCourse course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COURSE_NOT_FOUND));
         if (!course.isOwnedBy(userId) && !courseSharing.isSharedWith(courseId, userId)) {
             throw new BusinessException(ErrorCode.COURSE_ACCESS_DENIED);
         }
-        return CourseDetailResponse.from(course, parseItinerary(course.itineraryJson()));
+        Itinerary itinerary = parseItinerary(course.itineraryJson());
+        return CourseDetailResponse.from(course, itinerary, convertCost(course));
+    }
+
+    /**
+     * 코스 총비용의 현지 통화 환산 (API-COURSE-2 {@code exRateIcon}·{@code totalCostExRate}, #100).
+     *
+     * <p>AI 는 {@code totalCost}를 목적지와 무관하게 원화({@code exchange-rate.source-currency})로 주므로,
+     * 목적지 국가의 현지 통화(데이터셋 값)로 환산하고 그 통화 기호를 {@code exRateIcon}에 담는다 —
+     * FE 가 "₩424,894 (¥50,000)" 처럼 나란히 보여준다. 국내 코스는 같은 통화라 환산값이 원래 금액이다.
+     * 환산은 조회 시점에 한다(환율이 매일 바뀐다). 소수 통화 단위는 반올림해 정수로 내린다.
+     */
+    private CostConversion convertCost(SavedCourse course) {
+        Optional<CountryCurrency> local = countryCurrencyReader.findCurrency(course.destinationCountry());
+        if (local.isEmpty()) {
+            return CostConversion.NONE;
+        }
+        String icon = local.get().symbol();
+        if (course.totalCost() == null) {
+            return new CostConversion(null, icon);
+        }
+        try {
+            Long converted = exchangeRateProvider.rate(exchangeRateProperties.sourceCurrency(), local.get().code())
+                    .map(rate -> BigDecimal.valueOf(course.totalCost()).multiply(rate)
+                            .setScale(0, RoundingMode.HALF_UP).longValueExact())
+                    .orElse(null);
+            return new CostConversion(converted, icon);
+        } catch (RuntimeException e) {
+            // 환산은 참고값이다. 제공처·설정 문제로 상세 조회를 500 으로 만들지 않는다.
+            log.warn("코스 비용 환산에 실패해 환산값 없이 응답한다. courseId={}", course.courseId(), e);
+            return new CostConversion(null, icon);
+        }
     }
 
     /**
