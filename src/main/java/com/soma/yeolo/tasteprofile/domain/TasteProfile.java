@@ -23,7 +23,9 @@ public record TasteProfile(
         String travelPaceDensity,
         String spendingTendency,
         String companionType,
-        List<String> seasonalEnvironmentPreference
+        List<String> seasonalEnvironmentPreference,
+        /** 2026-10 개정의 요약(API-AI-1 summary) 원본 JSON. 개정 전 AI 응답이면 null. */
+        String summaryJson
 ) {
 
     public TasteProfile {

@@ -478,7 +478,7 @@
 		},
 		{
 			"name": "04. Taste Profile",
-			"description": "사진 메타데이터 기반 취향 분석(SSE)과 조회 (API-PREF-3/4). 03 의 사진 분석 동의가 선행되어야 한다.",
+			"description": "사진 메타데이터 기반 취향 분석(SSE)과 조회 (API-PREF-3/4). 03 의 사진 분석 동의가 선행되어야 한다. 2026-10 개정(#98): 분석 결과에 AI 요약(summary)이 함께 저장되고, 조회 응답은 요약 객체다.",
 			"item": [
 				{
 					"name": "POST 취향 분석 (API-PREF-3, SSE)",
@@ -495,7 +495,7 @@
 							}
 						],
 						"url": "{{baseUrl}}/api/users/me/taste-profile/analysis",
-						"description": "text/event-stream. LLM 분석이 실측 80초대이므로 Postman 요청 타임아웃을 0(무제한)으로 둘 것. 동의가 없으면 403, 메타데이터가 부족하면 400.",
+						"description": "text/event-stream. LLM 분석이 실측 80초대이므로 Postman 요청 타임아웃을 0(무제한)으로 둘 것. 동의가 없으면 403, 메타데이터가 부족하면 400. 2026-10 개정: AI 가 complete 에 summary(intro·hashtags·types·recommendCity)를 함께 주며 BE 가 저장한다. BE 의 SSE 이벤트(PREPROCESSING_IMAGE_METADATA → ANALYZING_PREFERENCE → complete)는 그대로다.",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"images\": [\n    {\n      \"sourceImageId\": \"img-1\",\n      \"capturedAt\": \"2026-05-01T09:30:00Z\",\n      \"latitude\": 34.6873,\n      \"longitude\": 135.5259\n    },\n    {\n      \"sourceImageId\": \"img-2\",\n      \"capturedAt\": \"2026-05-01T18:10:00Z\",\n      \"latitude\": 34.6654,\n      \"longitude\": 135.501\n    }\n  ]\n}",
@@ -514,9 +514,25 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{baseUrl}}/api/users/me/taste-profile",
-						"description": "저장된 프로필이 없으면 404."
+						"description": "저장된 프로필이 없으면 404. 2026-10 개정(#98): data 는 tasteProfile 래퍼 없이 요약 객체(intro·hashtags·types[]·recommendCity{countryName,cityName,imageUrl,reason})이고, 8개 영역 취향 지표는 더 이상 내려가지 않는다. recommendCity.imageUrl 은 BE 가 도시 사진 데이터셋(#97)에서 채우며 없으면 빈 문자열. 개정 전 AI 로 만든(요약 없는) 프로필도 404 — 재분석하면 된다."
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (pm.response.code === 200) pm.test('개정 계약: 요약 객체', () => {",
+									"    pm.expect(res.data).to.have.all.keys('intro', 'hashtags', 'types', 'recommendCity');",
+									"    pm.expect(res.data.recommendCity).to.have.all.keys('countryName', 'cityName', 'imageUrl', 'reason');",
+									"    pm.expect(res.data).to.not.have.property('tasteProfile');",
+									"});"
+								]
+							}
+						}
+					]
 				}
 			]
 		},
@@ -688,7 +704,7 @@
 							}
 						],
 						"url": "{{aiBaseUrl}}/internal/ai/taste-profile/analysis",
-						"description": "BE 의 ImageMetadataPreprocessor 가 만들어 보내는 것과 같은 모양의 전처리 결과다(FE 가 올리는 EXIF 원본이 아니다).\n\nlocation 은 placeTypes 를 뺀 전 필드가 AI 쪽에서 non-nullable 이다 — 한 항목이라도 null 이면 요청 전체가 400 '분석 가능한 전처리 메타데이터가 부족합니다.' 로 반려된다. 실제로 Google Geocoding 이 서울·부산 등 특별시·광역시에 locality/administrative_area_level_2 를 안 내려줘서 city 가 전부 비었고, 취향 분석이 통째로 죽은 적이 있다(2026-08-18).\n\n어느 필드가 걸렸는지는 AI 로그에 남는다: kubectl -n app-dev logs deploy/ai | grep 'Validation Error'",
+						"description": "BE 의 ImageMetadataPreprocessor 가 만들어 보내는 것과 같은 모양의 전처리 결과다(FE 가 올리는 EXIF 원본이 아니다).\n\nlocation 은 placeTypes 를 뺀 전 필드가 AI 쪽에서 non-nullable 이다 — 한 항목이라도 null 이면 요청 전체가 400 '분석 가능한 전처리 메타데이터가 부족합니다.' 로 반려된다. 실제로 Google Geocoding 이 서울·부산 등 특별시·광역시에 locality/administrative_area_level_2 를 안 내려줘서 city 가 전부 비었고, 취향 분석이 통째로 죽은 적이 있다(2026-08-18).\n\n어느 필드가 걸렸는지는 AI 로그에 남는다: kubectl -n app-dev logs deploy/ai | grep 'Validation Error'\n\n2026-10 개정: complete 에 tasteProfile 과 함께 summary(intro·hashtags·types·recommendCity)가 와야 한다. summary 가 없으면 AI 배포가 개정 전인 것이고, BE 는 지표만 저장해 취향 조회(API-PREF-4)가 404 가 된다.",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"items\": [\n    {\n      \"sourceImageId\": \"img-1\",\n      \"location\": {\n        \"country\": \"대한민국\",\n        \"city\": \"마포구\",\n        \"region\": \"서울특별시\",\n        \"district\": \"공덕동\",\n        \"placeName\": \"프릳츠 도화\",\n        \"placeTypes\": [\"coffee_shop\", \"cafe\", \"food\", \"point_of_interest\"]\n      },\n      \"timeContext\": {\n        \"capturedAt\": \"2026-07-16T03:21:07.684Z\",\n        \"dayOfWeek\": \"thu\",\n        \"isWeekend\": false,\n        \"timeBucket\": \"dawn\",\n        \"season\": \"summer\"\n      }\n    }\n  ]\n}",

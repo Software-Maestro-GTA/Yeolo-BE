@@ -13,6 +13,7 @@ import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.sse.TestSseHeartbeat;
 import com.soma.yeolo.tasteprofile.client.AiTasteProfileClient;
+import com.soma.yeolo.tasteprofile.client.dto.AiTasteAnalysis;
 import com.soma.yeolo.tasteprofile.domain.GeoLocation;
 import com.soma.yeolo.tasteprofile.domain.PreprocessedImage;
 import com.soma.yeolo.tasteprofile.domain.SourceType;
@@ -92,12 +93,12 @@ class BehaviorTasteProfileServiceTest {
     @Test
     void 성공하면_두_progress와_complete를_보내고_저장한다() throws Exception {
         UUID userId = UUID.randomUUID();
-        TasteProfile domain = new TasteProfile(userId, SourceType.BEHAVIOR, "{}", null, null, null, List.of());
+        TasteProfile domain = new TasteProfile(userId, SourceType.BEHAVIOR, "{}", null, null, null, List.of(), null);
 
         when(preprocessor.preprocess(any())).thenReturn(List.of(preprocessed()));
         when(aiClient.analyzeBehavior(any()))
-                .thenReturn(new ObjectMapper().readTree("{\"sourceType\":\"behavior\"}"));
-        when(assembler.toDomain(any(), any())).thenReturn(domain);
+                .thenReturn(new AiTasteAnalysis(new ObjectMapper().readTree("{\"sourceType\":\"behavior\"}"), null));
+        when(assembler.toDomain(any(), any(), any())).thenReturn(domain);
 
         service().analyzeAndStream(userId, request(), emitter);
 
@@ -125,14 +126,14 @@ class BehaviorTasteProfileServiceTest {
     @Test
     void 클라이언트가_먼저_끊겨도_분석_결과는_저장하고_예외를_던지지_않는다() throws Exception {
         UUID userId = UUID.randomUUID();
-        TasteProfile domain = new TasteProfile(userId, SourceType.BEHAVIOR, "{}", null, null, null, List.of());
+        TasteProfile domain = new TasteProfile(userId, SourceType.BEHAVIOR, "{}", null, null, null, List.of(), null);
 
         // 첫 progress 전송 시점에 이미 클라이언트가 떠난 상황(프록시 idle timeout 등).
         doThrow(new IOException("Broken pipe")).when(emitter).send(any(SseEventBuilder.class));
         when(preprocessor.preprocess(any())).thenReturn(List.of(preprocessed()));
         when(aiClient.analyzeBehavior(any()))
-                .thenReturn(new ObjectMapper().readTree("{\"sourceType\":\"behavior\"}"));
-        when(assembler.toDomain(any(), any())).thenReturn(domain);
+                .thenReturn(new AiTasteAnalysis(new ObjectMapper().readTree("{\"sourceType\":\"behavior\"}"), null));
+        when(assembler.toDomain(any(), any(), any())).thenReturn(domain);
 
         service().analyzeAndStream(userId, request(), emitter);
 

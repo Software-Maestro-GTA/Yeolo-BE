@@ -56,10 +56,18 @@ public class TasteProfileEntity extends BaseTimeEntity {
     @Column(name = "seasonal_environment_preference", columnDefinition = "text")
     private List<String> seasonalEnvironmentPreference;
 
+    /**
+     * 취향 요약 원본 JSON (API-AI-1 summary, 2026-10 개정). 취향 조회(API-PREF-4)의 본문이 된다.
+     * 개정 전에 저장된 프로필과 요약을 주지 않은 AI 응답은 NULL — 그 경우 조회는 404 다.
+     * (prod: docs/ddl/taste_profiles.sql)
+     */
+    @Column(name = "summary", columnDefinition = "text")
+    private String summary;
+
     @Builder
     private TasteProfileEntity(UUID userId, SourceType sourceType, String profile,
                               String travelPaceDensity, String spendingTendency, String companionType,
-                              List<String> seasonalEnvironmentPreference) {
+                              List<String> seasonalEnvironmentPreference, String summary) {
         this.userId = userId;
         this.sourceType = sourceType;
         this.profile = profile;
@@ -67,6 +75,7 @@ public class TasteProfileEntity extends BaseTimeEntity {
         this.spendingTendency = spendingTendency;
         this.companionType = companionType;
         this.seasonalEnvironmentPreference = seasonalEnvironmentPreference;
+        this.summary = summary;
     }
 
     /** 순수 도메인 → 영속 엔티티 매핑. */
@@ -79,11 +88,12 @@ public class TasteProfileEntity extends BaseTimeEntity {
                 .spendingTendency(profile.spendingTendency())
                 .companionType(profile.companionType())
                 .seasonalEnvironmentPreference(profile.seasonalEnvironmentPreference())
+                .summary(profile.summaryJson())
                 .build();
     }
 
     /** 영속 엔티티 → 조회용 읽기 모델 매핑 (API-FB-8). 부여된 식별자·갱신 시각을 함께 담는다. */
     public SavedTasteProfile toSavedProfile() {
-        return new SavedTasteProfile(id, userId, sourceType, getUpdatedAt(), profile);
+        return new SavedTasteProfile(id, userId, sourceType, getUpdatedAt(), profile, summary);
     }
 }

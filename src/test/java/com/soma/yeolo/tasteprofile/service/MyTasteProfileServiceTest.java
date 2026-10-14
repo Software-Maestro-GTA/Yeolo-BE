@@ -5,20 +5,34 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
+import com.soma.yeolo.location.service.LocationImageReader;
 import com.soma.yeolo.tasteprofile.domain.SavedTasteProfile;
 import com.soma.yeolo.tasteprofile.domain.SourceType;
 import com.soma.yeolo.tasteprofile.domain.TasteProfile;
-import com.soma.yeolo.tasteprofile.dto.MyTasteProfileResponse;
-import com.soma.yeolo.tasteprofile.dto.TasteProfilePayload;
+import com.soma.yeolo.tasteprofile.dto.TasteSummaryResponse;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
+/** API-PREF-4 (2026-10 개정) — 응답은 요약 객체이고, 추천 도시 사진은 BE 가 채운다. */
 class MyTasteProfileServiceTest {
 
-    /** 영속 포트 fake: 미리 넣어 둔 프로필을 userId로 돌려준다(DB·리플렉션 불필요). */
+    private static final String SUMMARY_JSON = """
+            {
+              "intro": "느긋한 미식 여행자",
+              "hashtags": ["#미식", "#느긋"],
+              "types": [
+                {"typeCode": "PACE", "typeName": "여행 속도", "lowName": "느긋", "highName": "빡빡", "score": 2.5}
+              ],
+              "recommendCity": {"countryName": "일본", "cityName": "오사카", "reason": "먹거리가 풍부해요"},
+              "extraFromAi": "명세 밖 필드 — 무시되어야 한다"
+            }
+            """;
+
     private static final class FakeTasteProfileRepository implements TasteProfileRepository {
         private SavedTasteProfile stored;
 
@@ -29,8 +43,7 @@ class MyTasteProfileServiceTest {
 
         @Override
         public Optional<SavedTasteProfile> findLatestByUserId(UUID userId) {
-            return Optional.ofNullable(stored)
-                    .filter(profile -> profile.userId().equals(userId));
+            return Optional.ofNullable(stored).filter(profile -> profile.userId().equals(userId));
         }
 
         @Override
@@ -44,46 +57,107 @@ class MyTasteProfileServiceTest {
         }
     }
 
+    private static final class FakeLocationImageReader implements LocationImageReader {
+        private final Map<String, String> images = new HashMap<>();
+
+        @Override
+        public Optional<String> findCityImageUrl(String countryName, String cityName) {
+            return Optional.ofNullable(images.get(countryName + "/" + cityName));
+        }
+    }
+
     private final FakeTasteProfileRepository repository = new FakeTasteProfileRepository();
-    private final MyTasteProfileService service = new MyTasteProfileService(repository);
+    private final FakeLocationImageReader cityImages = new FakeLocationImageReader();
+    private final MyTasteProfileService service = new MyTasteProfileService(repository, cityImages);
+
+    private SavedTasteProfile saved(UUID userId, String summaryJson) {
+        return new SavedTasteProfile(UUID.randomUUID(), userId, SourceType.BEHAVIOR,
+                Instant.parse("2026-10-01T00:00:00Z"), "{\"travelPaceDensity\":\"balanced\"}", summaryJson);
+    }
 
     @Test
     void 저장된_프로필이_없으면_404_예외를_던진다() {
         assertThatThrownBy(() -> service.getMyTasteProfile(UUID.randomUUID()))
                 .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.TASTE_PROFILE_NOT_FOUND);
+                .extracting("errorCode").isEqualTo(ErrorCode.TASTE_PROFILE_NOT_FOUND);
     }
 
     @Test
-    void 저장된_원본_JSON에_권위_식별자와_갱신일을_덮어써_반환한다() {
+    void 저장된_요약을_명세_스키마로_돌려주고_추천_도시_사진을_채운다() {
         UUID userId = UUID.randomUUID();
-        UUID profileId = UUID.randomUUID();
-        // 원본 JSON은 AI가 산출한 placeholder id/updatedAt과 세부 지표를 담고 있다.
-        String profileJson = """
-                {
-                  "tasteProfileId": "ai-placeholder",
-                  "userId": "ai-placeholder",
-                  "sourceType": "survey",
-                  "updatedAt": "2000-01-01",
-                  "travelPurpose": {"relaxation": 4, "gourmet": 5},
-                  "seasonalEnvironmentPreference": ["warm_region"]
-                }
-                """;
-        // 2026-07-13T20:00Z == 2026-07-14 05:00 KST → 로컬 날짜는 07-14 로 표기되어야 한다.
-        Instant updatedAt = Instant.parse("2026-07-13T20:00:00Z");
-        repository.stored = new SavedTasteProfile(profileId, userId, SourceType.BEHAVIOR, updatedAt, profileJson);
+        repository.stored = saved(userId, SUMMARY_JSON);
+        cityImages.images.put("일본/오사카", "https://cdn.example.com/locations/cities/1853909.jpg");
 
-        MyTasteProfileResponse response = service.getMyTasteProfile(userId);
-        TasteProfilePayload profile = response.tasteProfile();
+        TasteSummaryResponse response = service.getMyTasteProfile(userId);
 
-        // 권위 값으로 덮어써짐
-        assertThat(profile.tasteProfileId()).isEqualTo(profileId.toString());
-        assertThat(profile.userId()).isEqualTo(userId.toString());
-        assertThat(profile.sourceType()).isEqualTo("behavior");
-        assertThat(profile.updatedAt()).isEqualTo("2026-07-14");
-        // 세부 지표는 원본 그대로 보존
-        assertThat(profile.travelPurpose().gourmet()).isEqualTo(5);
-        assertThat(profile.seasonalEnvironmentPreference()).containsExactly("warm_region");
+        assertThat(response.intro()).isEqualTo("느긋한 미식 여행자");
+        assertThat(response.hashtags()).containsExactly("#미식", "#느긋");
+        assertThat(response.types()).singleElement().satisfies(type -> {
+            assertThat(type.typeCode()).isEqualTo("PACE");
+            assertThat(type.lowName()).isEqualTo("느긋");
+            assertThat(type.highName()).isEqualTo("빡빡");
+            assertThat(type.score()).isEqualTo(2.5);
+        });
+        assertThat(response.recommendCity().countryName()).isEqualTo("일본");
+        assertThat(response.recommendCity().cityName()).isEqualTo("오사카");
+        assertThat(response.recommendCity().reason()).isEqualTo("먹거리가 풍부해요");
+        assertThat(response.recommendCity().imageUrl())
+                .isEqualTo("https://cdn.example.com/locations/cities/1853909.jpg");
+    }
+
+    /** 명세 타입이 string 이라 사진이 없으면 null 이 아니라 빈 문자열이다. */
+    @Test
+    void 추천_도시_사진이_없으면_빈_문자열이다() {
+        UUID userId = UUID.randomUUID();
+        repository.stored = saved(userId, SUMMARY_JSON);
+
+        assertThat(service.getMyTasteProfile(userId).recommendCity().imageUrl()).isEmpty();
+    }
+
+    /** 개정 전 응답 형태(tasteProfile 래퍼·8개 영역 지표)는 더 이상 나가지 않는다 — 타입이 계약이다. */
+    @Test
+    void 응답에는_취향_지표와_tasteProfile_래퍼가_없다() {
+        UUID userId = UUID.randomUUID();
+        repository.stored = saved(userId, SUMMARY_JSON);
+
+        TasteSummaryResponse response = service.getMyTasteProfile(userId);
+
+        assertThat(response.toString()).doesNotContain("travelPaceDensity", "tasteProfile", "extraFromAi");
+    }
+
+    /**
+     * 개정 전 AI 응답으로 저장된 프로필에는 요약이 없다. 보여줄 내용이 없으므로 명세의 404 로 응답해
+     * FE 가 재분석을 유도하게 한다 — 지표만 있는 프로필을 빈 요약으로 내리면 화면이 비어 보인다.
+     */
+    @Test
+    void 요약이_없는_프로필은_404다() {
+        UUID userId = UUID.randomUUID();
+        repository.stored = saved(userId, null);
+
+        assertThatThrownBy(() -> service.getMyTasteProfile(userId))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.TASTE_PROFILE_NOT_FOUND);
+    }
+
+    @Test
+    void 요약의_배열이_비어_있어도_null이_아닌_빈_배열로_내린다() {
+        UUID userId = UUID.randomUUID();
+        repository.stored = saved(userId, "{\"intro\":\"요약\",\"recommendCity\":{\"countryName\":\"일본\",\"cityName\":\"도쿄\"}}");
+
+        TasteSummaryResponse response = service.getMyTasteProfile(userId);
+
+        assertThat(response.hashtags()).isEmpty();
+        assertThat(response.types()).isEmpty();
+        assertThat(response.recommendCity().reason()).isNull();
+    }
+
+    @Test
+    void 손상된_요약_JSON은_500이다() {
+        UUID userId = UUID.randomUUID();
+        repository.stored = saved(userId, "{not json");
+
+        assertThatThrownBy(() -> service.getMyTasteProfile(userId))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INTERNAL_ERROR);
     }
 }
