@@ -14,6 +14,7 @@ import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisEvents.CompleteData;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisEvents.Progress;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisRequest;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
+import com.soma.yeolo.user.service.UserLanguageReader;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ public class BehaviorTasteProfileService {
     private final AiTasteProfileClient aiClient;
     private final TasteProfileAssembler assembler;
     private final TasteProfileRepository tasteProfileRepository;
+    private final UserLanguageReader userLanguageReader;
     private final SseHeartbeat heartbeat;
 
     /** 전처리 → AI 분석 → 저장 파이프라인을 실행하고 진행 상황을 SSE로 중계한다. */
@@ -55,7 +57,9 @@ public class BehaviorTasteProfileService {
 
             stream.send(EVENT_PROGRESS,
                     new Progress("ANALYZING_PREFERENCE", "여행 취향을 분석 중입니다."));
-            AiTasteAnalysis analysis = aiClient.analyzeBehavior(AiBehaviorAnalysisRequest.of(userId, items));
+            // AI 는 요약 문구를 사용자의 선호 언어로 만든다(API-AI-1 language, 2026-10 개정).
+            AiTasteAnalysis analysis = aiClient.analyzeBehavior(
+                    AiBehaviorAnalysisRequest.of(userId, userLanguageReader.findLanguage(userId), items));
 
             // 클라이언트가 이미 떠났어도 분석은 끝났으므로 저장은 진행한다(재요청 시 재분석 불필요).
             UUID tasteProfileId = persist(userId, analysis);

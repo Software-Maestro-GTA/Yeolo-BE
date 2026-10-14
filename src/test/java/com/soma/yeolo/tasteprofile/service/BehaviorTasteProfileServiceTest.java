@@ -75,7 +75,7 @@ class BehaviorTasteProfileServiceTest {
     private final FakeTasteProfileRepository store = new FakeTasteProfileRepository();
 
     private BehaviorTasteProfileService service() {
-        return new BehaviorTasteProfileService(preprocessor, aiClient, assembler, store,
+        return new BehaviorTasteProfileService(preprocessor, aiClient, assembler, store, userId -> "ko",
                 TestSseHeartbeat.create());
     }
 

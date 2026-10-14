@@ -19,6 +19,7 @@ import com.soma.yeolo.preference.domain.Mbti;
 import com.soma.yeolo.preference.service.UserMbtiReader;
 import com.soma.yeolo.tasteprofile.domain.SavedTasteProfile;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
+import com.soma.yeolo.user.service.UserLanguageReader;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.UUID;
@@ -47,6 +48,7 @@ public class CourseCreationService {
 
     private final UserMbtiReader userMbtiReader;
     private final TasteProfileRepository tasteProfileRepository;
+    private final UserLanguageReader userLanguageReader;
     private final AiCourseClient aiCourseClient;
     private final ItineraryPlaceNormalizer itineraryPlaceNormalizer;
     private final CourseAssembler courseAssembler;
@@ -76,8 +78,9 @@ public class CourseCreationService {
 
             stream.send(EVENT_PROGRESS,
                     new Progress("GENERATING_COURSE", "개인 맞춤형 여행 코스를 생성 중입니다."));
-            JsonNode courseNode = aiCourseClient.generateCourse(
-                    AiCourseGenerationRequest.of(userId, mbti, tasteProfile, condition));
+            // AI 는 제목·메모·추천 이유를 사용자의 선호 언어로 만든다(API-AI-2 language, 2026-10 개정).
+            JsonNode courseNode = aiCourseClient.generateCourse(AiCourseGenerationRequest.of(
+                    userId, userLanguageReader.findLanguage(userId), mbti, tasteProfile, condition));
 
             // 클라이언트가 이미 떠났어도 생성은 끝났으므로 저장은 진행한다(목록 조회로 확인 가능).
             // AI가 준 외부 장소 식별자를 내부 placeId로 치환해 저장한다(DOM-3).

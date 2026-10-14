@@ -25,6 +25,7 @@ import com.soma.yeolo.tasteprofile.domain.SavedTasteProfile;
 import com.soma.yeolo.tasteprofile.domain.SourceType;
 import com.soma.yeolo.tasteprofile.domain.TasteProfile;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
+import com.soma.yeolo.user.service.UserLanguageReader;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -145,6 +146,9 @@ class CourseCreationServiceTest {
     private final FakeCourseRepository courses = new FakeCourseRepository();
     private final FakeAiCourseClient aiClient = new FakeAiCourseClient();
     private final FakeUserMbtiReader mbtiReader = new FakeUserMbtiReader();
+    /** 언어 설정 포트 fake: 고정 언어를 돌려준다(기본 ko). */
+    private String userLanguage = "ko";
+    private final UserLanguageReader languageReader = userId -> userLanguage;
 
     /** 장소 정규화 fake: AI가 준 장소는 그대로 등록하고, 폴백 조회는 고정 좌표로 해결한다. */
     private final PlaceRegistry placeRegistry = new PlaceRegistry() {
@@ -163,7 +167,7 @@ class CourseCreationServiceTest {
     };
 
     private CourseCreationService service() {
-        return new CourseCreationService(mbtiReader, tasteProfiles, aiClient,
+        return new CourseCreationService(mbtiReader, tasteProfiles, languageReader, aiClient,
                 new ItineraryPlaceNormalizer(placeRegistry), new CourseAssembler(), courses,
                 TestSseHeartbeat.create());
     }
@@ -275,6 +279,19 @@ class CourseCreationServiceTest {
         service().createAndStream(userId, request(), emitter);
 
         assertThat(aiClient.lastRequest.tripCondition().budget()).isEqualByComparingTo(BigDecimal.valueOf(500_000));
+    }
+
+    /** 2026-10 개정(API-AI-2): 사용자의 선호 언어가 AI 요청의 language 로 실린다. */
+    @Test
+    void 사용자_언어가_AI_요청의_language로_실린다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        tasteProfiles.latest = Optional.of(savedProfile(userId));
+        aiClient.result = courseNode();
+        userLanguage = "en";
+
+        service().createAndStream(userId, request(), emitter);
+
+        assertThat(aiClient.lastRequest.language()).isEqualTo("en");
     }
 
     /** 인수 기준: 저장된 MBTI가 내부 AI 코스 생성 요청에 포함된다. */

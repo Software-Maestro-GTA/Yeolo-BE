@@ -48,7 +48,7 @@ class InternalAiCourseClientTest {
         JsonNode tasteProfile = MAPPER.readTree("{\"sourceType\":\"behavior\"}");
         TripCondition condition = new TripCondition("대한민국", "제주",
                 LocalDate.of(2026, 8, 1), 3, BigDecimal.valueOf(500_000));
-        return AiCourseGenerationRequest.of(UUID.randomUUID(), Mbti.ENFP, tasteProfile, condition);
+        return AiCourseGenerationRequest.of(UUID.randomUUID(), "ko", Mbti.ENFP, tasteProfile, condition);
     }
 
     @Test
@@ -64,6 +64,9 @@ class InternalAiCourseClientTest {
         server.expect(requestTo(URL))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Api-Key", "internal-key"))
+                // 2026-10 개정: 선호 언어를 헤더와 본문 양쪽에 싣는다(API-AI-2).
+                .andExpect(header("Accept-Language", "ko"))
+                .andExpect(jsonPath("$.language").value("ko"))
                 // tasteProfile은 원본 JSON 트리 그대로 전송돼야 한다(JsonNode의 boolean getter가
                 // 필드로 새어 나가면 AI 서버가 실제 성향 필드를 못 받아 400을 낸다).
                 .andExpect(jsonPath("$.tasteProfile.sourceType").value("behavior"))
