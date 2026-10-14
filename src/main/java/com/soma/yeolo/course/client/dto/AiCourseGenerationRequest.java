@@ -12,6 +12,8 @@ import java.util.UUID;
  */
 public record AiCourseGenerationRequest(
         String userId,
+        /** 사용자의 선호 언어(BCP 47). AI 가 제목·메모·추천 이유를 이 언어로 만든다 (2026-10 개정). */
+        String language,
         String mbti,
         JsonNode tasteProfile,
         TripConditionPayload tripCondition
@@ -26,10 +28,11 @@ public record AiCourseGenerationRequest(
     ) {
     }
 
-    public static AiCourseGenerationRequest of(UUID userId, Mbti mbti, JsonNode tasteProfile,
-                                               TripCondition condition) {
+    public static AiCourseGenerationRequest of(UUID userId, String language, Mbti mbti,
+                                               JsonNode tasteProfile, TripCondition condition) {
         return new AiCourseGenerationRequest(
                 userId.toString(),
+                language,
                 mbti == null ? null : mbti.name(),
                 tasteProfile,
                 new TripConditionPayload(

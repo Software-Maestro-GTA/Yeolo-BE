@@ -12,6 +12,16 @@ import org.junit.jupiter.api.Test;
  */
 class UserTest {
 
+    /** 2026-10 개정(API-USER-3/4): 설정이 없으면 null(기본 언어는 앱 설정이 정한다), 변경은 그대로 교체된다. */
+    @Test
+    void 선호_언어는_설정_전엔_없고_변경하면_교체된다() {
+        User user = User.createOAuthUser(Provider.GOOGLE, "google-1", "a@b.c", "이름", null);
+
+        assertThat(user.getLanguage()).isNull();
+        user.updateLanguage("en");
+        assertThat(user.getLanguage()).isEqualTo("en");
+    }
+
     @Test
     void 신규_OAuth_사용자는_active_상태로_로그인_시각을_기록하며_생성된다() {
         User user = User.createOAuthUser(Provider.GOOGLE, "sub-1",

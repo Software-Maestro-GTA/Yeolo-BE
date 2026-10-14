@@ -4,6 +4,7 @@ import com.soma.yeolo.global.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -66,6 +67,19 @@ public class GlobalExceptionHandler {
      * 넘으면 요청 파싱 단계에서 먼저 끊겨 서비스까지 오지 않는다. 두 경로 모두 같은 413으로
      * 응답해야 클라이언트가 한 가지 처리만 하면 된다. (업로드를 받는 엔드포인트는 현재 이것뿐이다.)
      */
+    /**
+     * 본문을 읽지 못한 경우(깨진 JSON, 타입 불일치 등). 따로 처리하지 않으면 500 이 되는데 잘못된
+     * 입력이므로 400 이다(API-USER-4 "잘못된 JSON … 400"). 어느 필드가 문제인지는 본문 형식 자체가
+     * 깨진 상황이라 알 수 없어 공통 문구를 쓴다(API-USER-4 의 예시 문구와 다르다 — docs/spec-index.md).
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadable(HttpMessageNotReadableException e) {
+        ErrorCode code = ErrorCode.INVALID_REQUEST;
+        log.warn("요청 본문을 읽을 수 없다: {}", e.getMostSpecificCause().getMessage());
+        return ResponseEntity.status(code.getHttpStatus())
+                .body(ApiResponse.error(code.getHttpStatus().value(), code.getMessage()));
+    }
+
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiResponse<Void>> handleUploadSize(MaxUploadSizeExceededException e) {
         ErrorCode code = ErrorCode.PROFILE_IMAGE_TOO_LARGE;

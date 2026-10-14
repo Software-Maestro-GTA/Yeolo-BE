@@ -10,6 +10,7 @@ import com.soma.yeolo.tasteprofile.client.dto.AiBehaviorAnalysisRequest;
 import com.soma.yeolo.tasteprofile.client.dto.AiTasteAnalysis;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -50,6 +51,8 @@ public class AiTasteProfileClient {
             String stream = restClient.post()
                     .uri(properties.baseUrl() + ANALYSIS_PATH)
                     .header(INTERNAL_API_KEY_HEADER, properties.apiKey())
+                    // 명세(API-AI-1)의 Accept-Language — 본문 language 와 같은 값이다.
+                    .header(HttpHeaders.ACCEPT_LANGUAGE, request.language())
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.TEXT_EVENT_STREAM, MediaType.APPLICATION_JSON)
                     .body(request)

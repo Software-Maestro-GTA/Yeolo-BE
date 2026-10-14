@@ -41,7 +41,7 @@ class AiTasteProfileClientTest {
     }
 
     private AiBehaviorAnalysisRequest request() {
-        return new AiBehaviorAnalysisRequest("11111111-1111-1111-1111-111111111111", List.of());
+        return new AiBehaviorAnalysisRequest("11111111-1111-1111-1111-111111111111", "ko", List.of());
     }
 
     @Test
@@ -57,6 +57,8 @@ class AiTasteProfileClientTest {
         server.expect(requestTo(URL))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Api-Key", "internal-key"))
+                // 2026-10 개정: 선호 언어를 헤더에도 싣는다(API-AI-1).
+                .andExpect(header("Accept-Language", "ko"))
                 .andRespond(withSuccess(sse, MediaType.TEXT_EVENT_STREAM));
 
         AiTasteAnalysis analysis = client.analyzeBehavior(request());

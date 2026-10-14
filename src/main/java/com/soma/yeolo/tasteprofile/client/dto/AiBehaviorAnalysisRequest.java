@@ -10,6 +10,8 @@ import java.util.UUID;
  */
 public record AiBehaviorAnalysisRequest(
         String userId,
+        /** 사용자의 선호 언어(BCP 47). AI 가 요약 문구를 이 언어로 만든다 (2026-10 개정). */
+        String language,
         List<Item> items
 ) {
 
@@ -40,9 +42,9 @@ public record AiBehaviorAnalysisRequest(
     }
 
     /** 사용자 식별자와 전처리 결과 목록으로 AI 요청 본문을 구성한다. */
-    public static AiBehaviorAnalysisRequest of(UUID userId, List<PreprocessedImage> images) {
+    public static AiBehaviorAnalysisRequest of(UUID userId, String language, List<PreprocessedImage> images) {
         List<Item> items = images.stream().map(AiBehaviorAnalysisRequest::toItem).toList();
-        return new AiBehaviorAnalysisRequest(userId.toString(), items);
+        return new AiBehaviorAnalysisRequest(userId.toString(), language, items);
     }
 
     private static Item toItem(PreprocessedImage image) {
