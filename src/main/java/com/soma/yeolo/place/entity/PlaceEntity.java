@@ -19,8 +19,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 장소 정보 (DOM-3 §"장소 정보 처리 기준" / API-PLACE-1). AI가 반환한 장소명을 provider로 정규화한
- * 결과를 저장해, 코스 stop이 내부 {@code placeId}로 참조하고 장소 상세 조회의 근거가 되게 한다.
+ * 장소 정보 (DOM-3 §"장소 정보 처리 기준"). AI가 준 장소(또는 장소명을 provider로 정규화한 결과)를
+ * 저장해, 코스 stop이 외부 식별자 대신 내부 {@code placeId}로 참조하게 한다. 장소 상세 API
+ * (API-PLACE-1)는 2026-10 명세 개정으로 폐기됐고, 이 테이블은 식별자 치환·재사용 용도로 남는다.
  *
  * <p>{@code provider_place_id}에 unique 제약을 둬 같은 장소가 코스마다 중복 저장되지 않게 한다
  * (외부 조회 결과 캐시 역할). 이 컬럼은 <b>내부 전용</b>이며 {@link #toSavedPlace()}가 만드는 읽기
@@ -100,7 +101,7 @@ public class PlaceEntity extends BaseTimeEntity {
                 .build();
     }
 
-    /** 영속 엔티티 → 조회용 읽기 모델 매핑 (API-PLACE-1). provider 식별자는 담지 않는다. */
+    /** 영속 엔티티 → 읽기 모델 매핑. provider 식별자는 담지 않는다. */
     public SavedPlace toSavedPlace() {
         return new SavedPlace(id, placeName, placeEngName, category, address, latitude, longitude,
                 rating, photoUrl, openingHours);

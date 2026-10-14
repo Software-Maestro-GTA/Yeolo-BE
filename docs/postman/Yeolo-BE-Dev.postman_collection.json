@@ -446,7 +446,7 @@
 		},
 		{
 			"name": "05. Course",
-			"description": "코스 생성(SSE)·목록·상세·삭제 (API-COURSE-1/2/3/4). 목록/상세가 courseId·placeId 를 환경변수에 저장한다.",
+			"description": "코스 생성(SSE)·목록·상세·삭제 (API-COURSE-1/2/3/4). 생성/목록이 courseId 를 컬렉션 변수에 저장한다. 장소 상세(API-PLACE-1)는 2026-10 명세 개정으로 폐기되어 placeId 변수는 없다.",
 			"item": [
 				{
 					"name": "POST 코스 생성 (API-COURSE-1, SSE)",
@@ -463,10 +463,10 @@
 							}
 						],
 						"url": "{{baseUrl}}/api/courses",
-						"description": "text/event-stream. 진행 이벤트는 LOADING_TASTE_PREFERENCE → GENERATING_COURSE → complete. budgetType 은 cost_effective|moderate|luxury 만 허용된다(명세값). MBTI 또는 취향 프로필 중 하나는 있어야 하며 둘 다 없으면 404.",
+						"description": "text/event-stream. 진행 이벤트는 LOADING_TASTE_PREFERENCE → GENERATING_COURSE → complete. 명세 개정(2026-10, #96)으로 예산은 budgetType(유형) 대신 budget(금액, 양수 number)이다 — 옛 budgetType만 보내면 budget 누락으로 400. MBTI 또는 취향 프로필 중 하나는 있어야 하며 둘 다 없으면 404.",
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"destinationCountry\": \"일본\",\n  \"destinationCity\": \"오사카\",\n  \"startDate\": \"2026-09-01\",\n  \"totalDays\": 3,\n  \"budgetType\": \"moderate\"\n}",
+							"raw": "{\n  \"destinationCountry\": \"일본\",\n  \"destinationCity\": \"오사카\",\n  \"startDate\": \"2026-09-01\",\n  \"totalDays\": 3,\n  \"budget\": 500000\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -481,12 +481,10 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"// SSE 응답에서 complete 이벤트의 courseId·placeId 를 뽑아 저장한다.",
+									"// SSE 응답에서 complete 이벤트의 courseId 를 뽑아 저장한다.",
 									"const text = pm.response.text();",
 									"const m = text.match(/\"courseId\"\\s*:\\s*\"([0-9a-fA-F-]{36})\"/);",
-									"if (m) { pm.collectionVariables.set('courseId', m[1]); console.log('courseId 저장:', m[1]); }",
-									"const p = text.match(/\"placeId\"\\s*:\\s*\"([0-9a-fA-F-]{36})\"/);",
-									"if (p) { pm.collectionVariables.set('placeId', p[1]); console.log('placeId 저장:', p[1]); }"
+									"if (m) { pm.collectionVariables.set('courseId', m[1]); console.log('courseId 저장:', m[1]); }"
 								]
 							}
 						}
@@ -498,7 +496,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{baseUrl}}/api/courses",
-						"description": "내가 만든 코스 + 공유받아 수락한 코스를 생성 시각 최신순으로 함께 반환한다(DOM-6). 첫 항목의 courseId 를 환경변수에 저장한다."
+						"description": "내가 만든 코스 + 공유받아 수락한 코스를 생성 시각 최신순으로 함께 반환한다(DOM-6). 첫 항목의 courseId 를 컬렉션 변수에 저장한다. 명세 개정(2026-10, #96)으로 recommendationReason 은 빠졌고 coverImageUrl 은 남아 있다(AI 가 더 주지 않으므로 새 코스는 null — #97 에서 목적지 도시 사진으로 채울 예정)."
 					},
 					"response": [],
 					"event": [
@@ -523,7 +521,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{baseUrl}}/api/courses/{{courseId}}",
-						"description": "소유자 또는 공유받은 사용자만 조회 가능(그 외 403). itinerary 의 첫 placeId 를 저장한다. stop 에는 방문 비용 cost 가 담기며, 이동 비용 transportToNext.cost 와는 별개다(명세 개정). 개정 전 생성된 코스는 stop 의 cost 가 없다."
+						"description": "소유자 또는 공유받은 사용자만 조회 가능(그 외 403). 명세 개정(2026-10, #96): course 에 totalCost 가 추가되고 coverImageUrl·recommendationReason·day.memo·stop.arrivalTime 은 빠졌다(개정 전 코스도 응답에서 제외된다). stop 의 cost 는 방문 비용이며 transportToNext.cost(이동 비용, 새 코스는 null)와 별개다. totalCostExRate·exRateIcon 은 #100 에서 추가된다."
 					},
 					"response": [],
 					"event": [
@@ -533,13 +531,12 @@
 								"type": "text/javascript",
 								"exec": [
 									"const res = pm.response.json();",
-									"if (pm.response.code === 200 && res.data && res.data.course) {",
-									"    const days = (res.data.course.itinerary && res.data.course.itinerary.days) || [];",
-									"    for (const d of days) for (const s of (d.stops || [])) {",
-									"        const id = s.place && s.place.placeId;",
-									"        if (id) { pm.collectionVariables.set('placeId', id); console.log('placeId 저장:', id); return; }",
-									"    }",
-									"}"
+									"pm.test('개정 계약: totalCost 있음, 제거 필드 없음', () => {",
+									"    const c = res.data.course;",
+									"    pm.expect(c).to.have.property('totalCost');",
+									"    pm.expect(c).to.not.have.property('coverImageUrl');",
+									"    pm.expect(c).to.not.have.property('recommendationReason');",
+									"});"
 								]
 							}
 						}
@@ -552,22 +549,6 @@
 						"header": [],
 						"url": "{{baseUrl}}/api/courses/{{courseId}}",
 						"description": "⚠️ 소유자면 원본 삭제(공유 권한·링크도 함께 정리), 공유받은 사용자면 내 목록에서만 제거된다(DOM-6). 08. Share 가 쓸 코스도 사라지므로 폴더 실행 시 체크를 끌 것."
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "06. Place",
-			"description": "장소 상세 조회 (API-PLACE-1). 05 가 저장한 placeId 를 쓴다.",
-			"item": [
-				{
-					"name": "GET 장소 상세 (API-PLACE-1)",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": "{{baseUrl}}/api/places/{{placeId}}",
-						"description": "내부 placeId(UUID)로 조회한다. Google Place ID 는 외부로 노출하지 않는다. UUID 형식이 아니면 400, 없으면 404."
 					},
 					"response": []
 				}
@@ -666,10 +647,10 @@
 							}
 						],
 						"url": "{{aiBaseUrl}}/internal/ai/courses",
-						"description": "BE 가 중계하는 것과 같은 요청을 직접 보낸다. complete 이벤트의 course 에는 coverImageUrl 과, stop 마다 방문 비용 cost 및 place/transportToNext 객체가 담긴다(명세 개정).",
+						"description": "BE 가 중계하는 것과 같은 요청을 직접 보낸다. 명세 개정(2026-10): tripCondition.budget(금액) 으로 보내며 budgetType 은 없다. complete 이벤트의 course 에는 totalCost 와, stop 마다 방문 비용 cost 및 place(placeId·placeName·category·좌표)/transportToNext 객체가 담긴다. coverImageUrl·recommendationReason·arrivalTime·day.memo 는 계약에서 빠졌다. AI 가 아직 budgetType 을 요구해 400 이 나면 AI 배포가 개정 전인 것이다(DOM-5).",
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"mbti\": \"ENFP\",\n  \"tasteProfile\": null,\n  \"tripCondition\": {\n    \"destinationCountry\": \"일본\",\n    \"destinationCity\": \"오사카\",\n    \"startDate\": \"2026-09-01\",\n    \"totalDays\": 3,\n    \"budgetType\": \"moderate\"\n  }\n}",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"mbti\": \"ENFP\",\n  \"tasteProfile\": null,\n  \"tripCondition\": {\n    \"destinationCountry\": \"일본\",\n    \"destinationCity\": \"오사카\",\n    \"startDate\": \"2026-09-01\",\n    \"totalDays\": 3,\n    \"budget\": 500000\n  }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -808,11 +789,6 @@
 		},
 		{
 			"key": "courseId",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "placeId",
 			"value": "",
 			"type": "string"
 		},

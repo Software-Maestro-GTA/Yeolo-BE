@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.soma.yeolo.course.client.AiCourseClient;
 import com.soma.yeolo.course.client.dto.AiCourseGenerationRequest;
-import com.soma.yeolo.course.domain.BudgetType;
 import com.soma.yeolo.course.domain.Course;
 import com.soma.yeolo.course.domain.TripCondition;
 import com.soma.yeolo.course.dto.CourseCreationEvents.CompleteData;
@@ -81,7 +80,7 @@ public class CourseCreationService {
                     AiCourseGenerationRequest.of(userId, mbti, tasteProfile, condition));
 
             // 클라이언트가 이미 떠났어도 생성은 끝났으므로 저장은 진행한다(목록 조회로 확인 가능).
-            // AI는 장소명만 주므로, 저장 전에 각 방문지를 내부 장소(placeId·좌표)로 정규화한다(DOM-3).
+            // AI가 준 외부 장소 식별자를 내부 placeId로 치환해 저장한다(DOM-3).
             itineraryPlaceNormalizer.normalize(courseNode, condition);
             Course course = courseAssembler.toDomain(userId, courseNode);
             UUID courseId = courseRepository.save(course);
@@ -109,9 +108,10 @@ public class CourseCreationService {
                     request.destinationCity(),
                     LocalDate.parse(request.startDate()),
                     request.totalDays(),
-                    BudgetType.fromValue(request.budgetType())
+                    request.budget()
             );
         } catch (DateTimeParseException | IllegalArgumentException e) {
+            // 달력에 없는 날짜, 양수가 아닌 예산(TripCondition 불변식) 모두 잘못된 입력이다.
             throw new BusinessException(ErrorCode.INVALID_COURSE_CONDITION, e);
         }
     }
