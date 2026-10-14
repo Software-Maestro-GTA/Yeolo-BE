@@ -136,6 +136,8 @@ class LocationSeedLoaderTest {
                 where not exists (select 1 from cities c where c.city_id = i.city_id)
                 """, Long.class);
         assertThat(orphans).isZero();
+        // 도쿄는 데이터셋에 반드시 있어야 하는 대표 도시다 — 사진 선정 규칙이 바뀌어 빠지면 여기서 드러난다.
+        assertThat(cityImageRepository.findById("1850147")).isPresent();
     }
 
     @Test

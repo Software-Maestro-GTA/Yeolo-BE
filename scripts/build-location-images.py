@@ -159,7 +159,7 @@ def pixabay_search(api_key, query, cache_path):
             if attempt == 3:
                 raise
             time.sleep(5)
-        except (urllib.error.URLError, TimeoutError):
+        except OSError:   # URLError·socket.timeout 모두 OSError 다 (3.9 의 socket.timeout 은 TimeoutError 가 아니다)
             if attempt == 3:
                 raise
             time.sleep(5)
