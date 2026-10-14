@@ -8,7 +8,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
@@ -24,7 +26,7 @@ class GlobalExceptionHandlerTest {
         NoResourceFoundException e =
                 new NoResourceFoundException(HttpMethod.POST, "api/auth/unknown", null);
 
-        ResponseEntity<ApiResponse<Void>> response = handler.handleNoResource(e);
+        ResponseEntity<ApiResponse<Void>> response = handler.handleNoResource(e, new MockHttpServletResponse());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).isNotNull();
@@ -43,7 +45,7 @@ class GlobalExceptionHandlerTest {
         MethodArgumentTypeMismatchException e = new MethodArgumentTypeMismatchException(
                 "not-a-uuid", UUID.class, "placeId", null, new IllegalArgumentException());
 
-        ResponseEntity<ApiResponse<Void>> response = handler.handleTypeMismatch(e);
+        ResponseEntity<ApiResponse<Void>> response = handler.handleTypeMismatch(e, new MockHttpServletResponse());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
@@ -75,11 +77,31 @@ class GlobalExceptionHandlerTest {
     @Test
     void 비즈니스_예외는_ErrorCode의_상태와_메시지를_그대로_내보낸다() {
         ResponseEntity<ApiResponse<Void>> response =
-                handler.handleBusiness(new BusinessException(ErrorCode.INVALID_REQUEST));
+                handler.handleBusiness(new BusinessException(ErrorCode.INVALID_REQUEST), new MockHttpServletResponse());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().status()).isEqualTo(400);
         assertThat(response.getBody().message()).isEqualTo(ErrorCode.INVALID_REQUEST.getMessage());
+    }
+
+    /** #107: 봉투는 요청 Accept 와 무관하게 JSON 으로 고정된다. */
+    @Test
+    void 봉투의_Content_Type은_JSON으로_고정된다() {
+        ResponseEntity<ApiResponse<Void>> response =
+                handler.handleBusiness(new BusinessException(ErrorCode.INVALID_REQUEST), new MockHttpServletResponse());
+
+        assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    /** 열린 SSE 스트림(커밋된 응답)에는 JSON 을 덧붙이지 않는다 — 본문 없이 끝낸다. */
+    @Test
+    void 응답이_이미_커밋됐으면_봉투를_쓰지_않는다() {
+        MockHttpServletResponse committed = new MockHttpServletResponse();
+        committed.setCommitted(true);
+
+        assertThat(handler.handleUnexpected(new IllegalStateException("emitter callback"), committed)).isNull();
+        assertThat(handler.handleBusiness(new BusinessException(ErrorCode.INTERNAL_ERROR), committed)).isNull();
     }
 }

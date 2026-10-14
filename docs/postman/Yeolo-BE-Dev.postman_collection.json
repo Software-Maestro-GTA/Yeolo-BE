@@ -635,7 +635,7 @@
 							}
 						],
 						"url": "{{baseUrl}}/api/users/me/taste-profile/analysis",
-						"description": "text/event-stream. LLM 분석이 실측 80초대이므로 Postman 요청 타임아웃을 0(무제한)으로 둘 것. 동의가 없으면 403, 메타데이터가 부족하면 400. 2026-10 개정: AI 가 complete 에 summary(intro·hashtags·types·recommendCity)를 함께 주며 BE 가 저장한다. BE 의 SSE 이벤트(PREPROCESSING_IMAGE_METADATA → ANALYZING_PREFERENCE → complete)는 그대로다.",
+						"description": "text/event-stream. LLM 분석이 실측 80초대이므로 Postman 요청 타임아웃을 0(무제한)으로 둘 것. 동의가 없으면 403, 메타데이터가 부족하면 400. 2026-10 개정: AI 가 complete 에 summary(intro·hashtags·types·recommendCity)를 함께 주며 BE 가 저장한다. BE 의 SSE 이벤트(PREPROCESSING_IMAGE_METADATA → ANALYZING_PREFERENCE → complete)는 그대로다. 검증 실패·동의 없음 등 스트림이 열리기 전의 오류는 Accept: text/event-stream 으로 보내도 명세의 JSON 봉투({status,message,data:null})로 돌아온다(#107).",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"images\": [\n    {\n      \"sourceImageId\": \"img-1\",\n      \"capturedAt\": \"2026-05-01T09:30:00Z\",\n      \"latitude\": 34.6873,\n      \"longitude\": 135.5259\n    },\n    {\n      \"sourceImageId\": \"img-2\",\n      \"capturedAt\": \"2026-05-01T18:10:00Z\",\n      \"latitude\": 34.6654,\n      \"longitude\": 135.501\n    }\n  ]\n}",
@@ -706,7 +706,7 @@
 							}
 						],
 						"url": "{{baseUrl}}/api/courses",
-						"description": "text/event-stream. 진행 이벤트는 LOADING_TASTE_PREFERENCE → GENERATING_COURSE → complete. 명세 개정(2026-10, #96)으로 예산은 budgetType(유형) 대신 budget(금액, 양수 number)이다 — 옛 budgetType만 보내면 budget 누락으로 400. MBTI 또는 취향 프로필 중 하나는 있어야 하며 둘 다 없으면 404.",
+						"description": "text/event-stream. 진행 이벤트는 LOADING_TASTE_PREFERENCE → GENERATING_COURSE → complete. 명세 개정(2026-10, #96)으로 예산은 budgetType(유형) 대신 budget(금액, 양수 number)이다 — 옛 budgetType만 보내면 budget 누락으로 400. MBTI 또는 취향 프로필 중 하나는 있어야 하며 둘 다 없으면 404. 검증 실패·동의 없음 등 스트림이 열리기 전의 오류는 Accept: text/event-stream 으로 보내도 명세의 JSON 봉투({status,message,data:null})로 돌아온다(#107).",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"destinationCountry\": \"일본\",\n  \"destinationCity\": \"오사카\",\n  \"startDate\": \"2026-09-01\",\n  \"totalDays\": 3,\n  \"budget\": 500000\n}",

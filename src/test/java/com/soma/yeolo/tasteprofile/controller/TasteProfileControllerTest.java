@@ -6,6 +6,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
@@ -19,18 +20,15 @@ import com.soma.yeolo.global.security.JwtAuthenticationFilter;
 import com.soma.yeolo.global.security.JwtTokenProvider;
 import com.soma.yeolo.global.security.RestAuthenticationEntryPoint;
 import com.soma.yeolo.global.security.WithdrawnUserChecker;
-import com.soma.yeolo.global.sse.SseProperties;
+import com.soma.yeolo.global.exception.GlobalExceptionHandler;
+import com.soma.yeolo.global.sse.SseSliceTestConfig;
 import com.soma.yeolo.tasteprofile.service.BehaviorTasteProfileService;
 import java.util.UUID;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.core.task.AsyncTaskExecutor;
-import org.springframework.core.task.support.TaskExecutorAdapter;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -44,23 +42,8 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @WebMvcTest(TasteProfileController.class)
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, RestAuthenticationEntryPoint.class,
-        TasteProfileControllerTest.SseTestBeans.class})
+        GlobalExceptionHandler.class, SseSliceTestConfig.class})
 class TasteProfileControllerTest {
-
-    @TestConfiguration
-    static class SseTestBeans {
-
-        @Bean
-        SseProperties sseProperties() {
-            return new SseProperties(600_000L);
-        }
-
-        /** 워커를 인라인 실행해 파이프라인 시작 여부를 경합 없이 검증한다. */
-        @Bean(name = "sseTaskExecutor")
-        AsyncTaskExecutor sseTaskExecutor() {
-            return new TaskExecutorAdapter(Runnable::run);
-        }
-    }
 
     private static final String BODY = """
             {"images":[{"sourceImageId":"img-1","capturedAt":"2026-07-14T10:00:00+09:00",\
@@ -95,11 +78,14 @@ class TasteProfileControllerTest {
         doThrow(new BusinessException(ErrorCode.PHOTO_CONSENT_REQUIRED))
                 .when(photoAnalysisConsentChecker).requireAgreed(userId);
 
+        // FE·Postman 은 SSE 엔드포인트에 Accept: text/event-stream 으로 보낸다 — 그래도 JSON 봉투가 나가야 한다(#107).
         mockMvc.perform(post("/api/users/me/taste-profile/analysis")
                         .header("Authorization", "Bearer valid-token")
+                        .accept(MediaType.TEXT_EVENT_STREAM)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(BODY))
                 .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.status").value(403))
                 .andExpect(jsonPath("$.message").value("개인정보 수집·활용 동의가 필요합니다."))
                 .andExpect(jsonPath("$.data").value(Matchers.nullValue()));
