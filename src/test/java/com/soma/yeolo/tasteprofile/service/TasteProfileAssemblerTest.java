@@ -32,7 +32,7 @@ class TasteProfileAssemblerTest {
                 }
                 """);
 
-        TasteProfile result = assembler.toDomain(userId, profile);
+        TasteProfile result = assembler.toDomain(userId, profile, node("{\"intro\":\"느긋한 미식가\"}"));
 
         assertThat(result.userId()).isEqualTo(userId);
         assertThat(result.sourceType()).isEqualTo(SourceType.BEHAVIOR);
@@ -41,11 +41,19 @@ class TasteProfileAssemblerTest {
         assertThat(result.companionType()).isEqualTo("friends");
         assertThat(result.seasonalEnvironmentPreference()).containsExactly("warm_region", "off_season");
         assertThat(result.profileJson()).contains("\"relaxation\":4");
+        // 요약도 원본 JSON 으로 보존한다 (2026-10 개정).
+        assertThat(result.summaryJson()).isEqualTo("{\"intro\":\"느긋한 미식가\"}");
+    }
+
+    @Test
+    void summary가_없으면_null로_둔다() throws Exception {
+        assertThat(assembler.toDomain(UUID.randomUUID(), node("{}"), null).summaryJson()).isNull();
+        assertThat(assembler.toDomain(UUID.randomUUID(), node("{}"), node("null")).summaryJson()).isNull();
     }
 
     @Test
     void sourceType이_없으면_behavior로_기본_설정한다() throws Exception {
-        TasteProfile result = assembler.toDomain(UUID.randomUUID(), node("{}"));
+        TasteProfile result = assembler.toDomain(UUID.randomUUID(), node("{}"), null);
 
         assertThat(result.sourceType()).isEqualTo(SourceType.BEHAVIOR);
         assertThat(result.travelPaceDensity()).isNull();

@@ -7,6 +7,7 @@ import com.soma.yeolo.global.client.SseStreamParser;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.tasteprofile.client.dto.AiBehaviorAnalysisRequest;
+import com.soma.yeolo.tasteprofile.client.dto.AiTasteAnalysis;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
@@ -44,7 +45,7 @@ public class AiTasteProfileClient {
      *
      * @return AI가 산출한 {@code tasteProfile} JSON 노드 (sourceType, travelPurpose 등 포함)
      */
-    public JsonNode analyzeBehavior(AiBehaviorAnalysisRequest request) {
+    public AiTasteAnalysis analyzeBehavior(AiBehaviorAnalysisRequest request) {
         try {
             String stream = restClient.post()
                     .uri(properties.baseUrl() + ANALYSIS_PATH)
@@ -54,7 +55,7 @@ public class AiTasteProfileClient {
                     .body(request)
                     .retrieve()
                     .body(String.class);
-            return extractTasteProfile(stream);
+            return extractAnalysis(stream);
         } catch (RestClientResponseException e) {
             log.error("AI behavior analysis rejected: {} {} | request={}",
                     e.getStatusCode(), e.getResponseBodyAsString(), toJsonForLog(request));
@@ -79,8 +80,12 @@ public class AiTasteProfileClient {
         }
     }
 
-    /** SSE 스트림 텍스트에서 {@code complete} 이벤트의 {@code data.tasteProfile}를 추출한다. */
-    private JsonNode extractTasteProfile(String stream) {
+    /**
+     * SSE 스트림 텍스트의 complete 이벤트에서 {@code tasteProfile}(필수)과 {@code summary}(2026-10 개정, 선택)를 꺼낸다.
+     * 요약이 없으면 경고만 남기고 null 로 둔다 — 개정 전 AI 가 아직 배포돼 있을 수 있고, 지표만으로도
+     * 코스 생성은 되므로 분석 전체를 실패시키지 않는다. 그 프로필은 취향 조회(API-PREF-4)에서 404 다.
+     */
+    private AiTasteAnalysis extractAnalysis(String stream) {
         String data = SseStreamParser.dataOfEvent(stream, "complete");
         if (data == null) {
             throw new BusinessException(ErrorCode.AI_ANALYSIS_ERROR);
@@ -91,7 +96,12 @@ public class AiTasteProfileClient {
             if (tasteProfile == null || tasteProfile.isNull()) {
                 throw new BusinessException(ErrorCode.AI_ANALYSIS_ERROR);
             }
-            return tasteProfile;
+            JsonNode summary = root.get("summary");
+            if (summary == null || summary.isNull() || !summary.isObject()) {
+                log.warn("AI 취향 분석 응답에 summary 가 없다(개정 전 AI?). 취향 조회가 404 가 된다.");
+                summary = null;
+            }
+            return new AiTasteAnalysis(tasteProfile, summary);
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {

@@ -174,7 +174,7 @@ class CourseCreationServiceTest {
 
     private SavedTasteProfile savedProfile(UUID userId) {
         return new SavedTasteProfile(UUID.randomUUID(), userId, SourceType.BEHAVIOR, Instant.now(),
-                "{\"sourceType\":\"behavior\"}");
+                "{\"sourceType\":\"behavior\"}", null);
     }
 
     private JsonNode courseNode() throws Exception {

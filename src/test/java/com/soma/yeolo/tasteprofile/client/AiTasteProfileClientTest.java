@@ -14,6 +14,8 @@ import com.soma.yeolo.global.client.AiClientProperties;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.tasteprofile.client.dto.AiBehaviorAnalysisRequest;
+import com.soma.yeolo.tasteprofile.client.dto.AiTasteAnalysis;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,11 +59,45 @@ class AiTasteProfileClientTest {
                 .andExpect(header("X-Internal-Api-Key", "internal-key"))
                 .andRespond(withSuccess(sse, MediaType.TEXT_EVENT_STREAM));
 
-        JsonNode profile = client.analyzeBehavior(request());
+        AiTasteAnalysis analysis = client.analyzeBehavior(request());
+        JsonNode profile = analysis.tasteProfile();
 
         assertThat(profile.get("sourceType").asText()).isEqualTo("behavior");
         assertThat(profile.get("travelPaceDensity").asText()).isEqualTo("balanced");
+        // 개정 전 AI 응답(summary 없음)도 지표만으로 분석은 성공한다 — 요약은 null.
+        assertThat(analysis.summary()).isNull();
         server.verify();
+    }
+
+    /** 2026-10 개정: complete 에 summary(intro·hashtags·types·recommendCity)가 함께 온다. 원본 트리 그대로 꺼낸다. */
+    @Test
+    void complete_이벤트의_summary를_함께_추출한다() {
+        String sse = """
+                event: progress
+                data: {"step":"GENERATING_SUMMARY","message":"요약 중"}
+
+                event: complete
+                data: {"tasteProfile":{"sourceType":"behavior"},"summary":{"intro":"느긋한 미식가","hashtags":["#미식"],"types":[{"typeCode":"PACE","typeName":"여행 속도","lowName":"느긋","highName":"빡빡","score":2.5}],"recommendCity":{"countryName":"일본","cityName":"오사카","reason":"먹거리"}}}
+
+                """;
+        // 한글 본문은 charset 이 없으면 ISO-8859-1 로 읽혀 깨진다 — 실제 AI 는 utf-8 을 명시한다.
+        server.expect(requestTo(URL)).andRespond(withSuccess(sse,
+                new MediaType(MediaType.TEXT_EVENT_STREAM, StandardCharsets.UTF_8)));
+
+        AiTasteAnalysis analysis = client.analyzeBehavior(request());
+
+        assertThat(analysis.summary().get("intro").asText()).isEqualTo("느긋한 미식가");
+        assertThat(analysis.summary().get("recommendCity").get("cityName").asText()).isEqualTo("오사카");
+        assertThat(analysis.summary().get("types").get(0).get("score").asDouble()).isEqualTo(2.5);
+    }
+
+    /** summary 자리에 객체가 아닌 값이 오면 요약 없음으로 다룬다(분석 자체는 성공). */
+    @Test
+    void summary가_객체가_아니면_null로_둔다() {
+        String sse = "event: complete\ndata: {\"tasteProfile\":{\"sourceType\":\"behavior\"},\"summary\":\"n/a\"}\n\n";
+        server.expect(requestTo(URL)).andRespond(withSuccess(sse, MediaType.TEXT_EVENT_STREAM));
+
+        assertThat(client.analyzeBehavior(request()).summary()).isNull();
     }
 
     @Test
