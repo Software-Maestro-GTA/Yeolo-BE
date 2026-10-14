@@ -23,9 +23,10 @@
 | API-COURSE-2 | `API-COURSE-2.md` | `GET /api/courses/{courseId}` — 여행 코스 조회 | #1 |
 | API-COURSE-3 | `API-COURSE-3.md` | `GET /api/courses` — 여행 코스 목록 조회 | #1 |
 | API-COURSE-4 | `API-COURSE-4.md` | `DELETE /api/courses/{courseId}` — 여행 코스 삭제 | #52, #78 |
-| API-LOC-1 | `API-LOC-1.md` | `GET /api/locations/countries/autocomplete` — 국가 자동완성 | #46 |
-| API-LOC-2 | `API-LOC-2.md` | `GET /api/locations/cities/autocomplete` — 도시 자동완성 | #46 |
-| API-PLACE-1 | `API-PLACE-1.md` | `GET /api/places/{placeId}` — 여행 장소 조회 | #48 |
+| API-LOC-1 | `API-LOC-1.md` | `GET /api/locations/countries` — 국가 전체 목록 조회 | #46, #97 |
+| API-LOC-2 | `API-LOC-2.md` | `GET /api/locations/cities` — 국가별 도시 전체 목록 조회 | #46, #97 |
+| API-LOC-3 | `API-LOC-3.md` | `GET /api/locations/search` — 국가·도시 키워드 검색 | #97 |
+| ~~API-PLACE-1~~ | `~~API-PLACE-1~~.md` | ~~`GET /api/places/{placeId}` — 여행 장소 조회~~ **폐기(2026-10)** | #48, #96 |
 | API-PREF-1 | `API-PREF-1.md` | `PATCH /api/users/me/preferences` — 사용자 MBTI 등록/수정 | #51 |
 | API-SHARE-1 | `API-SHARE-1.md` | `POST /api/courses/{courseId}/share-links` — 공유 링크 생성 | #49 |
 | API-SHARE-2 | `API-SHARE-2.md` | `GET /api/share-links/{shareToken}` — 공유 링크 조회(미리보기) | #49 |
@@ -35,6 +36,41 @@
 | API-PREF-4 | `API-PREF-4.md` | `GET /api/users/me/taste-profile` — 취향 조회 | #5, #78 |
 | API-USER-1 | `API-USER-1.md` | `PATCH /api/users/me/profile` — 사용자 프로필 등록/수정 | #51 |
 | API-USER-2 | `API-USER-2.md` | `DELETE /api/users/me` — 회원탈퇴 | #78 |
+| API-USER-3 | `API-USER-3.md` | `GET /api/users/me/language` — 내 언어 설정 조회 | #99 |
+| API-USER-4 | `API-USER-4.md` | `POST /api/users/me/language` — 내 언어 설정 변경 | #99 |
+
+## 2026-10-14 명세 개정 반영 (pin `c0f1b29` → `3d7b0f9`)
+
+SPEC 커밋 `3d7b0f9`("UI/UX 변경에 따른 API 수정")의 변경과 BE 대응 이슈다. 모든 API 헤더에
+`Accept-Language`가 추가됐고(언어 정책은 #99에서 한 번에 처리), 아래는 그 외의 계약 변경이다.
+#94(코스 캐싱)는 이 개정으로 코스 계약 자체가 바뀌어 **머지 없이 폐기**했다(#95).
+
+| 명세 | 변경 | BE 대응 |
+| :--- | :--- | :--- |
+| API-COURSE-1 / API-AI-2 | 요청 `budgetType` → `budget: number` | #96 — `BudgetType` 제거, 옛 값 거부 테스트 |
+| API-AI-2 / API-COURSE-2 | `totalCost` 추가. `coverImageUrl`·`recommendationReason`·day `memo`·`arrivalTime`·`transportToNext.cost`·장소 상세(주소·평점·사진·운영시간) 삭제 | #96 — `courses.total_cost` 추가, DTO 재구성, 장소 정규화 축소 |
+| API-COURSE-2 | `totalCostExRate`·`exRateIcon` 추가 | #100 — 현지 통화 기호 + 언어 설정 연동 기준 통화로 환산 |
+| API-COURSE-3 | `recommendationReason` 삭제. `인증 필요: N`으로 바뀌었으나 내 코스 목록이므로 **오타로 보고 인증 유지** | #96 |
+| API-PLACE-1 | 폐기(파일명 취소선) | #96 — 엔드포인트 삭제, `places` 테이블·등록은 정규화용으로 유지 |
+| API-LOC-1/2/3 | 자동완성 2개 → 전체 목록 2개 + 접두어 검색 1개. `limit`·초성 검색 없음, LOC-2는 **페이지네이션 없이 전체**. 응답은 `countryName`·`cityName`만 | #97 |
+| API-AI-1 / API-PREF-4 | AI complete에 `summary`(intro·hashtags·types·recommendCity) 추가, PREF-4 응답이 `tasteProfile` 래퍼 대신 summary 객체. `recommendCity.imageUrl`은 AI가 주지 않아 **BE가 채운다** | #98 (사진 데이터셋은 #97) |
+| API-USER-3/4 | 신설 — 언어 설정 조회·변경, AI-1/2 요청에 `language` 필드 | #99 |
+| DOM-6 | BE가 작성한 딥링크 계획(`docs/share-link-deeplink-plan.md`)이 그대로 편입 | 대응 없음 |
+| DOM-7 | 서식 정리만 | 대응 없음 |
+
+**명세 모순과 BE 판단:**
+- **API-AI-2 §3 vs §4** — §4(2026-10-02)는 `photoAttribution`·`coverImageAttribution`을 BE가 보존해
+  FE에 전달하라고 하지만, §3 스키마에는 사진 관련 필드가 전부 없다. 내부 저장은 무손실 JSON이라
+  보존되고, **FE 응답은 §3 스키마를 따른다.**
+- **DOM-5 vs API-AI-2** — DOM-5(AI 구현 기록, 2026-10-06)는 AI가 아직 `budgetType`을 받는다고 적는다.
+  BE가 `budget`을 먼저 보내면 AI 400이 난다. #96 머지 전 Postman `07. Internal AI`로 dev AI의 계약을
+  확인한다.
+- **API-LOC-1/2/3 JSON vs 본문** — 본문은 `countryId`·`cityId`·`country`·`city`를 언급하지만 JSON
+  스키마는 `countryName`·`cityName`만 있다. 기존 관례대로 **JSON 스키마를 계약**으로 본다.
+- **`recommendCity.imageUrl` 출처(명세 미규정)** — Pixabay에서 빌드 스크립트로 내려받아 S3에 저장한다.
+  Wikidata P18은 84%가 저작자 표시 필수라 출처 필드 없이는 쓸 수 없어 기각했다. 출처 필드는 API에
+  두지 않는다(사용자 결정). 상세는 #97.
+- **`exRateIcon`(명세 미규정)** — 현지 통화 기호(CLDR 좁은 기호 우선). `totalCost`는 현지 통화.
 
 **`API-BOOKING-1`(예약 제휴 링크)은 명세에서 삭제됐다.** 제휴처가 아고다 → Trip.com으로 바뀌면서
 연동 방식이 **앱 클라이언트에 고정 제휴 URL을 상수로 심는 방식**으로 정해져(DOM-7 개정) 서버 역할이
@@ -69,7 +105,7 @@ Error Codes에 `401: 인증 실패`가 있었다.
 
 > **주의 — pin 선택 시:** `specs/`는 Notion에서 `sync_notion_specs.py`가 **생성**하는 산출물이다.
 > 과거 동기화 커밋 `eedd7ba`(2026-08-03)는 **Notion의 LOC-2 수정보다 이전**이라 401이 남아 있었다.
-> 따라서 "동기화 커밋 = 최신 Notion"이 항상 성립하지는 않는다. 현재 pin은 `e54d9bb`이며 LOC-2
+> 따라서 "동기화 커밋 = 최신 Notion"이 항상 성립하지는 않는다. 현재 pin은 `3d7b0f9`(2026-10-14)이며 LOC-2
 > 수정이 반영돼 있다.
 
 ## 2026-08-13 명세 개정 반영 (pin `7d5d6b4` → `e54d9bb`)
@@ -83,7 +119,7 @@ Error Codes에 `401: 인증 실패`가 있었다.
 | API-COURSE-3 | `coverImageUrl` 추가 | 목록 요약에 필드 추가 |
 | API-AUTH-1/2 | `recentCourseId` 추가 | `RecentCourseReader` 포트로 최근 코스 1건 조회(소유+공유, 목록 최상단과 같은 코스) |
 | API-LOC-2 | `country` 선택 쿼리 파라미터 추가 | 국가로 좁힌 질의 2종 추가. `country`는 ISO alpha-2와 국가 한국어명을 모두 받는다(명세 미규정 → BE 결정) |
-| API-PLACE-1 | `placeEngName` 추가, `photoUrls[]` → `photoUrl` | 장소 도메인·엔티티·응답 반영(`docs/ddl/places.sql`) |
+| API-PLACE-1(현재 폐기) | `placeEngName` 추가, `photoUrls[]` → `photoUrl` | 장소 도메인·엔티티·응답 반영(`docs/ddl/places.sql`) |
 | API-USER-1 | 요청에서 `email` 삭제 | 프로필 수정에서 이메일 제거. 이메일은 이제 OAuth 제공자 값만 따른다 |
 | API-BOOKING-1 / DOM-7 | 예약 API 삭제, 제휴가 Trip.com **클라이언트 상수** 방식으로 변경 | BE 대응 없음(구현한 적 없음) |
 
