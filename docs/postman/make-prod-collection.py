@@ -127,7 +127,7 @@ def main():
             v['value'] = PROD_OVERRIDES[v['key']]
         elif v['key'] == 'baseUrl':
             v['value'] = PROD_BASE_URL
-        elif v['key'] in ('accessToken', 'refreshToken', 'userId', 'courseId', 'placeId',
+        elif v['key'] in ('accessToken', 'refreshToken', 'userId', 'courseId',
                           'shareToken', 'shareUrl', 'googleAuthCode', 'appleAuthCode',
                           'appleIdToken', 'internalApiKey', 'jwtSecret'):
             v['value'] = ''                          # 세션값·시크릿은 비운 채로 커밋

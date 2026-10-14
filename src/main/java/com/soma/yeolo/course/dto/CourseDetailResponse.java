@@ -5,28 +5,26 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * 여행 코스 상세 조회 응답의 {@code data} 페이로드 (API-COURSE-2). 요약 정보에 더해 일자·방문지 전체
- * ({@code itinerary})를 명세 구조 그대로 담는다.
+ * 여행 코스 상세 응답 (API-COURSE-2). 명세 개정(2026-10)으로 {@code coverImageUrl}·
+ * {@code recommendationReason}이 빠지고 {@code totalCost}가 추가됐다.
+ * {@code totalCostExRate}·{@code exRateIcon}(환율 환산)은 #100에서 추가한다.
  */
 public record CourseDetailResponse(CourseDetail course) {
 
-    /** 코스 상세. 필드명은 명세 그대로 사용하며, {@code itinerary}는 {@link Itinerary} 타입으로 전달한다. */
     public record CourseDetail(
             String courseId,
             String userId,
             String title,
             String destinationCountry,
             String destinationCity,
-            String coverImageUrl,
             LocalDate startDate,
             int totalDays,
+            Long totalCost,
             List<String> tags,
-            String recommendationReason,
             Itinerary itinerary
     ) {
     }
 
-    /** 읽기 모델과 파싱된 itinerary로 상세 응답을 조립한다. */
     public static CourseDetailResponse from(SavedCourse course, Itinerary itinerary) {
         return new CourseDetailResponse(new CourseDetail(
                 course.courseId().toString(),
@@ -34,11 +32,10 @@ public record CourseDetailResponse(CourseDetail course) {
                 course.title(),
                 course.destinationCountry(),
                 course.destinationCity(),
-                course.coverImageUrl(),
                 course.startDate(),
                 course.totalDays(),
+                course.totalCost(),
                 course.tags(),
-                course.recommendationReason(),
                 itinerary
         ));
     }

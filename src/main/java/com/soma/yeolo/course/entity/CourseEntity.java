@@ -21,8 +21,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 코스 정보 (DOM-2). 목록·상세에 쓰이는 상위 정보는 컬럼으로 승격하고, 일자·방문지 전체는
- * {@code itinerary}(원본 JSON)로 보존한다. ({@code constraints}는 명세 개정으로 제거됨)
+ * 코스 정보 (DOM-3). 목록·상세에 쓰이는 상위 정보는 컬럼으로 승격하고, 일자·방문지 전체는
+ * {@code itinerary}(원본 JSON)로 보존한다.
+ *
+ * <p>명세 개정(2026-10)으로 {@code recommendation_reason}은 매핑에서 뺐고(prod 컬럼은
+ * {@code docs/ddl/courses.sql}로 정리) {@code total_cost}를 추가했다. {@code cover_image_url}은
+ * 목록 응답(API-COURSE-3)에 남아 있어 유지한다.
  */
 @Getter
 @Entity
@@ -60,20 +64,21 @@ public class CourseEntity extends BaseTimeEntity {
     @Column(name = "total_days", nullable = false)
     private int totalDays;
 
+    /** 코스 전체 예상 비용 (API-AI-2 {@code totalCost}). 개정 전 코스와 AI가 못 준 경우 NULL. */
+    @Column(name = "total_cost")
+    private Long totalCost;
+
     @Convert(converter = StringListJsonConverter.class)
     @Column(name = "tags", columnDefinition = "text")
     private List<String> tags;
-
-    @Column(name = "recommendation_reason", columnDefinition = "text")
-    private String recommendationReason;
 
     @Column(name = "itinerary", nullable = false, columnDefinition = "text")
     private String itinerary;
 
     @Builder
     private CourseEntity(UUID userId, String title, String destinationCountry, String destinationCity,
-                         String coverImageUrl, LocalDate startDate, int totalDays, List<String> tags,
-                         String recommendationReason, String itinerary) {
+                         String coverImageUrl, LocalDate startDate, int totalDays, Long totalCost,
+                         List<String> tags, String itinerary) {
         this.userId = userId;
         this.title = title;
         this.destinationCountry = destinationCountry;
@@ -81,8 +86,8 @@ public class CourseEntity extends BaseTimeEntity {
         this.coverImageUrl = coverImageUrl;
         this.startDate = startDate;
         this.totalDays = totalDays;
+        this.totalCost = totalCost;
         this.tags = tags;
-        this.recommendationReason = recommendationReason;
         this.itinerary = itinerary;
     }
 
@@ -96,15 +101,15 @@ public class CourseEntity extends BaseTimeEntity {
                 .coverImageUrl(course.coverImageUrl())
                 .startDate(course.startDate())
                 .totalDays(course.totalDays())
+                .totalCost(course.totalCost())
                 .tags(course.tags())
-                .recommendationReason(course.recommendationReason())
                 .itinerary(course.itineraryJson())
                 .build();
     }
 
-    /** 영속 엔티티 → 조회용 읽기 모델 매핑 (API-FB-7 / API-FB-10). 부여된 식별자·생성 시각을 함께 담는다. */
+    /** 영속 엔티티 → 조회용 읽기 모델 매핑 (API-COURSE-2 / API-COURSE-3). 부여된 식별자·생성 시각을 함께 담는다. */
     public SavedCourse toSavedCourse() {
         return new SavedCourse(id, userId, title, destinationCountry, destinationCity, coverImageUrl,
-                startDate, totalDays, tags, recommendationReason, itinerary, getCreatedAt());
+                startDate, totalDays, totalCost, tags, itinerary, getCreatedAt());
     }
 }

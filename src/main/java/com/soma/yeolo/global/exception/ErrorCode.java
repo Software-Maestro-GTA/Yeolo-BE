@@ -75,9 +75,6 @@ public enum ErrorCode {
     // 명세가 실패 응답 예시를 하나만 정의하기 때문이다.
     SHARE_LINK_NOT_ACCEPTABLE(HttpStatus.BAD_REQUEST, "수락할 수 없는 공유 링크입니다."),
 
-    // Place - 조회 (API-PLACE-1). 잘못된 placeId(400)는 전역 핸들러가 바인딩 실패에서 만든다.
-    PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "장소 정보를 찾을 수 없습니다."),
-
     // Location - 국가·도시 자동완성 (API-LOC-1 / API-LOC-2)
     INVALID_COUNTRY_KEYWORD(HttpStatus.BAD_REQUEST, "국가 검색어를 확인해주세요."),
     INVALID_CITY_KEYWORD(HttpStatus.BAD_REQUEST, "도시 검색어를 확인해주세요."),

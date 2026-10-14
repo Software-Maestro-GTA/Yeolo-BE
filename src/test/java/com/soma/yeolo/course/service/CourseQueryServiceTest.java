@@ -122,7 +122,7 @@ class CourseQueryServiceTest {
                                Instant createdAt) {
         return new SavedCourse(courseId, userId, title, "대한민국", "제주",
                 "https://cdn.example.com/cover.jpg",
-                LocalDate.of(2026, 8, 1), 3, List.of("힐링"), "이유", itineraryJson, createdAt);
+                LocalDate.of(2026, 8, 1), 3, 350_000L, List.of("힐링"), itineraryJson, createdAt);
     }
 
     @Test
@@ -145,7 +145,7 @@ class CourseQueryServiceTest {
         assertThat(service().getMyCourses(UUID.randomUUID()).courses()).isEmpty();
     }
 
-    /** 목록에도 대표 이미지가 실린다 (API-COURSE-3 명세 개정). */
+    /** 목록에는 대표 이미지가 남아 있다 (API-COURSE-3 — 2026-10 개정에서도 유지). */
     @Test
     void 목록에_대표_이미지_URL을_담는다() {
         UUID me = UUID.randomUUID();
@@ -208,7 +208,7 @@ class CourseQueryServiceTest {
         UUID courseId = UUID.randomUUID();
         UUID placeId = UUID.randomUUID();
         courses.store.add(course(courseId, me, "내 코스", """
-                {"days":[{"day":1,"stops":[{"sequence":1,"arrivalTime":"09:00","stayMinutes":90,
+                {"days":[{"day":1,"stops":[{"sequence":1,"stayMinutes":90,
                   "memo":"일출","reason":"대표 명소","cost":5000,
                   "place":{"placeId":"%s","placeName":"성산일출봉","category":"nature",
                     "latitude":33.4581,"longitude":126.9425},
@@ -219,7 +219,7 @@ class CourseQueryServiceTest {
         Itinerary.Stop stop = service().getCourse(me, courseId)
                 .course().itinerary().days().get(0).stops().get(0);
 
-        assertThat(stop.arrivalTime()).isEqualTo("09:00");
+        assertThat(stop.stayMinutes()).isEqualTo(90);
         assertThat(stop.place().placeId()).isEqualTo(placeId);
         assertThat(stop.place().placeName()).isEqualTo("성산일출봉");
         assertThat(stop.place().latitude()).isEqualTo(33.4581);
@@ -257,24 +257,42 @@ class CourseQueryServiceTest {
         UUID me = UUID.randomUUID();
         UUID courseId = UUID.randomUUID();
         courses.store.add(course(courseId, me, "예전 코스",
-                "{\"days\":[{\"day\":1,\"stops\":[{\"sequence\":1,\"arrivalTime\":\"09:00\"}]}]}"));
+                "{\"days\":[{\"day\":1,\"stops\":[{\"sequence\":1,\"stayMinutes\":90}]}]}"));
 
         Itinerary.Stop stop = service().getCourse(me, courseId)
                 .course().itinerary().days().get(0).stops().get(0);
 
         assertThat(stop.cost()).isNull();
-        assertThat(stop.arrivalTime()).isEqualTo("09:00");
+        assertThat(stop.stayMinutes()).isEqualTo(90);
     }
 
-    /** 상세는 코스 요약도 명세대로 담는다 — 대표 이미지는 명세 개정으로 추가됐다. */
+    /**
+     * 2026-10 개정으로 day {@code memo}·stop {@code arrivalTime}이 FE 계약에서 빠졌다. 개정 전
+     * 저장된 코스의 원본 JSON에는 남아 있지만, 조회를 깨뜨리지 않고 응답에도 나가지 않아야 한다.
+     */
     @Test
-    void 상세에_대표_이미지_URL을_담는다() {
+    void 개정_전_코스의_arrivalTime과_day_memo는_응답에서_빠진다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, me, "예전 코스",
+                "{\"days\":[{\"day\":1,\"memo\":\"첫날\",\"stops\":[{\"sequence\":1,"
+                        + "\"arrivalTime\":\"09:00\",\"memo\":\"일출\"}]}]}"));
+
+        CourseDetailResponse response = service().getCourse(me, courseId);
+
+        Itinerary.Stop stop = response.course().itinerary().days().get(0).stops().get(0);
+        assertThat(stop.memo()).isEqualTo("일출");
+        assertThat(response.toString()).doesNotContain("09:00", "첫날");
+    }
+
+    /** 상세는 총 예상 비용({@code totalCost})을 담는다 (API-COURSE-2 2026-10 개정). */
+    @Test
+    void 상세에_총_비용을_담는다() {
         UUID me = UUID.randomUUID();
         UUID courseId = UUID.randomUUID();
         courses.store.add(course(courseId, me, "내 코스", "{\"days\":[]}"));
 
-        assertThat(service().getCourse(me, courseId).course().coverImageUrl())
-                .isEqualTo("https://cdn.example.com/cover.jpg");
+        assertThat(service().getCourse(me, courseId).course().totalCost()).isEqualTo(350_000L);
     }
 
     /**

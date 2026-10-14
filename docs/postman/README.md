@@ -98,8 +98,7 @@ prod 도 쓰려면 `Yeolo-BE-Prod.postman_collection.json` 을 같은 방식으�
 01. Auth            로그인 → accessToken·refreshToken·userId 자동 저장
 03. User            MBTI 등록 → 사진 분석 동의     ← 04·05의 전제조건
 04. Taste Profile   성향 분석(SSE) → 조회
-05. Course          코스 생성(SSE) → 목록 → 상세   ← courseId·placeId 자동 저장
-06. Place           장소 상세                      ← 저장된 placeId 사용
+05. Course          코스 생성(SSE) → 목록 → 상세   ← courseId 자동 저장
 08. Share           공유 링크 생성 → 조회 → 수락    ← 저장된 courseId 사용, shareToken 자동 저장
 ```
 
@@ -161,7 +160,7 @@ Postman **Run folder**는 폴더 안 요청을 위에서부터 전부 보냅니�
 
 | 요청 | 영향 |
 | :--- | :--- |
-| `05` 끝의 `DELETE /api/courses/:courseId` | 방금 목록 조회가 저장한 코스를 지웁니다 (`06. Place`가 쓸 `placeId`는 이미 저장돼 있어 조회 자체는 됩니다). **`08. Share`가 쓸 코스도 함께 사라지고**, 그 코스로 발급한 공유 링크는 회수됩니다 |
+| `05` 끝의 `DELETE /api/courses/:courseId` | 방금 목록 조회가 저장한 코스를 지웁니다. **`08. Share`가 쓸 코스도 함께 사라지고**, 그 코스로 발급한 공유 링크는 회수됩니다 |
 | `03` 끝의 `DELETE /api/users/me` | **되돌릴 수 없는 회원탈퇴.** 토큰이 무효가 되고 이후 요청이 전부 401 |
 
 `POST /api/auth/refresh`(`01` 폴더)는 저장된 `refreshToken`으로 토큰을 재발급받아 환경변수를
@@ -180,7 +179,7 @@ curl -N -X POST http://localhost:8080/api/courses \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -H 'Accept: text/event-stream' \
-  -d '{"destinationCountry":"일본","destinationCity":"도쿄","startDate":"2026-09-01","totalDays":3,"budgetType":"moderate"}'
+  -d '{"destinationCountry":"일본","destinationCity":"도쿄","startDate":"2026-09-01","totalDays":3,"budget":500000}'
 ```
 
 또한 LLM 분석이 실측 80초대라 Postman 기본 요청 타임아웃에 걸릴 수 있습니다 —

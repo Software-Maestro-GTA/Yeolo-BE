@@ -9,9 +9,11 @@ import java.util.UUID;
  * 코스 상세의 {@code itinerary} 페이로드 (API-COURSE-2 / DOM-3). FE가 타입으로 소비할 수 있도록
  * 명세의 일자·방문지 구조를 그대로 필드로 노출한다.
  *
- * <p>저장된 원본 itinerary JSON을 이 타입으로 역직렬화해 전달한다. 저장된 JSON에는 AI가 준 장소
- * 상세(주소·평점·사진·운영시간)까지 들어 있지만 <b>여기 선언한 필드만 FE로 나간다</b> —
- * API-COURSE-2의 stop {@code place}는 5개 필드뿐이고, 나머지는 장소 상세(API-PLACE-1)의 몫이다.
+ * <p>저장된 원본 itinerary JSON을 이 타입으로 역직렬화해 전달한다. 저장된 JSON에 명세 밖 필드가
+ * 섞여 있어도(개정 전 코스의 day {@code memo}·stop {@code arrivalTime}, AI가 덤으로 준 사진 출처 등)
+ * <b>여기 선언한 필드만 FE로 나간다</b>. 명세 개정(2026-10)으로 day {@code memo}와 stop
+ * {@code arrivalTime}은 빠졌다. {@code transportToNext.cost}는 AI 계약에서는 빠졌지만 FE 계약에
+ * 남아 있어 유지한다(새 코스는 null).
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record Itinerary(List<Day> days) {
@@ -20,7 +22,6 @@ public record Itinerary(List<Day> days) {
     public record Day(
             Integer day,
             String date,
-            String memo,
             List<Stop> stops
     ) {
     }
@@ -36,7 +37,6 @@ public record Itinerary(List<Day> days) {
      */
     public record Stop(
             Integer sequence,
-            String arrivalTime,
             Integer stayMinutes,
             String memo,
             String reason,
@@ -51,8 +51,8 @@ public record Itinerary(List<Day> days) {
      *
      * <p>{@code placeId}는 BE가 부여한 <b>내부</b> 식별자다. AI는 provider 식별자(Google Place ID)를
      * 주지만 {@code ItineraryPlaceNormalizer}가 저장 직전에 내부 식별자로 바꿔 넣는다. 정규화하지
-     * 못한 장소는 {@code placeId}가 {@code null}이며, 이때 FE는 장소 상세(API-PLACE-1)로 이동할 수
-     * 없다(이름·좌표는 AI가 준 값이 남아 있어 지도 표시는 된다).
+     * 못한 장소는 {@code placeId}가 {@code null}이다(이름·좌표는 AI가 준 값이 남아 있어 지도 표시는
+     * 된다). 장소 상세 API(API-PLACE-1)는 2026-10 개정으로 폐기되어 FE가 이 식별자로 조회하지는 않는다.
      *
      * <p>{@code placeId}를 {@code UUID}로 선언한 것은 계약이자 안전장치다 — 내부 식별자만이 이 타입을
      * 통과하므로, 외부 식별자가 저장된 JSON에 섞여 있어도 FE 응답으로 나갈 수 없다. 정규화에 실패해

@@ -12,12 +12,12 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.soma.yeolo.course.client.dto.AiCourseGenerationRequest;
-import com.soma.yeolo.course.domain.BudgetType;
 import com.soma.yeolo.course.domain.TripCondition;
 import com.soma.yeolo.global.client.AiClientProperties;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.preference.domain.Mbti;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +47,7 @@ class InternalAiCourseClientTest {
     private AiCourseGenerationRequest request() throws Exception {
         JsonNode tasteProfile = MAPPER.readTree("{\"sourceType\":\"behavior\"}");
         TripCondition condition = new TripCondition("대한민국", "제주",
-                LocalDate.of(2026, 8, 1), 3, BudgetType.COST_EFFECTIVE);
+                LocalDate.of(2026, 8, 1), 3, BigDecimal.valueOf(500_000));
         return AiCourseGenerationRequest.of(UUID.randomUUID(), Mbti.ENFP, tasteProfile, condition);
     }
 
@@ -70,6 +70,9 @@ class InternalAiCourseClientTest {
                 .andExpect(jsonPath("$.tasteProfile.array").doesNotExist())
                 // MBTI는 명세(API-AI-2)의 mbti 필드로 대문자 4글자 그대로 전송한다.
                 .andExpect(jsonPath("$.mbti").value("ENFP"))
+                // 명세 개정(2026-10): 예산은 금액 budget으로 보내고 옛 budgetType은 보내지 않는다.
+                .andExpect(jsonPath("$.tripCondition.budget").value(500000))
+                .andExpect(jsonPath("$.tripCondition.budgetType").doesNotExist())
                 .andRespond(withSuccess(sse, MediaType.TEXT_EVENT_STREAM));
 
         JsonNode course = client.generateCourse(request());

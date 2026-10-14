@@ -6,12 +6,11 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * 이전 생성 코스 목록 조회 응답의 {@code data} 페이로드 (API-COURSE-3). 상세(itinerary)를 제외한
- * 요약 메타데이터만 최신순으로 담는다.
+ * 여행 코스 목록 응답 (API-COURSE-3). 명세 개정(2026-10)으로 {@code recommendationReason}이 빠졌다.
+ * {@code coverImageUrl}은 목록에만 남아 있다(상세 API-COURSE-2에서는 제거됨).
  */
 public record CourseListResponse(List<CourseSummary> courses) {
 
-    /** 목록 항목 요약. 필드명은 명세 그대로 사용한다. */
     public record CourseSummary(
             String courseId,
             String title,
@@ -21,10 +20,8 @@ public record CourseListResponse(List<CourseSummary> courses) {
             LocalDate startDate,
             int totalDays,
             List<String> tags,
-            String recommendationReason,
             Instant createdAt
     ) {
-
         public static CourseSummary from(SavedCourse course) {
             return new CourseSummary(
                     course.courseId().toString(),
@@ -35,7 +32,6 @@ public record CourseListResponse(List<CourseSummary> courses) {
                     course.startDate(),
                     course.totalDays(),
                     course.tags(),
-                    course.recommendationReason(),
                     course.createdAt()
             );
         }

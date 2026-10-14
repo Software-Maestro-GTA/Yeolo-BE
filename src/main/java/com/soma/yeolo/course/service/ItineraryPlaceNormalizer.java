@@ -21,11 +21,11 @@ import org.springframework.stereotype.Component;
 /**
  * AI 코스의 방문지를 내부 장소로 정규화한다. (DOM-3 §"장소 정보 처리 기준")
  *
- * <p>AI는 stop마다 {@code place} 객체로 장소 정보를 통째로 준다(API-AI-2: provider 장소 식별자·
- * 좌표·주소·평점·사진·운영시간). 그 {@code placeId}는 <b>Google Place ID 같은 외부 식별자</b>라
- * 앱에 노출할 수 없으므로(DOM-3), 저장 직전에 각 장소를 내부 장소로 등록하고
- * {@code place.placeId}를 <b>내부 식별자(UUID)로 바꿔 넣는다</b>. 이 치환이 이 클래스의 핵심이다 —
- * 그래야 앱이 장소 상세(API-PLACE-1)로 이동할 수 있다.
+ * <p>AI는 stop마다 {@code place} 객체로 장소를 준다(API-AI-2 개정판: provider 장소 식별자·이름·
+ * 분류·좌표). 그 {@code placeId}는 <b>Google Place ID 같은 외부 식별자</b>라 앱에 노출할 수
+ * 없으므로(DOM-3), 저장 직전에 각 장소를 내부 장소로 등록하고 {@code place.placeId}를
+ * <b>내부 식별자(UUID)로 바꿔 넣는다</b>. 이 치환이 이 클래스의 핵심이다. 장소 상세 API
+ * (API-PLACE-1)는 명세에서 폐기됐지만, 외부 식별자 비노출과 같은 장소의 재사용을 위해 등록은 유지한다.
  *
  * <p>AI가 장소 정보를 온전히 주지 못한 경우(식별자·좌표 누락)에만 장소명으로 외부 provider를 조회하는
  * 폴백을 탄다. 명세 개정 전까지는 이쪽이 정상 경로였다.
@@ -109,6 +109,9 @@ public class ItineraryPlaceNormalizer {
         if (providerPlaceId == null || latitude == null || longitude == null) {
             return null;
         }
+        // 명세 개정(2026-10)으로 AI 계약은 식별자·이름·분류·좌표뿐이다. 그 밖의 상세(영문명·주소·
+        // 평점·사진·운영시간)는 전환기 AI가 덤으로 보낼 수 있고 provider 폴백 경로는 여전히 채우므로,
+        // 오면 그대로 담고 없으면 null로 둔다 — 등록 경로에 따라 행 내용이 달라지지 않게 한다.
         return new Place(
                 providerPlaceId,
                 placeName,

@@ -26,8 +26,9 @@ class CourseAssemblerTest {
                   "destinationCity": "제주",
                   "startDate": "2026-08-01",
                   "totalDays": 3,
+                  "totalCost": 350000,
                   "tags": ["힐링", "카페"],
-                  "recommendationReason": "여유로운 일정",
+                  "recommendationReason": "명세 개정으로 빠진 필드 — 무시되어야 한다",
                   "itinerary": {"days": [{"day": 1, "stops": []}]}
                 }
                 """);
@@ -46,8 +47,48 @@ class CourseAssemblerTest {
         assertThat(course.startDate()).isEqualTo(LocalDate.of(2026, 8, 1));
         assertThat(course.totalDays()).isEqualTo(3);
         assertThat(course.tags()).containsExactly("힐링", "카페");
-        assertThat(course.recommendationReason()).isEqualTo("여유로운 일정");
+        assertThat(course.totalCost()).isEqualTo(350_000L);
+        assertThat(course.coverImageUrl()).isNull();
         assertThat(MAPPER.readTree(course.itineraryJson()).get("days")).hasSize(1);
+    }
+
+    /** 총 비용은 계획용 예상치(DOM-5)라 AI가 못 줘도 코스는 성립한다 — 개정 전 AI 응답 호환. */
+    @Test
+    void totalCost가_없으면_null로_두고_코스는_조립한다() throws Exception {
+        JsonNode noCost = MAPPER.readTree("""
+                {"title":"t","destinationCountry":"대한민국","destinationCity":"제주","startDate":"2026-08-01",
+                 "totalDays":3,"itinerary":{"days":[]}}
+                """);
+
+        assertThat(assembler.toDomain(UUID.randomUUID(), noCost).totalCost()).isNull();
+    }
+
+    /** 숫자 문자열은 받고, 숫자로 읽을 수 없는 값은 비용만 비우고 코스는 조립한다. */
+    @Test
+    void totalCost가_숫자_문자열이면_받고_아니면_null로_둔다() throws Exception {
+        JsonNode textual = MAPPER.readTree("""
+                {"title":"t","destinationCountry":"대한민국","destinationCity":"제주","startDate":"2026-08-01",
+                 "totalDays":3,"totalCost":"350000","itinerary":{"days":[]}}
+                """);
+        JsonNode garbage = MAPPER.readTree("""
+                {"title":"t","destinationCountry":"대한민국","destinationCity":"제주","startDate":"2026-08-01",
+                 "totalDays":3,"totalCost":"약 35만원","itinerary":{"days":[]}}
+                """);
+
+        assertThat(assembler.toDomain(UUID.randomUUID(), textual).totalCost()).isEqualTo(350_000L);
+        assertThat(assembler.toDomain(UUID.randomUUID(), garbage).totalCost()).isNull();
+    }
+
+    /** 전환기에 AI가 아직 대표 이미지를 주면(DOM-5) 목록 응답(API-COURSE-3)용으로 담아 둔다. */
+    @Test
+    void AI가_coverImageUrl을_주면_그대로_담는다() throws Exception {
+        JsonNode withCover = MAPPER.readTree("""
+                {"title":"t","destinationCountry":"대한민국","destinationCity":"제주","startDate":"2026-08-01",
+                 "totalDays":3,"coverImageUrl":"https://cdn.example.com/cover.jpg","itinerary":{"days":[]}}
+                """);
+
+        assertThat(assembler.toDomain(UUID.randomUUID(), withCover).coverImageUrl())
+                .isEqualTo("https://cdn.example.com/cover.jpg");
     }
 
     @Test

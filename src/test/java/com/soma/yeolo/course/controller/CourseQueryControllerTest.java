@@ -55,7 +55,7 @@ class CourseQueryControllerTest {
         when(courseQueryService.getMyCourses(userId)).thenReturn(new CourseListResponse(List.of(
                 new CourseSummary(courseId.toString(), "제주 힐링 여행", "대한민국", "제주",
                         "https://cdn.example.com/cover.jpg",
-                        LocalDate.of(2026, 8, 1), 3, List.of("힐링", "자연"), "추천 이유",
+                        LocalDate.of(2026, 8, 1), 3, List.of("힐링", "자연"),
                         Instant.parse("2026-07-01T00:00:00Z")))));
 
         mockMvc.perform(get("/api/courses").header("Authorization", "Bearer valid-token"))
@@ -71,7 +71,8 @@ class CourseQueryControllerTest {
                 .andExpect(jsonPath("$.data.courses[0].startDate").value("2026-08-01"))
                 .andExpect(jsonPath("$.data.courses[0].totalDays").value(3))
                 .andExpect(jsonPath("$.data.courses[0].tags").value(Matchers.contains("힐링", "자연")))
-                .andExpect(jsonPath("$.data.courses[0].recommendationReason").value("추천 이유"))
+                // 명세 개정(2026-10)으로 목록에서 빠진 필드
+                .andExpect(jsonPath("$.data.courses[0].recommendationReason").doesNotExist())
                 .andExpect(jsonPath("$.data.courses[0].createdAt").exists());
     }
 

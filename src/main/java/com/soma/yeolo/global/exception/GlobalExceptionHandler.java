@@ -44,10 +44,10 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 경로·쿼리 파라미터의 타입 변환 실패(예: {@code /api/places/{placeId}}에 UUID가 아닌 값).
+     * 경로·쿼리 파라미터의 타입 변환 실패(예: {@code /api/courses/{courseId}}에 UUID가 아닌 값).
      *
      * <p>따로 처리하지 않으면 catch-all {@link #handleUnexpected}에 걸려 500이 된다. 형식이 틀린
-     * 요청은 장애가 아니라 잘못된 입력이므로 명세의 400으로 응답한다(API-PLACE-1 "잘못된 placeId" 등).
+     * 요청은 장애가 아니라 잘못된 입력이므로 명세의 400으로 응답한다(API-COURSE-2 "잘못된 courseId" 등).
      * 메시지에 파라미터명을 담아 어느 값이 문제인지 알린다.
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

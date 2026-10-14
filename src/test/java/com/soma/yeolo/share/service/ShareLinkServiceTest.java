@@ -177,7 +177,7 @@ class ShareLinkServiceTest {
     private UUID givenCourse(UUID ownerId, String title) {
         UUID courseId = UUID.randomUUID();
         courses.store.add(new SavedCourse(courseId, ownerId, title, "일본", "오사카", null,
-                LocalDate.of(2026, 9, 1), 4, List.of("맛집"), "이유", "{\"days\":[]}", Instant.now()));
+                LocalDate.of(2026, 9, 1), 4, null, List.of("맛집"), "{\"days\":[]}", Instant.now()));
         return courseId;
     }
 
