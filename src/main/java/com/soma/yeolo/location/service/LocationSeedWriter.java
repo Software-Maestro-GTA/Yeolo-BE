@@ -1,12 +1,15 @@
 package com.soma.yeolo.location.service;
 
 import com.soma.yeolo.location.entity.CityEntity;
+import com.soma.yeolo.location.entity.CityImageEntity;
 import com.soma.yeolo.location.entity.CountryEntity;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -14,39 +17,33 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 기준 데이터셋을 테이블에 적재한다 (API-LOC-1 / API-LOC-2).
- *
- * <p><b>JPA가 아니라 JdbcTemplate으로 쓴다.</b> 국가·도시는 식별자가 파일에서 정해져 오는(assigned id)
- * 수만 건짜리 벌크다. JPA {@code save}는 assigned id를 보면 "이미 있는 행일 수 있다"고 판단해 행마다
- * SELECT를 먼저 날린다 — 적재 한 번에 수만 번의 왕복이 생긴다. 배치 INSERT면 한 자릿수 초에 끝난다.
- * 조회 경로는 그대로 JPA를 쓰고, 이 클래스만 벌크 적재를 위해 SQL을 쓴다.
- *
- * <p>테이블을 통째로 갈아 끼우므로 삭제와 삽입이 <b>한 트랜잭션</b> 안에 있어야 한다. 그래야
- * 롤링 배포 중 이 작업이 도는 동안에도 다른 파드가 옛 데이터를 온전히 서빙한다(중간 상태가 보이지 않음).
- * 국가와 도시도 서로 나뉘지 않는다 — 이유는 {@link #replace}.
+ * 기준 데이터 테이블을 통째로 교체한다. 한 트랜잭션 안에서 delete+insert 하므로 롤링 배포 중 다른
+ * 파드에 중간 상태가 보이지 않는다. JPA 대신 JdbcTemplate 배치를 쓰는 이유는 3만 행의 영속성
+ * 컨텍스트 비용을 피하기 위해서다.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class LocationSeedWriter {
 
-    /** 한 번에 보내는 배치 크기. 너무 크면 드라이버 버퍼만 키우고 이득이 없다. */
     private static final int BATCH_SIZE = 1_000;
-
     private static final String COUNTRY_INSERT = """
-            insert into countries (country_id, name_ko, search_name, search_chosung)
-            values (?, ?, ?, ?)
+            insert into countries
+                (country_id, name_ko, search_name, search_chosung, capital_city_id, currency_code, currency_symbol)
+            values (?, ?, ?, ?, ?, ?, ?)
             """;
-
     private static final String CITY_INSERT = """
             insert into cities
                 (city_id, name_ko, search_name, search_chosung, country_id, country_name_ko, population)
             values (?, ?, ?, ?, ?, ?, ?)
             """;
+    private static final String CITY_IMAGE_INSERT = """
+            insert into city_images (city_id, s3_key, source, source_id)
+            values (?, ?, ?, ?)
+            """;
 
     private final JdbcTemplate jdbcTemplate;
 
-    /** 마지막으로 적재한 데이터셋 버전. 한 번도 적재하지 않았으면 빈 값. */
     public Optional<String> currentVersion(String dataset) {
         return jdbcTemplate
                 .query("select version from location_seed_state where dataset = ?",
@@ -56,33 +53,22 @@ public class LocationSeedWriter {
     }
 
     /**
-     * 재적재가 필요한 데이터셋을 <b>하나의 트랜잭션에서</b> 교체한다.
-     *
-     * <p>국가와 도시를 나눠 커밋하면 안 된다. 도시 행은 {@code country_name_ko}를 비정규화해 들고
-     * 있어서, 국가만 커밋된 뒤 도시 적재가 끊기면(파드 종료·statement timeout) 다음 부팅에는 국가가
-     * 이미 "최신"으로 기록돼 있어 <b>둘 다 건너뛴다</b> — 낡은 국가명 사본이 영구히 남고 복구하려면
-     * {@code location_seed_state}를 손으로 고쳐야 한다. 한 트랜잭션이면 실패 시 통째로 롤백되고
-     * 다음 부팅이 다시 시도한다.
-     *
-     * <p>트랜잭션 진입 후 버전을 다시 확인하므로, 같은 배포에서 앞선 파드가 이미 끝냈으면 아무 일도
-     * 하지 않는다 — 파드 수만큼 3만 건 적재가 반복되며 기동이 줄서는 것을 막는다.
-     *
-     * @param countries      국가 데이터셋 (열 순서 {@code countryId, nameKo})
-     * @param reloadCountries 국가 재적재가 필요하다고 판단됐는지
-     * @param cities         도시 데이터셋 (열 순서 {@code cityId, nameKo, countryId, population}).
-     *                       파일이 없으면 {@code null}
-     * @param reloadCities   도시 재적재가 필요하다고 판단됐는지
+     * 재적재가 필요한 데이터셋만 교체한다. 트랜잭션 안에서 버전을 다시 확인하므로, 다른 파드가 먼저
+     * 같은 버전을 넣어 뒀으면 아무것도 하지 않는다.
      */
     @Transactional
     public void replace(LocationSeedFile countries, boolean reloadCountries,
-                        LocationSeedFile cities, boolean reloadCities) {
+                        LocationSeedFile cities, boolean reloadCities,
+                        LocationSeedFile images, boolean reloadImages) {
         boolean seedCountries = reloadCountries
                 && !alreadySeeded(LocationSeedLoader.COUNTRIES, countries.version());
         // 국가를 새로 넣으면 도시의 국가명 사본도 같이 갱신해야 하므로, 도시 버전이 그대로여도 다시 넣는다.
         boolean seedCities = reloadCities && cities != null
                 && (seedCountries || !alreadySeeded(LocationSeedLoader.CITIES, cities.version()));
-
-        if (!seedCountries && !seedCities) {
+        // 도시를 새로 넣으면 고아 판정이 달라지므로 사진 버전이 그대로여도 다시 넣는다(로더와 같은 규칙).
+        boolean seedImages = reloadImages && images != null
+                && (seedCities || !alreadySeeded(LocationSeedLoader.CITY_IMAGES, images.version()));
+        if (!seedCountries && !seedCities && !seedImages) {
             log.info("다른 인스턴스가 이미 적재를 마쳤다. 이번 적재는 건너뛴다.");
             return;
         }
@@ -92,9 +78,11 @@ public class LocationSeedWriter {
         if (seedCities) {
             replaceCities(cities, countryNames(countries));
         }
+        if (seedImages) {
+            replaceCityImages(images);
+        }
     }
 
-    /** 국가 코드 → 한국어 국가명. 도시 행에 비정규화해 넣을 값을 국가 데이터셋에서 만든다. */
     private Map<String, String> countryNames(LocationSeedFile countries) {
         Map<String, String> names = new LinkedHashMap<>();
         for (String[] row : countries.rows()) {
@@ -104,11 +92,21 @@ public class LocationSeedWriter {
     }
 
     private void replaceCountries(LocationSeedFile file) {
+        // search_name 은 국가명 완전 일치 조회(LOC-2·LOC-3·사진)의 유일 키다. 정규화 후 겹치는 이름이
+        // 있으면 조회가 500(IncorrectResultSize)이 되므로 적재 자체를 거부한다(트랜잭션 롤백 → 옛 데이터 유지).
+        Set<String> seen = new java.util.HashSet<>();
+        for (String[] row : file.rows()) {
+            String key = com.soma.yeolo.location.domain.SearchKeys.normalize(row[1]);
+            if (!seen.add(key)) {
+                throw new IllegalStateException("국가 데이터셋에 정규화 후 같은 이름이 둘 있다: " + row[1]);
+            }
+        }
         jdbcTemplate.update("delete from countries");
         batchInsert(COUNTRY_INSERT, file.rows(), row -> {
-            CountryEntity country = CountryEntity.of(row[0], row[1]);
+            CountryEntity country = CountryEntity.of(row[0], row[1], row[2], row[3], row[4]);
             return new Object[]{country.getCountryId(), country.getNameKo(),
-                    country.getSearchName(), country.getSearchChosung()};
+                    country.getSearchName(), country.getSearchChosung(),
+                    country.getCapitalCityId(), country.getCurrencyCode(), country.getCurrencySymbol()};
         });
         markSeeded(LocationSeedLoader.COUNTRIES, file.version());
         log.info("국가 기준 데이터 적재 완료: {}건 (version={})", file.rows().size(), file.version());
@@ -125,7 +123,6 @@ public class LocationSeedWriter {
         if (skipped > 0) {
             log.warn("국가 기준 정보에 없는 국가의 도시 {}건을 건너뛴다", skipped);
         }
-
         batchInsert(CITY_INSERT, rows, row -> {
             CityEntity city = CityEntity.of(row[0], row[1], row[2], countryNames.get(row[2]),
                     Long.parseLong(row[3]));
@@ -137,6 +134,24 @@ public class LocationSeedWriter {
         log.info("도시 기준 데이터 적재 완료: {}건 (version={})", rows.size(), file.version());
     }
 
+    private void replaceCityImages(LocationSeedFile file) {
+        jdbcTemplate.update("delete from city_images");
+        // 도시 데이터셋에 없는 도시의 사진은 버린다 — 도시가 빠졌는데 사진만 남으면 조회 경로가 없다.
+        Set<String> cityIds = jdbcTemplate.query("select city_id from cities", (rs, n) -> rs.getString(1))
+                .stream().collect(Collectors.toSet());
+        List<String[]> rows = file.rows().stream().filter(row -> cityIds.contains(row[0])).toList();
+        int skipped = file.rows().size() - rows.size();
+        if (skipped > 0) {
+            log.warn("도시 기준 정보에 없는 도시의 사진 {}건을 건너뛴다", skipped);
+        }
+        batchInsert(CITY_IMAGE_INSERT, rows, row -> {
+            CityImageEntity image = CityImageEntity.of(row[0], row[1], row[2], row[3]);
+            return new Object[]{image.getCityId(), image.getS3Key(), image.getSource(), image.getSourceId()};
+        });
+        markSeeded(LocationSeedLoader.CITY_IMAGES, file.version());
+        log.info("도시 사진 데이터 적재 완료: {}건 (version={})", rows.size(), file.version());
+    }
+
     private void batchInsert(String sql, List<String[]> rows, Function<String[], Object[]> toArgs) {
         for (int from = 0; from < rows.size(); from += BATCH_SIZE) {
             List<Object[]> batch = rows.subList(from, Math.min(from + BATCH_SIZE, rows.size()))
@@ -145,18 +160,10 @@ public class LocationSeedWriter {
         }
     }
 
-    /**
-     * 이 데이터셋이 이미 해당 버전으로 적재돼 있는지. {@link #replace}가 트랜잭션 안에서 호출한다.
-     *
-     * <p>READ COMMITTED 아래에서 먼저 커밋한 파드의 결과가 보이므로, 뒤따라온 파드는 3만 건을 다시
-     * 넣지 않고 빠져나간다. (완전한 상호배제는 아니다 — 앞선 적재가 아직 커밋 전이면 중복 작업이
-     * 일어나고, 나중 쪽은 PK 충돌로 롤백된다. {@code LocationSeedLoader}가 그 경우를 구분해 처리한다.)
-     */
     public boolean alreadySeeded(String dataset, String version) {
         return currentVersion(dataset).map(version::equals).orElse(false);
     }
 
-    /** 적재 버전 기록. UPSERT 문법은 DB마다 달라서 삭제 후 삽입으로 둔다(같은 트랜잭션 안이다). */
     private void markSeeded(String dataset, String version) {
         jdbcTemplate.update("delete from location_seed_state where dataset = ?", dataset);
         jdbcTemplate.update("insert into location_seed_state (dataset, version) values (?, ?)",

@@ -11,25 +11,29 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 도시 기준 정보 (API-LOC-2). GeoNames {@code cities15000}(인구 15,000명 이상 도시)와 한국어
- * 대체 이름을 근거로 부팅 시 적재한다({@code LocationSeedLoader}).
+ * 도시 기준 정보 (API-LOC-2/3, 도시 사진 폴백). GeoNames {@code cities15000}(인구 15,000명 이상 도시)와
+ * 한국어 대체 이름을 근거로 부팅 시 적재한다({@code LocationSeedLoader}).
  *
  * <p>{@link CountryEntity}와 같은 이유로 병합형 참조 데이터다(docs/architecture.md §1-1).
  *
- * <p><b>국가명을 비정규화해 함께 들고 있는다.</b> 명세의 도시 응답은 {@code countryNameKo}를
- * 포함하는데, 두 테이블은 항상 같은 데이터셋으로 함께 적재되므로 조인해서 얻을 값이 조회 시점마다
- * 달라질 여지가 없다. 자동완성은 타자마다 호출되는 경로라 조인을 없애는 편이 낫다.
+ * <p><b>국가명을 비정규화해 함께 들고 있는다.</b> 검색(API-LOC-3)이 도시명 매칭 결과를 소속 국가로
+ * 묶어 돌려주는데, 두 테이블은 항상 같은 데이터셋으로 함께 적재되므로 조인해서 얻을 값이 조회 시점마다
+ * 달라질 여지가 없다.
  *
- * <p>{@code population}은 정렬 기준이다. 자동완성에서 "도쿄"보다 동명의 소도시가 위에 오면 쓸모가
- * 없으므로, 같은 조건이면 인구가 많은 도시를 먼저 보여준다.
+ * <p>{@code population}은 동명 도시를 가르는 기준이다. 국가 안에서 같은 이름이 여럿이면(미국의
+ * Springfield 등) 인구가 많은 도시를 고른다(사진 조회). 2026-10 개정으로 자동완성 순위에는 쓰지 않는다.
  *
- * <p>인덱스 방침은 {@link CountryEntity}와 같다 — 초성 컬럼에만 두고, prod는 {@code text_pattern_ops}
- * opclass로 만든다({@code docs/ddl/cities.sql}).
+ * <p>인덱스: 접두어·완전 일치 검색이 쓰는 {@code search_name}, 국가별 전체 목록이 거르는
+ * {@code country_id}. {@code search_chosung}은 초성 검색이 명세에서 빠져 더 이상 조회에 쓰지 않지만
+ * dev 의 {@code ddl-auto=update}가 컬럼을 지우지 않고 NOT NULL 이라 값은 계속 채운다(정리는
+ * {@code docs/ddl/cities.sql}). prod 의 LIKE 인덱스는 {@code text_pattern_ops} opclass 로 만든다.
  */
 @Getter
 @Entity
 @Table(name = "cities", indexes = {
-        @Index(name = "idx_cities_search_chosung", columnList = "search_chosung")
+        @Index(name = "idx_cities_search_chosung", columnList = "search_chosung"),
+        @Index(name = "idx_cities_search_name", columnList = "search_name"),
+        @Index(name = "idx_cities_country_id", columnList = "country_id")
 })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CityEntity {

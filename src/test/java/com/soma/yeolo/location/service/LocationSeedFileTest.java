@@ -109,4 +109,28 @@ class LocationSeedFileTest {
         assertThat(file.version()).isEqualTo("v1");
         assertThat(file.rows()).isEmpty();
     }
+
+    /** countries.tsv 의 수도·통화처럼 값이 없을 수 있는 열은 필수 열 수를 따로 줘서 허용한다. */
+    @Test
+    void 선택_열은_비어_있어도_읽힌다() {
+        LocationSeedFile file = LocationSeedFile.parse(tsv("""
+                #version\tv1
+                AQ\t남극 대륙\t\t\t
+                JP\t일본\t1850147\tJPY\t¥
+                """), 5, 2);
+
+        assertThat(file.rows()).hasSize(2);
+        assertThat(file.rows().get(0)).containsExactly("AQ", "남극 대륙", "", "", "");
+        assertThat(file.rows().get(1)).containsExactly("JP", "일본", "1850147", "JPY", "¥");
+    }
+
+    @Test
+    void 선택_열이_있어도_필수_열이_비면_실패한다() {
+        assertThatThrownBy(() -> LocationSeedFile.parse(tsv("""
+                #version\tv1
+                JP\t\t1850147\tJPY\t¥
+                """), 5, 2))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("2번째 값");
+    }
 }

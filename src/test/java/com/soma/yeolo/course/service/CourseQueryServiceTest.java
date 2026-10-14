@@ -12,6 +12,7 @@ import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.course.service.port.CourseSharing;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
+import com.soma.yeolo.location.service.LocationImageReader;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -107,11 +108,26 @@ class CourseQueryServiceTest {
         }
     }
 
+    /** 도시 사진 포트 fake: (국가, 도시) 쌍에 미리 넣어둔 URL 만 돌려준다. */
+    private static final class FakeLocationImageReader implements LocationImageReader {
+        private final java.util.Map<String, String> images = new java.util.HashMap<>();
+
+        void put(String country, String city, String url) {
+            images.put(country + "/" + city, url);
+        }
+
+        @Override
+        public Optional<String> findCityImageUrl(String countryName, String cityName) {
+            return Optional.ofNullable(images.get(countryName + "/" + cityName));
+        }
+    }
+
     private final FakeCourseRepository courses = new FakeCourseRepository();
     private final FakeCourseSharing sharing = new FakeCourseSharing();
+    private final FakeLocationImageReader cityImages = new FakeLocationImageReader();
 
     private CourseQueryService service() {
-        return new CourseQueryService(courses, sharing);
+        return new CourseQueryService(courses, sharing, cityImages);
     }
 
     private SavedCourse course(UUID courseId, UUID userId, String title, String itineraryJson) {
@@ -120,8 +136,12 @@ class CourseQueryServiceTest {
 
     private SavedCourse course(UUID courseId, UUID userId, String title, String itineraryJson,
                                Instant createdAt) {
-        return new SavedCourse(courseId, userId, title, "대한민국", "제주",
-                "https://cdn.example.com/cover.jpg",
+        return course(courseId, userId, title, itineraryJson, createdAt, "https://cdn.example.com/cover.jpg");
+    }
+
+    private SavedCourse course(UUID courseId, UUID userId, String title, String itineraryJson,
+                               Instant createdAt, String coverImageUrl) {
+        return new SavedCourse(courseId, userId, title, "대한민국", "제주", coverImageUrl,
                 LocalDate.of(2026, 8, 1), 3, 350_000L, List.of("힐링"), itineraryJson, createdAt);
     }
 
@@ -150,6 +170,43 @@ class CourseQueryServiceTest {
     void 목록에_대표_이미지_URL을_담는다() {
         UUID me = UUID.randomUUID();
         courses.store.add(course(UUID.randomUUID(), me, "내 코스", "{\"days\":[]}"));
+
+        assertThat(service().getMyCourses(me).courses())
+                .extracting(CourseListResponse.CourseSummary::coverImageUrl)
+                .containsExactly("https://cdn.example.com/cover.jpg");
+    }
+
+    /**
+     * 2026-10 개정으로 AI 가 대표 이미지를 주지 않아 새 코스는 저장값이 없다. 목록 응답(API-COURSE-3)에는
+     * 필드가 남아 있으므로 목적지 도시 사진(#97)으로 채우고, 그것도 없으면 null 이다.
+     */
+    @Test
+    void 저장된_대표_이미지가_없으면_목적지_도시_사진으로_채운다() {
+        UUID me = UUID.randomUUID();
+        courses.store.add(course(UUID.randomUUID(), me, "사진 없는 코스", "{\"days\":[]}", Instant.now(), null));
+        cityImages.put("대한민국", "제주", "https://cdn.example.com/locations/cities/1846266.jpg");
+
+        assertThat(service().getMyCourses(me).courses())
+                .extracting(CourseListResponse.CourseSummary::coverImageUrl)
+                .containsExactly("https://cdn.example.com/locations/cities/1846266.jpg");
+    }
+
+    @Test
+    void 도시_사진도_없으면_대표_이미지는_null이다() {
+        UUID me = UUID.randomUUID();
+        courses.store.add(course(UUID.randomUUID(), me, "사진 없는 코스", "{\"days\":[]}", Instant.now(), null));
+
+        assertThat(service().getMyCourses(me).courses())
+                .extracting(CourseListResponse.CourseSummary::coverImageUrl)
+                .containsExactly((String) null);
+    }
+
+    /** 저장값이 있으면(전환기 AI 가 준 대표 이미지) 도시 사진보다 우선한다. */
+    @Test
+    void 저장된_대표_이미지가_있으면_그대로_쓴다() {
+        UUID me = UUID.randomUUID();
+        courses.store.add(course(UUID.randomUUID(), me, "내 코스", "{\"days\":[]}"));
+        cityImages.put("대한민국", "제주", "https://cdn.example.com/locations/cities/1846266.jpg");
 
         assertThat(service().getMyCourses(me).courses())
                 .extracting(CourseListResponse.CourseSummary::coverImageUrl)

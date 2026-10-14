@@ -75,9 +75,11 @@ public enum ErrorCode {
     // 명세가 실패 응답 예시를 하나만 정의하기 때문이다.
     SHARE_LINK_NOT_ACCEPTABLE(HttpStatus.BAD_REQUEST, "수락할 수 없는 공유 링크입니다."),
 
-    // Location - 국가·도시 자동완성 (API-LOC-1 / API-LOC-2)
-    INVALID_COUNTRY_KEYWORD(HttpStatus.BAD_REQUEST, "국가 검색어를 확인해주세요."),
-    INVALID_CITY_KEYWORD(HttpStatus.BAD_REQUEST, "도시 검색어를 확인해주세요."),
+    // Location - 국가·도시 목록·검색 (API-LOC-1/2/3, 2026-10 개정). LOC-2 의 400 문구는 명세에 없어
+    // LOC-3 의 400 문구("검색 키워드를 입력해주세요.")와 같은 꼴로 정했다.
+    INVALID_COUNTRY_NAME(HttpStatus.BAD_REQUEST, "국가명을 입력해주세요."),
+    COUNTRY_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 국가를 찾을 수 없습니다."),
+    INVALID_SEARCH_KEYWORD(HttpStatus.BAD_REQUEST, "검색 키워드를 입력해주세요."),
 
     // Common
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "내부 처리 오류가 발생했습니다."),
