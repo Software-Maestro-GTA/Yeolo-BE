@@ -112,7 +112,7 @@ class ShareLinkControllerTest {
     void 미리보기는_토큰만으로_인증_없이_조회된다() throws Exception {
         when(shareLinkService.getPreview(TOKEN)).thenReturn(new SharePreviewResponse(
                 new SharePreviewResponse.SharedCourse("오사카 4일", "일본", "오사카",
-                        LocalDate.of(2026, 9, 1), 4),
+                        "https://cdn/locations/cities/osaka.jpg", LocalDate.of(2026, 9, 1), 4),
                 new SharePreviewResponse.Inviter("승우", "https://cdn/profile.png"),
                 Instant.parse("2026-08-17T00:00:00Z")));
 
@@ -123,11 +123,30 @@ class ShareLinkControllerTest {
                 .andExpect(jsonPath("$.data.course.title").value("오사카 4일"))
                 .andExpect(jsonPath("$.data.course.destinationCountry").value("일본"))
                 .andExpect(jsonPath("$.data.course.destinationCity").value("오사카"))
+                .andExpect(jsonPath("$.data.course.coverImageUrl").value("https://cdn/locations/cities/osaka.jpg"))
                 .andExpect(jsonPath("$.data.course.startDate").value("2026-09-01"))
                 .andExpect(jsonPath("$.data.course.totalDays").value(4))
                 .andExpect(jsonPath("$.data.inviter.displayName").value("승우"))
                 .andExpect(jsonPath("$.data.inviter.profileImageUrl").value("https://cdn/profile.png"))
                 .andExpect(jsonPath("$.data.course.courseId").doesNotExist());
+    }
+
+    /**
+     * 사진 없는 목적지는 {@code coverImageUrl: null}이다(spec-index §명세 모순과 BE 판단). 키가 빠지는 게
+     * 아니라 null 값으로 실려야 한다 — 전역 Jackson 설정이 non_null 로 바뀌면 FE 타입 계약이 조용히 깨진다.
+     */
+    @Test
+    void 대표_이미지가_없으면_coverImageUrl은_null_값으로_실린다() throws Exception {
+        when(shareLinkService.getPreview(TOKEN)).thenReturn(new SharePreviewResponse(
+                new SharePreviewResponse.SharedCourse("오사카 4일", "일본", "오사카",
+                        null, LocalDate.of(2026, 9, 1), 4),
+                new SharePreviewResponse.Inviter(null, null),
+                null));
+
+        mockMvc.perform(get("/api/share-links/{shareToken}", TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.course.coverImageUrl").hasJsonPath())
+                .andExpect(jsonPath("$.data.course.coverImageUrl").value(Matchers.nullValue()));
     }
 
     @Test

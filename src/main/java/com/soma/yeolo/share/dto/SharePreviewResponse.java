@@ -19,11 +19,17 @@ public record SharePreviewResponse(
         Instant expiresAt
 ) {
 
-    /** 미리보기용 코스 요약. 필드명은 명세 그대로 사용한다. */
+    /**
+     * 미리보기용 코스 요약. 필드명은 명세 그대로 사용한다.
+     *
+     * @param coverImageUrl 대표 이미지(명세 개정 2026-10, #109). 목록(API-COURSE-3)과 같은 규칙으로
+     *                      호출자가 정한다 — 저장값 → 목적지 도시 사진 → null
+     */
     public record SharedCourse(
             String title,
             String destinationCountry,
             String destinationCity,
+            String coverImageUrl,
             LocalDate startDate,
             int totalDays
     ) {
@@ -36,14 +42,15 @@ public record SharePreviewResponse(
     ) {
     }
 
-    /** 코스·초대자·링크 상태로 미리보기 응답을 조립한다. 초대자를 찾지 못하면 항목을 비운다. */
-    public static SharePreviewResponse from(SavedCourse course, UserDisplayProfile inviter,
-                                            SavedShareLink link) {
+    /** 코스·대표 이미지·초대자·링크 상태로 미리보기 응답을 조립한다. 초대자를 찾지 못하면 항목을 비운다. */
+    public static SharePreviewResponse from(SavedCourse course, String coverImageUrl,
+                                            UserDisplayProfile inviter, SavedShareLink link) {
         return new SharePreviewResponse(
                 new SharedCourse(
                         course.title(),
                         course.destinationCountry(),
                         course.destinationCity(),
+                        coverImageUrl,
                         course.startDate(),
                         course.totalDays()
                 ),

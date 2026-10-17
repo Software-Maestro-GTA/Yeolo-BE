@@ -4,7 +4,8 @@ import java.util.Optional;
 
 /**
  * 국가명·도시명으로 대표 사진 URL 을 찾는 포트. 취향 요약의 추천 도시(API-PREF-4
- * {@code recommendCity.imageUrl}, #98)와 코스 목록의 대표 이미지 폴백(API-COURSE-3)이 쓴다.
+ * {@code recommendCity.imageUrl}, #98)와 코스 대표 이미지 폴백({@code CourseCoverImageResolver} —
+ * 코스 목록 API-COURSE-3·공유 미리보기 API-SHARE-2, #109)이 쓴다.
  *
  * <p>폴백 순서는 도시 사진(완전 일치, 없으면 접두어 일치 — "부산"→"부산광역시") → 그 나라 수도 사진 →
  * 그 나라에서 사진이 있는 최다 인구 도시 → 빈 값이다.

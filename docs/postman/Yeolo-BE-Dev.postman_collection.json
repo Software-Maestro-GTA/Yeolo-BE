@@ -756,8 +756,15 @@
 								"exec": [
 									"const res = pm.response.json();",
 									"if (pm.response.code === 200 && res.data && res.data.courses && res.data.courses.length) {",
-									"    pm.collectionVariables.set('courseId', res.data.courses[0].courseId);",
-									"    console.log('courseId 저장:', res.data.courses[0].courseId);",
+									"    const first = res.data.courses[0];",
+									"    pm.collectionVariables.set('courseId', first.courseId);",
+									"    console.log('courseId 저장:', first.courseId);",
+									"    // 공유 미리보기(API-SHARE-2)가 같은 코스에 같은 그림을 내는지 대조하기 위해 함께 저장한다(#109).",
+									"    // 어느 코스의 값인지도 같이 남긴다 — 목록만 다시 돌려 첫 항목이 바뀌면 대조를 건너뛰기 위함.",
+									"    // null 은 빈 문자열로 둔다(set(null) 은 문자열 'null' 로 저장된다).",
+									"    pm.collectionVariables.set('courseCoverImageUrl', first.coverImageUrl == null ? '' : first.coverImageUrl);",
+									"    pm.collectionVariables.set('courseCoverImageCourseId', first.courseId);",
+									"    console.log('courseCoverImageUrl 저장:', first.coverImageUrl);",
 									"}"
 								]
 							}
@@ -990,6 +997,9 @@
 								"exec": [
 									"const res = pm.response.json();",
 									"if (pm.response.code === 200 && res.data && res.data.shareToken) {",
+									"    // 이 링크가 어느 코스에서 나왔는지 남긴다 — API-SHARE-2 테스트가 목록의 coverImageUrl 과 대조할 때",
+									"    // 같은 코스인지 확인하는 데 쓴다(#109).",
+									"    pm.collectionVariables.set('shareCourseId', pm.collectionVariables.get('courseId'));",
 									"    pm.collectionVariables.set('shareToken', res.data.shareToken);",
 									"    pm.collectionVariables.set('shareUrl', res.data.shareUrl);",
 									"    console.log('shareToken 저장:', res.data.shareToken);",
@@ -1028,12 +1038,60 @@
 							}
 						],
 						"url": "{{baseUrl}}/api/share-links/{{shareToken}}",
-						"description": "인증 불필요(No Auth) — 초대받은 사람이 로그인 전에 확인하는 화면이다(DOM-6). 코스 요약 + 초대자만 반환하고 courseId 는 노출하지 않는다. 없는 토큰/삭제된 코스는 404, 만료·회수된 링크는 410.",
+						"description": "인증 불필요(No Auth) — 초대받은 사람이 로그인 전에 확인하는 화면이다(DOM-6). 코스 요약 + 초대자만 반환하고 courseId 는 노출하지 않는다. 없는 토큰/삭제된 코스는 404, 만료·회수된 링크는 410. 명세 개정(2026-10, #109)으로 course 에 coverImageUrl 이 추가됐다 — 코스 목록(API-COURSE-3)과 같은 규칙으로 채운다: 저장값 → 목적지 도시 사진(#97 데이터셋) → null. 새 코스는 AI 가 대표 이미지를 주지 않으므로(API-AI-2) 보통 도시 사진이 나오고, 도시 사진이 없거나 LOCATION_IMAGE_BASE_URL 이 비어 있으면 null 이다(필드 자체는 항상 있다).",
 						"auth": {
 							"type": "noauth"
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"pm.test('200 + 명세 메시지', function () {",
+									"    pm.expect(pm.response.code).to.eql(200);",
+									"    pm.expect(res.message).to.eql('여행 코스 공유 링크 조회 성공');",
+									"});",
+									"",
+									"// README §검증의 404/410 수동 확인(토큰을 아무 문자열로 바꿔 Send)에서는 data 가 null 이다 — 아래 필드 검사는",
+									"// 200 일 때만 돈다. TypeError 대신 위의 상태 코드 검사 하나만 실패하게 둔다.",
+									"if (pm.response.code === 200 && res.data && res.data.course) {",
+									"    pm.test('course 요약 필드(API-SHARE-2)가 있고 courseId 는 없다', function () {",
+									"        const c = res.data.course;",
+									"        ['title', 'destinationCountry', 'destinationCity', 'coverImageUrl', 'startDate', 'totalDays']",
+									"            .forEach(k => pm.expect(c, k).to.have.property(k));",
+									"        pm.expect(c).to.not.have.property('courseId');",
+									"    });",
+									"",
+									"    // 2026-10 개정(#109): 대표 이미지는 목록(GET /api/courses)과 같은 규칙이다. 데이터셋에 사진이 없는",
+									"    // 목적지면 null 이 정상이라 타입만 본다.",
+									"    pm.test('coverImageUrl 은 URL 문자열 또는 null', function () {",
+									"        const url = res.data.course.coverImageUrl;",
+									"        pm.expect(url === null || typeof url === 'string').to.be.true;",
+									"        if (url !== null) { pm.expect(url).to.match(/^https?:\\/\\//); }",
+									"    });",
+									"",
+									"    // 같은 코스면 목록과 같은 URL 이어야 한다. 목록 테스트가 저장한 값(courseCoverImageUrl)이 이 링크의",
+									"    // 원본 코스(shareCourseId, 링크 생성 테스트가 저장)의 것일 때만 대조한다 — 목록만 다시 돌려 첫 항목이",
+									"    // 바뀌었거나, shareToken 을 손으로 넣은 경우에는 건너뛴다.",
+									"    const shareCourseId = pm.collectionVariables.get('shareCourseId');",
+									"    const listedCourseId = pm.collectionVariables.get('courseCoverImageCourseId');",
+									"    if (shareCourseId && listedCourseId && shareCourseId === listedCourseId) {",
+									"        pm.test('coverImageUrl 이 코스 목록의 값과 같다', function () {",
+									"            const url = res.data.course.coverImageUrl;",
+									"            pm.expect(url == null ? '' : url).to.eql(pm.collectionVariables.get('courseCoverImageUrl'));",
+									"        });",
+									"    } else {",
+									"        console.log('목록(API-COURSE-3) → 링크 생성(API-SHARE-1) 순으로 실행하면 목록의 coverImageUrl 과 교차 대조한다.');",
+									"    }",
+									"}"
+								]
+							}
+						}
+					]
 				},
 				{
 					"name": "POST 공유 링크 수락 (API-SHARE-3)",
@@ -1094,6 +1152,24 @@
 			"key": "courseId",
 			"value": "",
 			"type": "string"
+		},
+		{
+			"key": "courseCoverImageUrl",
+			"value": "",
+			"type": "string",
+			"description": "GET /api/courses 테스트가 저장하는 첫 코스의 coverImageUrl(null 이면 빈 문자열). API-SHARE-2 테스트가 교차 대조에 쓴다(#109)."
+		},
+		{
+			"key": "courseCoverImageCourseId",
+			"value": "",
+			"type": "string",
+			"description": "courseCoverImageUrl 이 어느 코스의 값인지. shareCourseId 와 같을 때만 API-SHARE-2 가 대조한다(#109)."
+		},
+		{
+			"key": "shareCourseId",
+			"value": "",
+			"type": "string",
+			"description": "POST share-links 테스트가 저장하는, 현재 shareToken 의 원본 courseId(#109)."
 		},
 		{
 			"key": "shareToken",
