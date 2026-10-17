@@ -158,7 +158,8 @@ class CourseQueryServiceTest {
     private final FakeExchangeRateProvider exchangeRates = new FakeExchangeRateProvider();
 
     private CourseQueryService service() {
-        return new CourseQueryService(courses, sharing, cityImages, currencies, exchangeRates,
+        return new CourseQueryService(courses, sharing, new CourseCoverImageResolver(cityImages), currencies,
+                exchangeRates,
                 new ExchangeRateProperties("KRW", "stub", null, null, Duration.ZERO));
     }
 
@@ -469,7 +470,8 @@ class CourseQueryServiceTest {
         courses.store.add(new SavedCourse(courseId, me, "일본 코스", "일본", "도쿄", null,
                 LocalDate.of(2026, 8, 1), 3, 424_894L, List.of(), "{\"days\":[]}", Instant.now()));
         currencies.currencies.put("일본", new CountryCurrencyReader.CountryCurrency("JPY", "¥"));
-        CourseQueryService service = new CourseQueryService(courses, sharing, cityImages, currencies,
+        CourseQueryService service = new CourseQueryService(courses, sharing,
+                new CourseCoverImageResolver(cityImages), currencies,
                 (from, to) -> { throw new IllegalStateException("provider down"); },
                 new ExchangeRateProperties("KRW", "stub", null, null, Duration.ZERO));
 

@@ -56,6 +56,8 @@ SPEC 커밋 `3d7b0f9`("UI/UX 변경에 따른 API 수정")의 변경과 BE 대�
 | API-AI-1 / API-PREF-4 | AI complete에 `summary`(intro·hashtags·types·recommendCity) 추가, PREF-4 응답이 `tasteProfile` 래퍼 대신 summary 객체. `recommendCity.imageUrl`은 AI가 주지 않아 **BE가 채운다** | #98 (사진 데이터셋은 #97) |
 | API-USER-3/4 | 신설 — 언어 설정 조회·변경, AI-1/2 요청에 `language` 필드 | #99 |
 | DOM-6 | BE가 작성한 딥링크 계획(`docs/share-link-deeplink-plan.md`)이 그대로 편입 | 대응 없음 |
+| API-SHARE-2 | 미리보기 `course`에 `coverImageUrl` 추가 (SPEC `5a3d421`) | #109 — 목록(API-COURSE-3)과 같은 규칙(저장값 → 도시 사진 → null)을 `CourseCoverImageResolver`로 공용화 |
+| DOM-4 / DOM-5 | 취향 분석·코스 생성의 **AI 내부 동작** 기술 개정(LLM 2회 호출, 항공·숙박 견적 합산 등, SPEC `5a3d421`). BE가 따르는 API-AI-1/2·API-PREF-3·API-COURSE-2 계약은 그대로 | 대응 없음 (#109에서 대조) |
 | DOM-7 | 서식 정리만 | 대응 없음 |
 
 **명세 모순과 BE 판단:**
@@ -96,6 +98,10 @@ SPEC 커밋 `3d7b0f9`("UI/UX 변경에 따른 API 수정")의 변경과 BE 대�
   전역 핸들러가 처리한다. #99
 - **API-COURSE-3 `coverImageUrl`의 출처** — AI 계약(API-AI-2)에서 대표 이미지가 빠졌는데 목록 응답에는
   남아 있다. 저장값이 없으면 목적지 도시 사진(#97 데이터셋)으로 채우고, 그것도 없으면 null이다.
+- **API-SHARE-2 `coverImageUrl`의 nullable 여부(명세 미표기)** — 명세는 `string`으로만 적고(같은 문서의
+  `inviter` 필드는 `string|null`로 표기), API-COURSE-3도 같다. 사진 없는 목적지에는 돌려줄 값이 없어
+  **두 API 모두 null을 낸다**(빈 문자열은 FE가 `<img src="">`로 잘못 그릴 수 있다). 명세 담당에
+  `string|null` 표기 요청 필요. #109
 
 **`API-BOOKING-1`(예약 제휴 링크)은 명세에서 삭제됐다.** 제휴처가 아고다 → Trip.com으로 바뀌면서
 연동 방식이 **앱 클라이언트에 고정 제휴 URL을 상수로 심는 방식**으로 정해져(DOM-7 개정) 서버 역할이

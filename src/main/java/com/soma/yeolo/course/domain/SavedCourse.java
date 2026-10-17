@@ -15,7 +15,8 @@ import java.util.UUID;
  * @param title              코스 제목
  * @param destinationCountry 여행 국가
  * @param destinationCity    여행 도시
- * @param coverImageUrl      코스 대표 이미지 URL (없으면 null) — 목록 응답에만 쓰인다
+ * @param coverImageUrl      코스 대표 이미지 URL (없으면 null) — 목록(API-COURSE-3)·공유 미리보기(API-SHARE-2)가
+ *                           {@code CourseCoverImageResolver}를 거쳐 쓴다. 상세(API-COURSE-2)에는 없다
  * @param startDate          여행 시작일
  * @param totalDays          총 여행 일수
  * @param totalCost          코스 전체 예상 비용 (개정 전 코스는 null)
