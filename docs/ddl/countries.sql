@@ -26,3 +26,21 @@ CREATE INDEX IF NOT EXISTS idx_countries_search_chosung ON countries (search_cho
 -- search_name 에는 인덱스를 두지 않는다. 이름 검색은 부분 일치(LIKE '%키워드%')라 btree로는
 -- 어차피 못 타서 쓰기 비용만 늘고 조회는 그대로 순차 스캔이다. 행이 250개 남짓이라 문제되지 않는다.
 -- 데이터가 크게 늘어 병목이 되면 pg_trgm GIN 인덱스를 검토한다(CREATE EXTENSION 권한 필요).
+
+-- [2026-10] 명세 개정(#97) — 수도·통화. 수도는 추천 도시 사진 폴백(LocationImageService)에, 통화 기호는
+-- 코스 상세의 exRateIcon(#100)에 쓴다. 값이 없는 영토(남극 등)가 있어 모두 NULL 허용이다.
+-- dev 는 ddl-auto=update 가 추가하고, prod 는 이 문장이 추가한다. 적재 INSERT 가 이 컬럼을 쓰므로
+-- 새 이미지 배포 '전'에 적용해야 한다.
+ALTER TABLE countries
+    ADD COLUMN IF NOT EXISTS capital_city_id VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS currency_code   VARCHAR(3),
+    ADD COLUMN IF NOT EXISTS currency_symbol TEXT;
+
+-- [2026-10] 접두어·완전 일치 검색(API-LOC-2/3)이 search_name 을 쓰므로 인덱스를 둔다.
+-- dev 는 엔티티 @Index 로 ddl-auto 가 만들고, prod 는 이 문장이 만든다(text_pattern_ops 로 LIKE 'x%' 대응).
+CREATE INDEX IF NOT EXISTS idx_countries_search_name ON countries (search_name text_pattern_ops);
+
+-- [2026-10] search_chosung 은 초성 검색이 명세에서 빠져 더 이상 조회에 쓰지 않는다. 다만 NOT NULL 이고
+-- dev 의 ddl-auto=update 는 컬럼을 지우지 않아 적재 INSERT 가 계속 값을 채운다. 지우려면 엔티티 매핑을
+-- 먼저 걷어낸 뒤 배포 후 단계에서 아래를 실행한다(지금은 주석).
+-- ALTER TABLE countries DROP COLUMN IF EXISTS search_chosung;

@@ -1,81 +1,56 @@
 package com.soma.yeolo.location.repository;
 
 import com.soma.yeolo.location.entity.CityEntity;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 /**
- * 도시 리포지토리 (API-LOC-2). 국가와 마찬가지로 병합형 참조 도메인이다.
- *
- * <p>도시는 동명이 흔해서(스프링필드·산호세…) 정렬이 결과 품질을 좌우한다. 앞부분 일치를 먼저,
- * 그 안에서는 인구가 많은 순으로 올린다 — 사용자가 떠올릴 법한 도시가 위로 오게 한다.
- *
- * <p>{@code country}(명세 개정으로 추가된 선택 파라미터)를 주면 그 국가로 좁히고, 주지 않으면
- * 예전처럼 전 세계에서 찾는다. 국가 조건이 붙는 질의를 따로 두는 이유는 {@code :country is null}
- * 같은 조건절을 JPQL에 넣으면 파라미터 타입 추론이 DB 방언에 좌우되기 때문이다 — 갈래가 둘뿐이라
- * 질의를 나누는 편이 단순하다.
+ * 도시 조회 (API-LOC-2/3, 도시 사진 폴백). 2026-10 개정으로 부분 일치·초성 검색은 없어졌다.
+ * 검색 키({@code searchName})는 소문자·구분자 제거 문자열이라 영문 대소문자를 구분하지 않는다.
  */
 public interface CityRepository extends JpaRepository<CityEntity, String> {
 
-    /**
-     * 이름 부분 일치 검색.
-     *
-     * @param contains {@code %kw%} 패턴
-     * @param prefix   {@code kw%} 패턴 (정렬용)
-     */
+    /** 한 국가의 전체 도시를 표시명 오름차순으로 — 페이지네이션 없음(API-LOC-2 명세). */
+    List<CityEntity> findByCountryIdOrderByNameKoAsc(String countryId);
+
+    /** 여러 국가의 전체 도시를 한 번에 — 국가별로 묶이고 국가 안에서는 표시명 오름차순이다 (API-LOC-3). */
+    List<CityEntity> findByCountryIdInOrderByCountryIdAscNameKoAsc(Collection<String> countryIds);
+
+    /** 정규화된 이름의 접두어 일치, 전 세계 대상 (API-LOC-3). 그룹화는 서비스가 한다. */
     @Query("""
             select c from CityEntity c
-            where c.searchName like :contains escape '!'
-            order by case when c.searchName like :prefix escape '!' then 0 else 1 end,
-                     c.population desc, c.nameKo
+            where c.searchName like :prefix escape '!'
+            order by c.countryId, c.nameKo
             """)
-    List<CityEntity> searchByName(@Param("contains") String contains,
-                                  @Param("prefix") String prefix,
-                                  Pageable pageable);
+    List<CityEntity> searchByPrefix(@Param("prefix") String prefix);
 
     /**
-     * 초성 검색 (앞부분 일치).
-     *
-     * @param prefix {@code kw%} 패턴
+     * 국가 안에서 정규화된 이름으로 완전 일치. 같은 나라에 동명 도시가 있으면(미국의 Springfield 등)
+     * 인구가 많은 쪽을 고른다.
      */
-    @Query("""
-            select c from CityEntity c
-            where c.searchChosung like :prefix escape '!'
-            order by c.population desc, c.nameKo
-            """)
-    List<CityEntity> searchByChosung(@Param("prefix") String prefix, Pageable pageable);
+    Optional<CityEntity> findFirstByCountryIdAndSearchNameOrderByPopulationDesc(String countryId,
+                                                                               String searchName);
 
     /**
-     * 국가로 좁힌 이름 부분 일치 검색.
-     *
-     * @param country ISO 3166-1 alpha-2 코드(대문자) 또는 국가 한국어명 — 근거는
-     *                {@code LocationAutocompleteService} 문서 참고
+     * 국가 안에서 정규화된 이름의 접두어 일치, 인구순. GeoNames 한국어명은 행정 접미사를 달고 있어
+     * ("부산광역시"·"서울특별시") AI·사용자가 주는 "부산"으로는 완전 일치가 안 된다 — 사진 조회의 2단계.
+     * {@code prefix}는 정규화된 키(영숫자·한글만)라 LIKE 와일드카드가 섞이지 않는다.
      */
-    @Query("""
-            select c from CityEntity c
-            where c.searchName like :contains escape '!'
-              and (c.countryId = :country or c.countryNameKo = :countryName)
-            order by case when c.searchName like :prefix escape '!' then 0 else 1 end,
-                     c.population desc, c.nameKo
-            """)
-    List<CityEntity> searchByNameInCountry(@Param("contains") String contains,
-                                           @Param("prefix") String prefix,
-                                           @Param("country") String country,
-                                           @Param("countryName") String countryName,
-                                           Pageable pageable);
+    Optional<CityEntity> findFirstByCountryIdAndSearchNameStartingWithOrderByPopulationDesc(String countryId,
+                                                                                           String prefix);
 
-    /** 국가로 좁힌 초성 검색 (앞부분 일치). */
+    /** 한 국가에서 사진이 있는 도시를 인구순으로 (사진 폴백의 마지막 단계). */
     @Query("""
             select c from CityEntity c
-            where c.searchChosung like :prefix escape '!'
-              and (c.countryId = :country or c.countryNameKo = :countryName)
-            order by c.population desc, c.nameKo
+            where c.countryId = :countryId
+              and exists (select 1 from CityImageEntity i where i.cityId = c.cityId)
+            order by c.population desc
             """)
-    List<CityEntity> searchByChosungInCountry(@Param("prefix") String prefix,
-                                              @Param("country") String country,
-                                              @Param("countryName") String countryName,
-                                              Pageable pageable);
+    List<CityEntity> findWithImageByCountryIdOrderByPopulationDesc(@Param("countryId") String countryId,
+                                                                   Pageable pageable);
 }

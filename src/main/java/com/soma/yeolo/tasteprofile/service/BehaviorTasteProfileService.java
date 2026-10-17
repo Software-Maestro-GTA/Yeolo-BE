@@ -1,6 +1,5 @@
 package com.soma.yeolo.tasteprofile.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.response.ApiResponse;
@@ -8,12 +7,14 @@ import com.soma.yeolo.global.sse.SseHeartbeat;
 import com.soma.yeolo.global.sse.SseStream;
 import com.soma.yeolo.tasteprofile.client.AiTasteProfileClient;
 import com.soma.yeolo.tasteprofile.client.dto.AiBehaviorAnalysisRequest;
+import com.soma.yeolo.tasteprofile.client.dto.AiTasteAnalysis;
 import com.soma.yeolo.tasteprofile.domain.PreprocessedImage;
 import com.soma.yeolo.tasteprofile.domain.TasteProfile;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisEvents.CompleteData;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisEvents.Progress;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisRequest;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
+import com.soma.yeolo.user.service.UserLanguageReader;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ public class BehaviorTasteProfileService {
     private final AiTasteProfileClient aiClient;
     private final TasteProfileAssembler assembler;
     private final TasteProfileRepository tasteProfileRepository;
+    private final UserLanguageReader userLanguageReader;
     private final SseHeartbeat heartbeat;
 
     /** 전처리 → AI 분석 → 저장 파이프라인을 실행하고 진행 상황을 SSE로 중계한다. */
@@ -55,11 +57,12 @@ public class BehaviorTasteProfileService {
 
             stream.send(EVENT_PROGRESS,
                     new Progress("ANALYZING_PREFERENCE", "여행 취향을 분석 중입니다."));
-            JsonNode tasteProfileNode =
-                    aiClient.analyzeBehavior(AiBehaviorAnalysisRequest.of(userId, items));
+            // AI 는 요약 문구를 사용자의 선호 언어로 만든다(API-AI-1 language, 2026-10 개정).
+            AiTasteAnalysis analysis = aiClient.analyzeBehavior(
+                    AiBehaviorAnalysisRequest.of(userId, userLanguageReader.findLanguage(userId), items));
 
             // 클라이언트가 이미 떠났어도 분석은 끝났으므로 저장은 진행한다(재요청 시 재분석 불필요).
-            UUID tasteProfileId = persist(userId, tasteProfileNode);
+            UUID tasteProfileId = persist(userId, analysis);
 
             if (!stream.send(EVENT_COMPLETE, ApiResponse.success("행동 데이터 기반 취향 분석 생성 성공",
                     new CompleteData(tasteProfileId.toString())))) {
@@ -76,8 +79,8 @@ public class BehaviorTasteProfileService {
         }
     }
 
-    private UUID persist(UUID userId, JsonNode tasteProfileNode) {
-        TasteProfile domain = assembler.toDomain(userId, tasteProfileNode);
+    private UUID persist(UUID userId, AiTasteAnalysis analysis) {
+        TasteProfile domain = assembler.toDomain(userId, analysis.tasteProfile(), analysis.summary());
         return tasteProfileRepository.save(domain);
     }
 

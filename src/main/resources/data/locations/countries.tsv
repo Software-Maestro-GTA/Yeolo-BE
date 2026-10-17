@@ -1,259 +1,259 @@
-#version	cldr-geonames-20260807-r2
-# countryId	nameKo
-AC	어센션섬
-AD	안도라
-AE	아랍에미리트
-AF	아프가니스탄
-AG	앤티가 바부다
-AI	앵귈라
-AL	알바니아
-AM	아르메니아
-AO	앙골라
-AQ	남극 대륙
-AR	아르헨티나
-AS	아메리칸 사모아
-AT	오스트리아
-AU	오스트레일리아
-AW	아루바
-AX	올란드 제도
-AZ	아제르바이잔
-BA	보스니아 헤르체고비나
-BB	바베이도스
-BD	방글라데시
-BE	벨기에
-BF	부르키나파소
-BG	불가리아
-BH	바레인
-BI	부룬디
-BJ	베냉
-BL	생바르텔레미
-BM	버뮤다
-BN	브루나이
-BO	볼리비아
-BQ	네덜란드령 카리브
-BR	브라질
-BS	바하마
-BT	부탄
-BV	부베섬
-BW	보츠와나
-BY	벨라루스
-BZ	벨리즈
-CA	캐나다
-CC	코코스 제도
-CD	콩고-킨샤사
-CF	중앙 아프리카 공화국
-CG	콩고-브라자빌
-CH	스위스
-CI	코트디부아르
-CK	쿡 제도
-CL	칠레
-CM	카메룬
-CN	중국
-CO	콜롬비아
-CP	클리퍼턴섬
-CQ	사크
-CR	코스타리카
-CU	쿠바
-CV	카보베르데
-CW	퀴라소
-CX	크리스마스섬
-CY	키프로스
-CZ	체코
-DE	독일
-DG	디에고 가르시아
-DJ	지부티
-DK	덴마크
-DM	도미니카
-DO	도미니카 공화국
-DZ	알제리
-EA	세우타 및 멜리야
-EC	에콰도르
-EE	에스토니아
-EG	이집트
-EH	서사하라
-ER	에리트리아
-ES	스페인
-ET	에티오피아
-FI	핀란드
-FJ	피지
-FK	포클랜드 제도
-FM	미크로네시아
-FO	페로 제도
-FR	프랑스
-GA	가봉
-GB	영국
-GD	그레나다
-GE	조지아
-GF	프랑스령 기아나
-GG	건지
-GH	가나
-GI	지브롤터
-GL	그린란드
-GM	감비아
-GN	기니
-GP	과들루프
-GQ	적도 기니
-GR	그리스
-GS	사우스조지아 사우스샌드위치 제도
-GT	과테말라
-GU	괌
-GW	기니비사우
-GY	가이아나
-HK	홍콩(중국 특별행정구)
-HM	허드 맥도널드 제도
-HN	온두라스
-HR	크로아티아
-HT	아이티
-HU	헝가리
-IC	카나리아 제도
-ID	인도네시아
-IE	아일랜드
-IL	이스라엘
-IM	맨섬
-IN	인도
-IO	영국령 인도양 지역
-IQ	이라크
-IR	이란
-IS	아이슬란드
-IT	이탈리아
-JE	저지
-JM	자메이카
-JO	요르단
-JP	일본
-KE	케냐
-KG	키르기스스탄
-KH	캄보디아
-KI	키리바시
-KM	코모로
-KN	세인트키츠 네비스
-KP	북한
-KR	대한민국
-KW	쿠웨이트
-KY	케이맨 제도
-KZ	카자흐스탄
-LA	라오스
-LB	레바논
-LC	세인트루시아
-LI	리히텐슈타인
-LK	스리랑카
-LR	라이베리아
-LS	레소토
-LT	리투아니아
-LU	룩셈부르크
-LV	라트비아
-LY	리비아
-MA	모로코
-MC	모나코
-MD	몰도바
-ME	몬테네그로
-MF	생마르탱
-MG	마다가스카르
-MH	마셜 제도
-MK	북마케도니아
-ML	말리
-MM	미얀마
-MN	몽골
-MO	마카오(중국 특별행정구)
-MP	북마리아나제도
-MQ	마르티니크
-MR	모리타니
-MS	몬트세라트
-MT	몰타
-MU	모리셔스
-MV	몰디브
-MW	말라위
-MX	멕시코
-MY	말레이시아
-MZ	모잠비크
-NA	나미비아
-NC	뉴칼레도니아
-NE	니제르
-NF	노퍽섬
-NG	나이지리아
-NI	니카라과
-NL	네덜란드
-NO	노르웨이
-NP	네팔
-NR	나우루
-NU	니우에
-NZ	뉴질랜드
-OM	오만
-PA	파나마
-PE	페루
-PF	프랑스령 폴리네시아
-PG	파푸아뉴기니
-PH	필리핀
-PK	파키스탄
-PL	폴란드
-PM	생피에르 미클롱
-PN	핏케언 제도
-PR	푸에르토리코
-PS	팔레스타인 지구
-PT	포르투갈
-PW	팔라우
-PY	파라과이
-QA	카타르
-RE	레위니옹
-RO	루마니아
-RS	세르비아
-RU	러시아
-RW	르완다
-SA	사우디아라비아
-SB	솔로몬 제도
-SC	세이셸
-SD	수단
-SE	스웨덴
-SG	싱가포르
-SH	세인트헬레나
-SI	슬로베니아
-SJ	스발바르제도-얀마웬섬
-SK	슬로바키아
-SL	시에라리온
-SM	산마리노
-SN	세네갈
-SO	소말리아
-SR	수리남
-SS	남수단
-ST	상투메 프린시페
-SV	엘살바도르
-SX	신트마르턴
-SY	시리아
-SZ	에스와티니
-TA	트리스탄다쿠나
-TC	터크스 케이커스 제도
-TD	차드
-TF	프랑스령 남방 지역
-TG	토고
-TH	태국
-TJ	타지키스탄
-TK	토켈라우
-TL	동티모르
-TM	투르크메니스탄
-TN	튀니지
-TO	통가
-TR	튀르키예
-TT	트리니다드 토바고
-TV	투발루
-TW	대만
-TZ	탄자니아
-UA	우크라이나
-UG	우간다
-UM	미국령 해외 제도
-US	미국
-UY	우루과이
-UZ	우즈베키스탄
-VA	바티칸 시국
-VC	세인트빈센트그레나딘
-VE	베네수엘라
-VG	영국령 버진아일랜드
-VI	미국령 버진아일랜드
-VN	베트남
-VU	바누아투
-WF	왈리스-푸투나 제도
-WS	사모아
-XK	코소보
-YE	예멘
-YT	마요트
-ZA	남아프리카
-ZM	잠비아
-ZW	짐바브웨
+#version	cldr-geonames-20261014
+# countryId	nameKo	capitalCityId	currencyCode	currencySymbol
+AC	어센션섬		SHP	£
+AD	안도라	3041563	EUR	€
+AE	아랍에미리트	292968	AED	AED
+AF	아프가니스탄	1138958	AFN	؋
+AG	앤티가 바부다	3576022	XCD	$
+AI	앵귈라	3573374	XCD	$
+AL	알바니아	3183875	ALL	ALL
+AM	아르메니아	616052	AMD	֏
+AO	앙골라	2240449	AOA	Kz
+AQ	남극 대륙			
+AR	아르헨티나	3435910	ARS	$
+AS	아메리칸 사모아	5881576	USD	$
+AT	오스트리아	2761369	EUR	€
+AU	오스트레일리아	2172517	AUD	$
+AW	아루바	3577154	AWG	AWG
+AX	올란드 제도	3041732	EUR	€
+AZ	아제르바이잔	587084	AZN	₼
+BA	보스니아 헤르체고비나	3191281	BAM	KM
+BB	바베이도스	3374036	BBD	$
+BD	방글라데시	1185241	BDT	৳
+BE	벨기에	2800866	EUR	€
+BF	부르키나파소	2357048	XOF	F CFA
+BG	불가리아	727011	EUR	€
+BH	바레인	290340	BHD	BHD
+BI	부룬디	426272	BIF	BIF
+BJ	베냉	2392087	XOF	F CFA
+BL	생바르텔레미	3579132	EUR	€
+BM	버뮤다	3573197	BMD	$
+BN	브루나이	1820906	BND	$
+BO	볼리비아	3903987	BOB	Bs
+BQ	네덜란드령 카리브	3513563	USD	$
+BR	브라질	3469058	BRL	R$
+BS	바하마	3571824	BSD	$
+BT	부탄	1252416	BTN	BTN
+BV	부베섬		NOK	kr
+BW	보츠와나	933773	BWP	P
+BY	벨라루스	625144	BYN	р.
+BZ	벨리즈	3582672	BZD	$
+CA	캐나다	6094817	CAD	$
+CC	코코스 제도	7304591	AUD	$
+CD	콩고-킨샤사	2314302	CDF	CDF
+CF	중앙 아프리카 공화국	2389853	XAF	FCFA
+CG	콩고-브라자빌	2260535	XAF	FCFA
+CH	스위스	2661552	CHF	CHF
+CI	코트디부아르	2279755	XOF	F CFA
+CK	쿡 제도	4035715	NZD	$
+CL	칠레	3871336	CLP	$
+CM	카메룬	2220957	XAF	FCFA
+CN	중국	1816670	CNY	¥
+CO	콜롬비아	3688689	COP	$
+CP	클리퍼턴섬			
+CQ	사크			
+CR	코스타리카	3621849	CRC	₡
+CU	쿠바	3553478	CUP	$
+CV	카보베르데	3374333	CVE	CVE
+CW	퀴라소	3513090	XCG	Cg.
+CX	크리스마스섬	2078127	AUD	$
+CY	키프로스	146268	EUR	€
+CZ	체코	3067696	CZK	Kč
+DE	독일	2950159	EUR	€
+DG	디에고 가르시아		USD	$
+DJ	지부티	223817	DJF	DJF
+DK	덴마크	2618425	DKK	kr
+DM	도미니카	3575635	XCD	$
+DO	도미니카 공화국	3492908	DOP	$
+DZ	알제리	2507480	DZD	DZD
+EA	세우타 및 멜리야		EUR	€
+EC	에콰도르	3652462	USD	$
+EE	에스토니아	588409	EUR	€
+EG	이집트	360630	EGP	E£
+EH	서사하라		MAD	MAD
+ER	에리트리아	343300	ERN	ERN
+ES	스페인	3117735	EUR	€
+ET	에티오피아	344979	ETB	ETB
+FI	핀란드	658225	EUR	€
+FJ	피지	2198148	FJD	$
+FK	포클랜드 제도	3426691	FKP	£
+FM	미크로네시아	2081986	USD	$
+FO	페로 제도	2611396	DKK	kr
+FR	프랑스	2988507	EUR	€
+GA	가봉	2399697	XAF	FCFA
+GB	영국	2643743	GBP	£
+GD	그레나다	3579925	XCD	$
+GE	조지아	611717	GEL	₾
+GF	프랑스령 기아나	3382160	EUR	€
+GG	건지	3042287	GBP	£
+GH	가나	2306104	GHS	GH₵
+GI	지브롤터	2411585	GIP	£
+GL	그린란드	3421319	DKK	kr
+GM	감비아	2413876	GMD	GMD
+GN	기니	2422465	GNF	FG
+GP	과들루프	3579732	EUR	€
+GQ	적도 기니	12226438	XAF	FCFA
+GR	그리스	264371	EUR	€
+GS	사우스조지아 사우스샌드위치 제도	3426466	GBP	£
+GT	과테말라	3598132	GTQ	Q
+GU	괌	4044012	USD	$
+GW	기니비사우	2374775	XOF	F CFA
+GY	가이아나	3378644	GYD	$
+HK	홍콩(중국 특별행정구)	1819729	HKD	$
+HM	허드 맥도널드 제도		AUD	$
+HN	온두라스	3600949	HNL	L
+HR	크로아티아	3186886	EUR	€
+HT	아이티	3718426	HTG	HTG
+HU	헝가리	3054643	HUF	Ft
+IC	카나리아 제도		EUR	€
+ID	인도네시아	1642911	IDR	Rp
+IE	아일랜드	2964574	EUR	€
+IL	이스라엘		ILS	₪
+IM	맨섬	3042237	GBP	£
+IN	인도	1261481	INR	₹
+IO	영국령 인도양 지역		USD	$
+IQ	이라크	98182	IQD	IQD
+IR	이란	112931	IRR	IRR
+IS	아이슬란드	3413829	ISK	kr
+IT	이탈리아	3169070	EUR	€
+JE	저지	3042091	GBP	£
+JM	자메이카	3489854	JMD	$
+JO	요르단	250441	JOD	JOD
+JP	일본	1850147	JPY	¥
+KE	케냐	184745	KES	KES
+KG	키르기스스탄	1528675	KGS	⃀
+KH	캄보디아	1821306	KHR	៛
+KI	키리바시	2110257	AUD	$
+KM	코모로	921772	KMF	CF
+KN	세인트키츠 네비스	3575551	XCD	$
+KP	북한	1871859	KPW	₩
+KR	대한민국	1835848	KRW	₩
+KW	쿠웨이트	285787	KWD	KWD
+KY	케이맨 제도	3580661	KYD	$
+KZ	카자흐스탄	1526273	KZT	₸
+LA	라오스	1651944	LAK	₭
+LB	레바논	276781	LBP	L£
+LC	세인트루시아	3576812	XCD	$
+LI	리히텐슈타인	3042030	CHF	CHF
+LK	스리랑카	1248991	LKR	Rs
+LR	라이베리아	2274895	LRD	$
+LS	레소토	932505	ZAR	R
+LT	리투아니아	593116	EUR	€
+LU	룩셈부르크	2960316	EUR	€
+LV	라트비아	456172	EUR	€
+LY	리비아	2210247	LYD	LYD
+MA	모로코	2538475	MAD	MAD
+MC	모나코	2993458	EUR	€
+MD	몰도바	618426	MDL	MDL
+ME	몬테네그로	3193044	EUR	€
+MF	생마르탱	3578851	EUR	€
+MG	마다가스카르	1070940	MGA	Ar
+MH	마셜 제도	2113779	USD	$
+MK	북마케도니아	785842	MKD	MKD
+ML	말리	2460596	XOF	F CFA
+MM	미얀마	6611854	MMK	K
+MN	몽골	2028462	MNT	₮
+MO	마카오(중국 특별행정구)	1821274	MOP	MOP
+MP	북마리아나제도	7828758	USD	$
+MQ	마르티니크	3570675	EUR	€
+MR	모리타니	2377450	MRU	MRU
+MS	몬트세라트	3578069	XCD	$
+MT	몰타	2562305	EUR	€
+MU	모리셔스	934154	MUR	Rs
+MV	몰디브	1282027	MVR	MVR
+MW	말라위	927967	MWK	MWK
+MX	멕시코	3530597	MXN	$
+MY	말레이시아	1735161	MYR	RM
+MZ	모잠비크	1040652	MZN	MZN
+NA	나미비아	3352136	NAD	$
+NC	뉴칼레도니아	2139521	XPF	CFPF
+NE	니제르	2440485	XOF	F CFA
+NF	노퍽섬	2161314	AUD	$
+NG	나이지리아	2352778	NGN	₦
+NI	니카라과	3617763	NIO	C$
+NL	네덜란드	2759794	EUR	€
+NO	노르웨이	3143244	NOK	kr
+NP	네팔	1283240	NPR	Rs
+NR	나우루	7626461	AUD	$
+NU	니우에	4036284	NZD	$
+NZ	뉴질랜드	2179537	NZD	$
+OM	오만	287286	OMR	OMR
+PA	파나마	3703443	PAB	PAB
+PE	페루	3936456	PEN	PEN
+PF	프랑스령 폴리네시아	4033936	XPF	CFPF
+PG	파푸아뉴기니	2088122	PGK	PGK
+PH	필리핀	1701668	PHP	₱
+PK	파키스탄	1176615	PKR	Rs
+PL	폴란드	756135	PLN	zł
+PM	생피에르 미클롱	3424934	EUR	€
+PN	핏케언 제도	4030723	NZD	$
+PR	푸에르토리코	4568127	USD	$
+PS	팔레스타인 지구		ILS	₪
+PT	포르투갈	2267057	EUR	€
+PW	팔라우	8063361	USD	$
+PY	파라과이	3439389	PYG	₲
+QA	카타르	290030	QAR	QAR
+RE	레위니옹	935264	EUR	€
+RO	루마니아	683506	RON	L
+RS	세르비아	792680	RSD	RSD
+RU	러시아	524901	RUB	₽
+RW	르완다	202061	RWF	RF
+SA	사우디아라비아	108410	SAR	SAR
+SB	솔로몬 제도	2108502	SBD	$
+SC	세이셸	241131	SCR	SCR
+SD	수단	379252	SDG	SDG
+SE	스웨덴	2673730	SEK	kr
+SG	싱가포르	1880252	SGD	$
+SH	세인트헬레나	3370903	SHP	£
+SI	슬로베니아	3196359	EUR	€
+SJ	스발바르제도-얀마웬섬	2729907	NOK	kr
+SK	슬로바키아	3060972	EUR	€
+SL	시에라리온	2409306	SLE	SLE
+SM	산마리노	3168070	EUR	€
+SN	세네갈	2253354	XOF	F CFA
+SO	소말리아	53654	SOS	SOS
+SR	수리남	3383330	SRD	$
+SS	남수단	373303	SSP	£
+ST	상투메 프린시페	2410763	STN	Db
+SV	엘살바도르	3583361	USD	$
+SX	신트마르턴	3513392	XCG	Cg.
+SY	시리아	170654	SYP	£
+SZ	에스와티니	934985	SZL	SZL
+TA	트리스탄다쿠나		GBP	£
+TC	터크스 케이커스 제도	3576994	USD	$
+TD	차드	2427123	XAF	FCFA
+TF	프랑스령 남방 지역	1546102	EUR	€
+TG	토고	2365267	XOF	F CFA
+TH	태국	1609350	THB	฿
+TJ	타지키스탄	1221874	TJS	TJS
+TK	토켈라우		NZD	$
+TL	동티모르	1645457	USD	$
+TM	투르크메니스탄	162183	TMT	TMT
+TN	튀니지	2464470	TND	TND
+TO	통가	4032402	TOP	T$
+TR	튀르키예	323786	TRY	₺
+TT	트리니다드 토바고	3573890	TTD	$
+TV	투발루	2110394	AUD	$
+TW	대만	1668341	TWD	NT$
+TZ	탄자니아	160196	TZS	TZS
+UA	우크라이나	703448	UAH	₴
+UG	우간다	232422	UGX	UGX
+UM	미국령 해외 제도		USD	$
+US	미국	4140963	USD	$
+UY	우루과이	3441575	UYU	$
+UZ	우즈베키스탄	1512569	UZS	UZS
+VA	바티칸 시국	6691831	EUR	€
+VC	세인트빈센트그레나딘	3577887	XCD	$
+VE	베네수엘라	3646738	VES	VES
+VG	영국령 버진아일랜드	3577430	USD	$
+VI	미국령 버진아일랜드	4795467	USD	$
+VN	베트남	1581130	VND	₫
+VU	바누아투	2135171	VUV	VUV
+WF	왈리스-푸투나 제도	4034821	XPF	CFPF
+WS	사모아	4035413	WST	WST
+XK	코소보	786714	EUR	€
+YE	예멘	71137	YER	YER
+YT	마요트	921815	EUR	€
+ZA	남아프리카	964137	ZAR	R
+ZM	잠비아	909137	ZMW	ZK
+ZW	짐바브웨	890299	ZWG	ZWG

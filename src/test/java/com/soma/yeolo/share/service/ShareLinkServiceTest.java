@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.soma.yeolo.course.domain.Course;
 import com.soma.yeolo.course.domain.SavedCourse;
+import com.soma.yeolo.course.service.CourseCoverImageReader;
 import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
@@ -161,6 +162,12 @@ class ShareLinkServiceTest {
     private final FakeShareLinkRepository links = new FakeShareLinkRepository();
     private final FakeCourseAccessRepository accesses = new FakeCourseAccessRepository();
     private final FakeCourseRepository courses = new FakeCourseRepository();
+    /**
+     * 코스 대표 이미지 포트 stub: 코스 식별자별로 미리 넣어둔 URL 을 돌려준다. 저장값·도시 사진 폴백
+     * 규칙은 코스 도메인의 것이라(CourseCoverImageResolverTest) 여기서는 결과만 흉내낸다.
+     */
+    private final Map<UUID, String> coverImages = new LinkedHashMap<>();
+    private final CourseCoverImageReader coverImageReader = course -> coverImages.get(course.courseId());
     private final Map<UUID, UserDisplayProfile> profiles = new LinkedHashMap<>();
     private final UserDisplayProfileReader profileReader =
             userId -> Optional.ofNullable(profiles.get(userId));
@@ -170,14 +177,14 @@ class ShareLinkServiceTest {
     }
 
     private ShareLinkService service(Duration ttl) {
-        return new ShareLinkService(links, accesses, courses, profileReader,
-                new ShareLinkProperties("https://yeolo.vercel.app/invite", ttl));
+        return new ShareLinkService(links, accesses, courses, coverImageReader,
+                profileReader, new ShareLinkProperties("https://yeolo.vercel.app/invite", ttl));
     }
 
     private UUID givenCourse(UUID ownerId, String title) {
         UUID courseId = UUID.randomUUID();
         courses.store.add(new SavedCourse(courseId, ownerId, title, "일본", "오사카", null,
-                LocalDate.of(2026, 9, 1), 4, List.of("맛집"), "이유", "{\"days\":[]}", Instant.now()));
+                LocalDate.of(2026, 9, 1), 4, null, List.of("맛집"), "{\"days\":[]}", Instant.now()));
         return courseId;
     }
 
@@ -288,6 +295,33 @@ class ShareLinkServiceTest {
         String token = service().createShareLink(owner, courseId).shareToken();
 
         assertThat(service().getPreview(token).toString()).doesNotContain(courseId.toString());
+    }
+
+    // ----- 대표 이미지 (명세 개정 2026-10, #109) — 코스 도메인의 규칙(목록과 동일)을 포트로 받는다 -----
+
+    /** 목록(API-COURSE-3)과 같은 코스면 같은 그림이어야 한다 — 코스 도메인이 정한 값을 그대로 싣는다. */
+    @Test
+    void 미리보기의_대표_이미지는_코스_도메인이_정한_값을_그대로_싣는다() {
+        UUID owner = UUID.randomUUID();
+        UUID courseId = givenCourse(owner, "오사카 4일");
+        coverImages.put(courseId, "https://cdn/locations/cities/osaka.jpg");
+        String token = service().createShareLink(owner, courseId).shareToken();
+
+        assertThat(service().getPreview(token).course().coverImageUrl())
+                .isEqualTo("https://cdn/locations/cities/osaka.jpg");
+    }
+
+    /** 명세는 string 으로만 적지만 사진 없는 목적지에는 값이 없다 — API-COURSE-3 과 같은 BE 판단(spec-index). */
+    @Test
+    void 대표_이미지가_없으면_null이고_미리보기는_성공한다() {
+        UUID owner = UUID.randomUUID();
+        UUID courseId = givenCourse(owner, "오사카 4일");
+        String token = service().createShareLink(owner, courseId).shareToken();
+
+        SharePreviewResponse preview = service().getPreview(token);
+
+        assertThat(preview.course().coverImageUrl()).isNull();
+        assertThat(preview.course().title()).isEqualTo("오사카 4일");
     }
 
     @Test

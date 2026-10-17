@@ -33,6 +33,9 @@ public enum ErrorCode {
     // 사용자 프로필 (API-USER-1 / DOM-1)
     INVALID_USER_PROFILE(HttpStatus.BAD_REQUEST, "사용자 프로필 입력값을 확인해주세요."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
+
+    // User - 언어 설정 (API-USER-4). 누락·빈 값·미지원 코드를 명세의 한 문구로 거절한다.
+    UNSUPPORTED_LANGUAGE(HttpStatus.BAD_REQUEST, Messages.UNSUPPORTED_LANGUAGE),
     // API-USER-1의 409(이미 사용 중인 이메일)는 명세 개정으로 도달할 수 없게 됐다 — 요청에서
     // email이 빠져 사용자가 이메일을 바꿀 수단이 없다. 에러 코드 목록에는 아직 남아 있으나
     // 구현하지 않는다(발생시킬 입력이 없다).
@@ -75,12 +78,11 @@ public enum ErrorCode {
     // 명세가 실패 응답 예시를 하나만 정의하기 때문이다.
     SHARE_LINK_NOT_ACCEPTABLE(HttpStatus.BAD_REQUEST, "수락할 수 없는 공유 링크입니다."),
 
-    // Place - 조회 (API-PLACE-1). 잘못된 placeId(400)는 전역 핸들러가 바인딩 실패에서 만든다.
-    PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "장소 정보를 찾을 수 없습니다."),
-
-    // Location - 국가·도시 자동완성 (API-LOC-1 / API-LOC-2)
-    INVALID_COUNTRY_KEYWORD(HttpStatus.BAD_REQUEST, "국가 검색어를 확인해주세요."),
-    INVALID_CITY_KEYWORD(HttpStatus.BAD_REQUEST, "도시 검색어를 확인해주세요."),
+    // Location - 국가·도시 목록·검색 (API-LOC-1/2/3, 2026-10 개정). LOC-2 의 400 문구는 명세에 없어
+    // LOC-3 의 400 문구("검색 키워드를 입력해주세요.")와 같은 꼴로 정했다.
+    INVALID_COUNTRY_NAME(HttpStatus.BAD_REQUEST, "국가명을 입력해주세요."),
+    COUNTRY_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 국가를 찾을 수 없습니다."),
+    INVALID_SEARCH_KEYWORD(HttpStatus.BAD_REQUEST, "검색 키워드를 입력해주세요."),
 
     // Common
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "내부 처리 오류가 발생했습니다."),
@@ -89,4 +91,15 @@ public enum ErrorCode {
 
     private final HttpStatus httpStatus;
     private final String message;
+
+    /**
+     * 검증 애너테이션(컴파일 타임 상수가 필요)과 에러 코드가 같은 문구를 쓰도록 한 곳에 둔다.
+     * 명세가 여러 실패를 한 문구로 묶는 경우(API-USER-4 의 400) 두 경로의 메시지가 갈라지지 않게 한다.
+     */
+    public static final class Messages {
+        public static final String UNSUPPORTED_LANGUAGE = "지원하는 언어 코드를 입력해주세요.";
+
+        private Messages() {
+        }
+    }
 }

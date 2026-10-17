@@ -1,7 +1,7 @@
 package com.soma.yeolo.tasteprofile.controller;
 
 import com.soma.yeolo.global.response.ApiResponse;
-import com.soma.yeolo.tasteprofile.dto.MyTasteProfileResponse;
+import com.soma.yeolo.tasteprofile.dto.TasteSummaryResponse;
 import com.soma.yeolo.tasteprofile.service.MyTasteProfileService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,7 @@ public class MyTasteProfileController {
 
     /** 내 성향 프로필 조회 (API-PREF-4). 저장된 프로필이 없으면 전역 핸들러가 404로 응답한다. */
     @GetMapping("/api/users/me/taste-profile")
-    public ApiResponse<MyTasteProfileResponse> getMyTasteProfile(@AuthenticationPrincipal UUID userId) {
+    public ApiResponse<TasteSummaryResponse> getMyTasteProfile(@AuthenticationPrincipal UUID userId) {
         return ApiResponse.success("성향 프로필 조회 성공", myTasteProfileService.getMyTasteProfile(userId));
     }
 }

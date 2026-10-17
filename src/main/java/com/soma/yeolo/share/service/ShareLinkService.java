@@ -1,6 +1,7 @@
 package com.soma.yeolo.share.service;
 
 import com.soma.yeolo.course.domain.SavedCourse;
+import com.soma.yeolo.course.service.CourseCoverImageReader;
 import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
@@ -43,6 +44,7 @@ public class ShareLinkService {
     private final ShareLinkRepository shareLinkRepository;
     private final CourseAccessRepository courseAccessRepository;
     private final CourseRepository courseRepository;
+    private final CourseCoverImageReader coverImages;
     private final UserDisplayProfileReader userDisplayProfileReader;
     private final ShareLinkProperties properties;
 
@@ -71,6 +73,9 @@ public class ShareLinkService {
     /**
      * 공유 링크 미리보기 (API-SHARE-2). 인증 없이 호출할 수 있다 — 초대받은 사용자가 로그인 전에도
      * 어떤 코스를 받았는지 확인할 수 있어야 하기 때문이다 (DOM-6 §비로그인 사용자 처리).
+     *
+     * <p>대표 이미지({@code coverImageUrl}, 명세 개정 2026-10)는 코스 목록(API-COURSE-3)과 같은 규칙으로
+     * 채운다 — 초대자가 목록에서 본 그림과 초대받은 사람이 미리보기에서 보는 그림이 같아야 한다.
      */
     @Transactional(readOnly = true)
     public SharePreviewResponse getPreview(String shareToken) {
@@ -78,7 +83,8 @@ public class ShareLinkService {
         UserDisplayProfile inviter = userDisplayProfileReader
                 .findDisplayProfile(invitation.link().inviterId())
                 .orElse(null);
-        return SharePreviewResponse.from(invitation.course(), inviter, invitation.link());
+        return SharePreviewResponse.from(invitation.course(), coverImages.resolve(invitation.course()),
+                inviter, invitation.link());
     }
 
     /**

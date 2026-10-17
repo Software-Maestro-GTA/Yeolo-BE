@@ -1,0 +1,923 @@
+{
+	"info": {
+		"_postman_id": "9e0a1c7a-4f3b-4a21-8d55-yeolo000be02",
+		"name": "Yeolo BE (prod)",
+		"description": "Yeolo 백엔드 API 컬렉션 — **prod(운영) 대상**.\n\n⚠️ **실사용자 데이터를 건드립니다.** dev 컬렉션과 같은 요청이지만 대상이 운영 서버입니다.\n쓰기 API(프로필 수정·MBTI·동의·코스 생성)는 즉시 영구 반영되고, 코스 삭제·회원탈퇴는 되돌릴 수 없습니다.\n\n- 파괴적 요청(회원탈퇴·코스 삭제)은 기본으로 **차단**돼 있습니다. 정말 보낼 때만 컬렉션 변수\n  `allowDestructive` 를 `yes` 로 바꾸고, 끝나면 반드시 되돌리세요.\n- 토큰은 로그인으로만 얻습니다(tokenMode=mint 는 사용하지 않음).\n- 이 파일은 **main 브랜치의 API 계약**을 반영합니다. dev 가 앞서 나간 기능은 여기 없는 것이 정상입니다.\n- 상세는 docs/postman/README.md.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{accessToken}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "00. Health",
+			"description": "서버 상태 확인. 인증 불필요.",
+			"item": [
+				{
+					"name": "GET /actuator/health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/actuator/health",
+						"description": "k8s readiness/liveness probe 와 같은 경로. status:UP 이면 준비 완료.",
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "01. Auth",
+			"description": "로그인·토큰 재발급·로그아웃 (API-AUTH-1/2/3/4). 로그인 성공 시 accessToken·refreshToken·userId 가 환경변수에 자동 저장된다.",
+			"item": [
+				{
+					"name": "POST 구글 로그인 (API-AUTH-1)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/api/auth/google",
+						"description": "브라우저 OAuth 리다이렉트에서 받은 1회용 인가 코드를 보낸다. 로그인 URL 만드는 법은 docs/postman/README.md 7절. code 는 1회용이며 수 분 내 만료된다.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"code\": \"{{googleAuthCode}}\",\n  \"redirectUri\": \"{{googleRedirectUri}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// [1] googleAuthCode 가 비었으면 로그인 URL 을 찍어 준다.",
+									"// [2] 주소창을 통째로 붙여넣어도 code 만 뽑아 URL 디코딩한다.",
+									"const cid  = pm.collectionVariables.get('googleClientId');",
+									"const ruri = pm.collectionVariables.get('googleRedirectUri');",
+									"let raw = (pm.collectionVariables.get('googleAuthCode') || '').trim();",
+									"",
+									"if (!raw) {",
+									"    const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth'",
+									"        + '?client_id=' + cid",
+									"        + '&redirect_uri=' + encodeURIComponent(ruri)",
+									"        + '&response_type=code&scope=' + encodeURIComponent('openid email profile')",
+									"        + '&prompt=consent';",
+									"    console.log('[1] 아래 URL 을 브라우저(시크릿 창)에서 열고 로그인하세요.');",
+									"    console.log(authUrl);",
+									"    console.log('[2] 로그인 후 주소창을 통째로 googleAuthCode 에 붙여넣고 다시 Send 하세요.');",
+									"    console.log('※ client_id 가 *****로 보이면 변수 Type 이 secret 입니다 — default 로 바꾸세요.');",
+									"    console.log('※ client_id 는 .apps.googleusercontent.com 으로 끝나야 합니다. 잘리면 invalid_client.');",
+									"} else {",
+									"    const m = raw.match(/[?&]code=([^&]+)/);",
+									"    if (m) { raw = m[1]; }",
+									"    pm.variables.set('googleAuthCode', decodeURIComponent(raw));",
+									"}"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (pm.response.code === 200 && res.data) {",
+									"    pm.collectionVariables.set('accessToken', res.data.accessToken);",
+									"    pm.collectionVariables.set('refreshToken', res.data.refreshToken);",
+									"    if (res.data.user && res.data.user.userId) {",
+									"        pm.collectionVariables.set('userId', res.data.user.userId);",
+									"    }",
+									"    // 명세 개정으로 추가된 최근 코스. 있으면 코스 상세 요청이 바로 쓸 수 있게 courseId 에 넣는다.",
+									"    if (res.data.recentCourseId) {",
+									"        pm.collectionVariables.set('courseId', res.data.recentCourseId);",
+									"    }",
+									"    console.log('로그인 성공 — accessToken/refreshToken/userId 저장');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "POST 애플 로그인 (API-AUTH-2)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/api/auth/apple",
+						"description": "idToken 은 선택. 네이티브에서 받은 값이 있으면 함께 보낸다.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"code\": \"{{appleAuthCode}}\",\n  \"redirectUri\": \"{{appleRedirectUri}}\",\n  \"idToken\": \"{{appleIdToken}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (pm.response.code === 200 && res.data) {",
+									"    pm.collectionVariables.set('accessToken', res.data.accessToken);",
+									"    pm.collectionVariables.set('refreshToken', res.data.refreshToken);",
+									"    if (res.data.user && res.data.user.userId) {",
+									"        pm.collectionVariables.set('userId', res.data.user.userId);",
+									"    }",
+									"    // 명세 개정으로 추가된 최근 코스. 있으면 코스 상세 요청이 바로 쓸 수 있게 courseId 에 넣는다.",
+									"    if (res.data.recentCourseId) {",
+									"        pm.collectionVariables.set('courseId', res.data.recentCourseId);",
+									"    }",
+									"    console.log('로그인 성공 — accessToken/refreshToken/userId 저장');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "POST 토큰 재발급 (API-AUTH-3)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/api/auth/refresh",
+						"description": "Access/Refresh 를 함께 회전시킨다. 성공하면 옛 refreshToken 은 즉시 무효가 된다. 서버가 DB 의 해시와 대조하므로 로그인으로 받은 토큰에서만 동작한다.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (pm.response.code === 200 && res.data) {",
+									"    pm.collectionVariables.set('accessToken', res.data.accessToken);",
+									"    pm.collectionVariables.set('refreshToken', res.data.refreshToken);",
+									"    console.log('토큰 회전 완료 — 옛 refreshToken 은 이 시점부터 무효');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "POST 로그아웃 (API-AUTH-4)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/api/auth/logout",
+						"description": "인증 필요. 세션(Refresh Token)을 지운다. 이후 재발급은 401.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "02. Location",
+			"description": "국가·도시 자동완성 (API-LOC-1/2). 명세상 인증 불필요한 공개 기준 데이터.",
+			"item": [
+				{
+					"name": "GET 국가 자동완성 (API-LOC-1)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/locations/countries/autocomplete?keyword=일&limit=10",
+						"description": "keyword 는 한글 초성 검색도 지원한다. 둘 다 선택 파라미터.",
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GET 도시 자동완성 (API-LOC-2)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/locations/cities/autocomplete?keyword=오사&limit=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"locations",
+								"cities",
+								"autocomplete"
+							],
+							"query": [
+								{
+									"key": "country",
+									"value": "JP",
+									"description": "선택. 국가 식별자(ISO alpha-2) 또는 국가 한국어명(\"일본\"). 주면 그 국가로 좁힌다.",
+									"disabled": true
+								},
+								{
+									"key": "keyword",
+									"value": "오사"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "명세가 자기모순이었으나 공개로 확정됐다 (docs/spec-index.md). country 는 명세 개정으로 추가된 선택 파라미터다 — 체크하면 그 국가의 도시만 나온다.",
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "03. User",
+			"description": "프로필·MBTI·사진 동의·회원탈퇴. 04·05 의 전제조건이 여기에 있다.",
+			"item": [
+				{
+					"name": "PATCH MBTI 등록/수정 (API-PREF-1)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/api/users/me/preferences",
+						"description": "16유형이 아니면 400. 코스 생성(05)의 전제조건 중 하나다.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"mbti\": \"ENFP\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "POST 사진 분석 동의 (API-PREF-2)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/api/users/me/consents/photo",
+						"description": "동의하지 않으면 04 의 취향 분석이 403 으로 막힌다.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"agreed\": true,\n  \"consentVersion\": \"v1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "PATCH 프로필 등록/수정 (API-USER-1)",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": "{{baseUrl}}/api/users/me/profile",
+						"description": "multipart/form-data. 보낸 항목만 반영되는 부분 수정이며, 안 보낸 항목은 유지된다. profileImage 는 파일 선택 후 활성화. 사용자 행을 직접 읽으므로 users 에 없는 UUID 면 404. 명세 개정으로 email 은 요청에서 빠졌다 — 이메일은 OAuth 제공자 값만 쓰고 사용자가 고칠 수 없다(응답에는 그대로 실린다).",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "displayName",
+									"value": "테스터",
+									"type": "text"
+								},
+								{
+									"key": "profileImage",
+									"type": "file",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "DELETE 회원탈퇴 (API-USER-2) ⚠️",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/api/users/me",
+						"description": "⚠️ 되돌릴 수 없다. 소프트 삭제 + 개인정보 파기 + 세션 무효화가 한 트랜잭션으로 실행되고, 이후 이 계정의 모든 요청이 401 이 된다(탈퇴자 차단). 폴더 실행 시 체크를 끌 것.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"테스트\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// prod 파괴적 요청 가드 — 실사용자 데이터가 지워지는 것을 막는다.",
+									"// 정말 실행하려면 컬렉션 변수 allowDestructive 를 yes 로 바꾸고, 끝나면 되돌린다.",
+									"if (String(pm.collectionVariables.get('allowDestructive')).toLowerCase() !== 'yes') {",
+									"    const msg = 'prod 파괴적 요청 차단됨 — allowDestructive=yes 로 바꾸면 실행됩니다.';",
+									"    // 세 겹으로 막는다. 틀렸을 때 대가가 '실사용자 계정 삭제'라 한 겹으로는 부족하다.",
+									"    // (1) 목적지를 도달 불가 주소로 바꾼다. 스크립트 중단이 전송을 못 막는 Postman",
+									"    //     버전에서도 요청이 prod 에 닿지 않게 하는 마지막 방어선이다. Url 객체를 새로",
+									"    //     만들지 않고 필드만 갈아끼운다 — require('postman-collection') 없이 동작한다.",
+									"    pm.request.url.protocol = 'http';",
+									"    pm.request.url.host = ['blocked', 'invalid'];",
+									"    pm.request.url.path = ['prod-destructive-request-blocked'];",
+									"    pm.request.url.query && pm.request.url.query.clear && pm.request.url.query.clear();",
+									"    // (2) 러너·CLI 에서는 '건너뜀'으로 깔끔히 표시된다(개별 Send 에는 효력이 없다).",
+									"    if (pm.execution && typeof pm.execution.skipRequest === 'function') {",
+									"        pm.execution.skipRequest();",
+									"    }",
+									"    // (3) 스크립트를 중단해 사용자에게 이유를 빨간 글씨로 보여준다.",
+									"    throw new Error(msg);",
+									"}"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "04. Taste Profile",
+			"description": "사진 메타데이터 기반 취향 분석(SSE)과 조회 (API-PREF-3/4). 03 의 사진 분석 동의가 선행되어야 한다.",
+			"item": [
+				{
+					"name": "POST 취향 분석 (API-PREF-3, SSE)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "text/event-stream"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/api/users/me/taste-profile/analysis",
+						"description": "text/event-stream. LLM 분석이 실측 80초대이므로 Postman 요청 타임아웃을 0(무제한)으로 둘 것. 동의가 없으면 403, 메타데이터가 부족하면 400.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"images\": [\n    {\n      \"sourceImageId\": \"img-1\",\n      \"capturedAt\": \"2026-05-01T09:30:00Z\",\n      \"latitude\": 34.6873,\n      \"longitude\": 135.5259\n    },\n    {\n      \"sourceImageId\": \"img-2\",\n      \"capturedAt\": \"2026-05-01T18:10:00Z\",\n      \"latitude\": 34.6654,\n      \"longitude\": 135.501\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GET 취향 조회 (API-PREF-4)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/users/me/taste-profile",
+						"description": "저장된 프로필이 없으면 404."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "05. Course",
+			"description": "코스 생성(SSE)·목록·상세·삭제 (API-COURSE-1/2/3/4). 목록/상세가 courseId·placeId 를 환경변수에 저장한다.",
+			"item": [
+				{
+					"name": "POST 코스 생성 (API-COURSE-1, SSE)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "text/event-stream"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/api/courses",
+						"description": "text/event-stream. 진행 이벤트는 LOADING_TASTE_PREFERENCE → GENERATING_COURSE → complete. budgetType 은 cost_effective|moderate|luxury 만 허용된다(명세값). MBTI 또는 취향 프로필 중 하나는 있어야 하며 둘 다 없으면 404.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"destinationCountry\": \"일본\",\n  \"destinationCity\": \"오사카\",\n  \"startDate\": \"2026-09-01\",\n  \"totalDays\": 3,\n  \"budgetType\": \"moderate\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// SSE 응답에서 complete 이벤트의 courseId·placeId 를 뽑아 저장한다.",
+									"const text = pm.response.text();",
+									"const m = text.match(/\"courseId\"\\s*:\\s*\"([0-9a-fA-F-]{36})\"/);",
+									"if (m) { pm.collectionVariables.set('courseId', m[1]); console.log('courseId 저장:', m[1]); }",
+									"const p = text.match(/\"placeId\"\\s*:\\s*\"([0-9a-fA-F-]{36})\"/);",
+									"if (p) { pm.collectionVariables.set('placeId', p[1]); console.log('placeId 저장:', p[1]); }"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "GET 코스 목록 (API-COURSE-3)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/courses",
+						"description": "내가 만든 코스 + 공유받아 수락한 코스를 생성 시각 최신순으로 함께 반환한다(DOM-6). 첫 항목의 courseId 를 환경변수에 저장한다."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (pm.response.code === 200 && res.data && res.data.courses && res.data.courses.length) {",
+									"    pm.collectionVariables.set('courseId', res.data.courses[0].courseId);",
+									"    console.log('courseId 저장:', res.data.courses[0].courseId);",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "GET 코스 상세 (API-COURSE-2)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/courses/{{courseId}}",
+						"description": "소유자 또는 공유받은 사용자만 조회 가능(그 외 403). itinerary 의 첫 placeId 를 저장한다. stop 에는 방문 비용 cost 가 담기며, 이동 비용 transportToNext.cost 와는 별개다(명세 개정). 개정 전 생성된 코스는 stop 의 cost 가 없다."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (pm.response.code === 200 && res.data && res.data.course) {",
+									"    const days = (res.data.course.itinerary && res.data.course.itinerary.days) || [];",
+									"    for (const d of days) for (const s of (d.stops || [])) {",
+									"        const id = s.place && s.place.placeId;",
+									"        if (id) { pm.collectionVariables.set('placeId', id); console.log('placeId 저장:', id); return; }",
+									"    }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "DELETE 코스 삭제 (API-COURSE-4) ⚠️",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": "{{baseUrl}}/api/courses/{{courseId}}",
+						"description": "⚠️ 소유자면 원본 삭제(공유 권한·링크도 함께 정리), 공유받은 사용자면 내 목록에서만 제거된다(DOM-6). 08. Share 가 쓸 코스도 사라지므로 폴더 실행 시 체크를 끌 것."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// prod 파괴적 요청 가드 — 실사용자 데이터가 지워지는 것을 막는다.",
+									"// 정말 실행하려면 컬렉션 변수 allowDestructive 를 yes 로 바꾸고, 끝나면 되돌린다.",
+									"if (String(pm.collectionVariables.get('allowDestructive')).toLowerCase() !== 'yes') {",
+									"    const msg = 'prod 파괴적 요청 차단됨 — allowDestructive=yes 로 바꾸면 실행됩니다.';",
+									"    // 세 겹으로 막는다. 틀렸을 때 대가가 '실사용자 계정 삭제'라 한 겹으로는 부족하다.",
+									"    // (1) 목적지를 도달 불가 주소로 바꾼다. 스크립트 중단이 전송을 못 막는 Postman",
+									"    //     버전에서도 요청이 prod 에 닿지 않게 하는 마지막 방어선이다. Url 객체를 새로",
+									"    //     만들지 않고 필드만 갈아끼운다 — require('postman-collection') 없이 동작한다.",
+									"    pm.request.url.protocol = 'http';",
+									"    pm.request.url.host = ['blocked', 'invalid'];",
+									"    pm.request.url.path = ['prod-destructive-request-blocked'];",
+									"    pm.request.url.query && pm.request.url.query.clear && pm.request.url.query.clear();",
+									"    // (2) 러너·CLI 에서는 '건너뜀'으로 깔끔히 표시된다(개별 Send 에는 효력이 없다).",
+									"    if (pm.execution && typeof pm.execution.skipRequest === 'function') {",
+									"        pm.execution.skipRequest();",
+									"    }",
+									"    // (3) 스크립트를 중단해 사용자에게 이유를 빨간 글씨로 보여준다.",
+									"    throw new Error(msg);",
+									"}"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "06. Place",
+			"description": "장소 상세 조회 (API-PLACE-1). 05 가 저장한 placeId 를 쓴다.",
+			"item": [
+				{
+					"name": "GET 장소 상세 (API-PLACE-1)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/places/{{placeId}}",
+						"description": "내부 placeId(UUID)로 조회한다. Google Place ID 는 외부로 노출하지 않는다. UUID 형식이 아니면 400, 없으면 404."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "07. Internal AI",
+			"description": "AI 내부 API 직접 호출 (API-AI-1/2). ClusterIP 전용이라 kubectl -n app port-forward deploy/ai 8000:8000 후 사용한다. BE 500 의 원인이 BE 인지 AI 인지 가를 때 쓴다.",
+			"item": [
+				{
+					"name": "POST 취향 분석 — 인증만 확인 (빈 items → 400 기대)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Internal-Api-Key",
+								"value": "{{internalApiKey}}"
+							},
+							{
+								"key": "Accept",
+								"value": "text/event-stream"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{aiBaseUrl}}/internal/ai/taste-profile/analysis",
+						"description": "X-Internal-Api-Key 는 BE 와 AI 가 공유하는 대칭 키다. 한쪽만 바꾸면 전부 401 이 된다.\n\n400 = 인증 통과. 다만 이 400 은 스키마 검증 실패와 문구가 같으므로(AI 의 RequestValidationError 핸들러가 /taste-profile 경로면 같은 메시지로 400 을 낸다) 페이로드가 유효한지까지는 이 요청으로 알 수 없다 — 그건 아래 '유효 항목 1건' 요청으로 확인한다.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"items\": []\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "POST 취향 분석 — 유효 항목 1건 (200 기대)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Internal-Api-Key",
+								"value": "{{internalApiKey}}"
+							},
+							{
+								"key": "Accept",
+								"value": "text/event-stream"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{aiBaseUrl}}/internal/ai/taste-profile/analysis",
+						"description": "BE 의 ImageMetadataPreprocessor 가 만들어 보내는 것과 같은 모양의 전처리 결과다(FE 가 올리는 EXIF 원본이 아니다).\n\nlocation 은 placeTypes 를 뺀 전 필드가 AI 쪽에서 non-nullable 이다 — 한 항목이라도 null 이면 요청 전체가 400 '분석 가능한 전처리 메타데이터가 부족합니다.' 로 반려된다. 실제로 Google Geocoding 이 서울·부산 등 특별시·광역시에 locality/administrative_area_level_2 를 안 내려줘서 city 가 전부 비었고, 취향 분석이 통째로 죽은 적이 있다(2026-08-18).\n\n어느 필드가 걸렸는지는 AI 로그에 남는다: kubectl -n app logs deploy/ai | grep 'Validation Error'",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"items\": [\n    {\n      \"sourceImageId\": \"img-1\",\n      \"location\": {\n        \"country\": \"대한민국\",\n        \"city\": \"마포구\",\n        \"region\": \"서울특별시\",\n        \"district\": \"공덕동\",\n        \"placeName\": \"프릳츠 도화\",\n        \"placeTypes\": [\"coffee_shop\", \"cafe\", \"food\", \"point_of_interest\"]\n      },\n      \"timeContext\": {\n        \"capturedAt\": \"2026-07-16T03:21:07.684Z\",\n        \"dayOfWeek\": \"thu\",\n        \"isWeekend\": false,\n        \"timeBucket\": \"dawn\",\n        \"season\": \"summer\"\n      }\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "POST 코스 생성 (API-AI-2, SSE)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Internal-Api-Key",
+								"value": "{{internalApiKey}}"
+							},
+							{
+								"key": "Accept",
+								"value": "text/event-stream"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{aiBaseUrl}}/internal/ai/courses",
+						"description": "BE 가 중계하는 것과 같은 요청을 직접 보낸다. complete 이벤트의 course 에는 coverImageUrl 과, stop 마다 방문 비용 cost 및 place/transportToNext 객체가 담긴다(명세 개정).",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"mbti\": \"ENFP\",\n  \"tasteProfile\": null,\n  \"tripCondition\": {\n    \"destinationCountry\": \"일본\",\n    \"destinationCity\": \"오사카\",\n    \"startDate\": \"2026-09-01\",\n    \"totalDays\": 3,\n    \"budgetType\": \"moderate\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GET AI 헬스체크",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{aiBaseUrl}}/health",
+						"description": "port-forward 가 살아 있는지 확인.",
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "08. Share",
+			"description": "친구 초대 공유 링크 (API-SHARE-1/2/3, DOM-6). 05 가 저장한 courseId 가 필요하다.",
+			"item": [
+				{
+					"name": "POST 공유 링크 생성 (API-SHARE-1)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{baseUrl}}/api/courses/{{courseId}}/share-links",
+						"description": "코스 소유자만 발급 가능. 응답의 shareToken 을 환경변수에 저장한다. 호출할 때마다 새 토큰이 발급되며(토큰을 해시로만 저장하므로 재조회 불가) 이전 링크도 만료 전까지 함께 유효하다. 타인 코스면 403, 없는 코스면 404. 응답의 shareUrl 은 FE 초대 페이지를 가리킨다 — https://yeolo.vercel.app/invite/<shareToken> (base 는 서버의 SHARE_LINK_BASE_URL, 미설정 시 앱 기본값). 이 값을 브라우저에 그대로 넣어 미리보기가 뜨는지 확인할 수 있는데, FE 가 보는 BE 와 링크를 발급한 BE 가 같아야 한다 — 토큰은 발급한 쪽 DB 에만 있어 다른 환경에서 열면 404 다."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (pm.response.code === 200 && res.data && res.data.shareToken) {",
+									"    pm.collectionVariables.set('shareToken', res.data.shareToken);",
+									"    pm.collectionVariables.set('shareUrl', res.data.shareUrl);",
+									"    console.log('shareToken 저장:', res.data.shareToken);",
+									"    console.log('shareUrl :', res.data.shareUrl);",
+									"}",
+									"pm.test('200 + 명세 메시지', function () {",
+									"    pm.expect(pm.response.code).to.eql(200);",
+									"    pm.expect(res.message).to.eql('여행 코스 공유 링크 생성 성공');",
+									"});",
+									"",
+									"// 링크가 FE 초대 페이지를 가리키는지. 경로가 어긋나면 발급은 200 인데 링크만 FE 404 가 되고,",
+									"// 그 사실은 링크를 눌러 보기 전까지 드러나지 않는다. 코드 검사를 먼저 둬 실패 응답에서",
+									"// res.data 가 null 일 때 TypeError 대신 깔끔한 실패 메시지가 나오게 한다.",
+									"pm.test('shareUrl 이 FE 초대 페이지(/invite/<token>)를 가리킨다', function () {",
+									"    pm.expect(pm.response.code).to.eql(200);",
+									"    pm.expect(res.data.shareUrl).to.include('/invite/');",
+									"    pm.expect(res.data.shareUrl).to.include(res.data.shareToken);",
+									"    // /invite/·토큰 포함은 서버 조립식상 항상 참이라, 실제 사고 유형인",
+									"    // 'SHARE_LINK_BASE_URL 이 BE 도메인으로 잘못 설정'을 별도로 잡는다.",
+									"    pm.expect(res.data.shareUrl).to.not.include(pm.collectionVariables.get('baseUrl'));",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "GET 공유 링크 조회/미리보기 (API-SHARE-2)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/share-links/{{shareToken}}",
+						"description": "인증 불필요(No Auth) — 초대받은 사람이 로그인 전에 확인하는 화면이다(DOM-6). 코스 요약 + 초대자만 반환하고 courseId 는 노출하지 않는다. 없는 토큰/삭제된 코스는 404, 만료·회수된 링크는 410.",
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "POST 공유 링크 수락 (API-SHARE-3)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{baseUrl}}/api/share-links/{{shareToken}}/accept",
+						"description": "수락하면 코스가 내 목록(GET /api/courses)에 나타난다. 자기 자신의 코스이거나 이미 수락한 링크면 400 — 명세대로의 정상 동작이다. 200 을 보려면 코스 소유자가 아닌 다른 계정의 accessToken 으로 보내야 한다."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "https://api.yeolo.app",
+			"type": "string"
+		},
+		{
+			"key": "aiBaseUrl",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "googleClientId",
+			"value": "902358830088-7gr77qg2f5l8fvh4ejvpr0lce4cdc8li.apps.googleusercontent.com",
+			"type": "string"
+		},
+		{
+			"key": "googleRedirectUri",
+			"value": "https://d2hs98q0chb81r.cloudfront.net",
+			"type": "string"
+		},
+		{
+			"key": "accessToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refreshToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "courseId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "placeId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "shareToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "shareUrl",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "googleAuthCode",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "appleAuthCode",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "appleRedirectUri",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "appleIdToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "internalApiKey",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "jwtSecret",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "allowDestructive",
+			"value": "no",
+			"type": "string"
+		}
+	]
+}

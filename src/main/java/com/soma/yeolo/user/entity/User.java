@@ -77,6 +77,14 @@ public class User extends BaseTimeEntity {
     @Column(name = "profile_image_customized", columnDefinition = "boolean not null default false")
     private boolean profileImageCustomized;
 
+    /**
+     * 선호 언어 (API-USER-3/4, 2026-10 개정). BCP 47 지원 코드. <b>설정이 없으면 null</b> 이며, 그때의
+     * 서비스 기본 언어는 설정({@code language.fallback}) 하나가 정한다 — 엔티티·DDL 에 기본값을 두면
+     * 같은 값을 네 곳에서 맞춰야 한다. (prod: docs/ddl/users.sql)
+     */
+    @Column(name = "language", length = 16)
+    private String language;
+
     @Builder
     private User(Provider provider, String providerUserId, String email,
                  String displayName, String profileImageUrl) {
@@ -153,6 +161,11 @@ public class User extends BaseTimeEntity {
             this.profileImageUrl = profileImageUrl;
             this.profileImageCustomized = true;
         }
+    }
+
+    /** 선호 언어를 교체한다 (API-USER-4). 값 검증(지원 코드)은 호출자가 끝낸 뒤 넘긴다. */
+    public void updateLanguage(String language) {
+        this.language = language;
     }
 
     /**

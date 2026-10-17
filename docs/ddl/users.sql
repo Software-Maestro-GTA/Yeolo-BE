@@ -71,3 +71,8 @@ WHERE deleted_at IS NOT NULL
   AND provider_user_id NOT LIKE 'deleted:%';
 
 COMMIT;
+
+-- [2026-10] 명세 개정(#99) — 선호 언어 (API-USER-3/4). BCP 47 지원 코드. NULL = 설정 없음이며 그때의 기본
+-- 언어는 앱 설정(language.fallback) 하나가 정한다 — DB 기본값을 두면 같은 값을 여러 곳에서 맞춰야 한다.
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS language VARCHAR(16);

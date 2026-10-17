@@ -1,22 +1,28 @@
 package com.soma.yeolo.course.domain;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * 정규화된 여행 조건 (FUN-6). 사용자가 입력한 지역·날짜·예산을 추천 알고리즘(AI, API-BA-1)이
- * 사용할 수 있는 형태로 변환한 순수 도메인 값이다. 원시 요청 문자열이 아닌 검증·파싱된 값을 담는다.
+ * 검증·파싱이 끝난 여행 조건 (FUN-6). 예산은 명세 개정(2026-10)으로 유형이 아니라 금액이다.
  *
- * @param destinationCountry 여행 국가
- * @param destinationCity    여행 도시/지역
- * @param startDate          여행 시작일
- * @param totalDays          총 여행 일수 (1 이상)
- * @param budgetType         예산 성향
+ * <p>명세(API-COURSE-1·API-AI-2)가 {@code budget: number}라 소수도 올 수 있어 {@link BigDecimal}로
+ * 받는다. 양수가 아니면 도메인 경계에서 거부한다 — 컨트롤러 검증만 믿으면 다른 호출자가 0이나
+ * 음수를 AI로 흘려보내 400이 되고, 그 실패는 사용자에게 500으로 보인다.
+ *
+ * @param budget 총 예산 금액 (양수). 단위·통화는 FE·AI 간 약속을 그대로 따른다.
  */
 public record TripCondition(
         String destinationCountry,
         String destinationCity,
         LocalDate startDate,
         int totalDays,
-        BudgetType budgetType
+        BigDecimal budget
 ) {
+
+    public TripCondition {
+        if (budget == null || budget.signum() <= 0) {
+            throw new IllegalArgumentException("budget must be positive: " + budget);
+        }
+    }
 }

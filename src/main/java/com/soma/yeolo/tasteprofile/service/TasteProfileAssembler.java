@@ -15,8 +15,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class TasteProfileAssembler {
 
-    /** behavior 분석 결과 노드를 소유자에 연결된 성향 프로필 도메인으로 변환한다. */
-    public TasteProfile toDomain(UUID userId, JsonNode tasteProfile) {
+    /**
+     * behavior 분석 결과를 소유자에 연결된 성향 프로필 도메인으로 변환한다.
+     *
+     * @param tasteProfile AI 의 {@code tasteProfile} (필수)
+     * @param summary      AI 의 {@code summary} (2026-10 개정, 없으면 null)
+     */
+    public TasteProfile toDomain(UUID userId, JsonNode tasteProfile, JsonNode summary) {
         return new TasteProfile(
                 userId,
                 resolveSourceType(tasteProfile),
@@ -24,7 +29,8 @@ public class TasteProfileAssembler {
                 text(tasteProfile, "travelPaceDensity"),
                 text(tasteProfile, "spendingTendency"),
                 text(tasteProfile, "companionType"),
-                stringList(tasteProfile, "seasonalEnvironmentPreference")
+                stringList(tasteProfile, "seasonalEnvironmentPreference"),
+                (summary == null || summary.isNull()) ? null : summary.toString()
         );
     }
 

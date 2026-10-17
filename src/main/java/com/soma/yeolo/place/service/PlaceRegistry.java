@@ -13,7 +13,8 @@ import java.util.Optional;
  * 의존한다 (docs/architecture.md §1-2, §8 — {@code PhotoAnalysisConsentChecker}와 같은 방식).
  *
  * <p>진입점이 둘인 이유는 <b>명세 개정으로 AI가 장소 정보를 통째로 주기 시작했기 때문이다</b>
- * (API-AI-2: stop의 {@code place}에 provider 식별자·좌표·주소·평점까지 포함). 이제 BE가 외부
+ * (API-AI-2: stop의 {@code place}에 provider 식별자·이름·분류·좌표. 2026-10 개정 전 AI는 주소·평점·
+ * 사진·운영시간까지 줬고, 전환기에는 아직 올 수 있어 오면 그대로 담는다). 이제 BE가 외부
  * provider를 다시 조회할 이유가 없으므로 {@link #register}가 정상 경로이고, {@link #resolve}는
  * AI가 장소 정보를 온전히 주지 못했을 때를 위한 폴백이다.
  */

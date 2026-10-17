@@ -25,6 +25,8 @@ import com.soma.yeolo.tasteprofile.domain.SavedTasteProfile;
 import com.soma.yeolo.tasteprofile.domain.SourceType;
 import com.soma.yeolo.tasteprofile.domain.TasteProfile;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
+import com.soma.yeolo.user.service.UserLanguageReader;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -144,6 +146,9 @@ class CourseCreationServiceTest {
     private final FakeCourseRepository courses = new FakeCourseRepository();
     private final FakeAiCourseClient aiClient = new FakeAiCourseClient();
     private final FakeUserMbtiReader mbtiReader = new FakeUserMbtiReader();
+    /** 언어 설정 포트 fake: 고정 언어를 돌려준다(기본 ko). */
+    private String userLanguage = "ko";
+    private final UserLanguageReader languageReader = userId -> userLanguage;
 
     /** 장소 정규화 fake: AI가 준 장소는 그대로 등록하고, 폴백 조회는 고정 좌표로 해결한다. */
     private final PlaceRegistry placeRegistry = new PlaceRegistry() {
@@ -162,18 +167,18 @@ class CourseCreationServiceTest {
     };
 
     private CourseCreationService service() {
-        return new CourseCreationService(mbtiReader, tasteProfiles, aiClient,
+        return new CourseCreationService(mbtiReader, tasteProfiles, languageReader, aiClient,
                 new ItineraryPlaceNormalizer(placeRegistry), new CourseAssembler(), courses,
                 TestSseHeartbeat.create());
     }
 
     private CourseCreationRequest request() {
-        return new CourseCreationRequest("대한민국", "제주", "2026-08-01", 3, "cost_effective");
+        return new CourseCreationRequest("대한민국", "제주", "2026-08-01", 3, BigDecimal.valueOf(500_000));
     }
 
     private SavedTasteProfile savedProfile(UUID userId) {
         return new SavedTasteProfile(UUID.randomUUID(), userId, SourceType.BEHAVIOR, Instant.now(),
-                "{\"sourceType\":\"behavior\"}");
+                "{\"sourceType\":\"behavior\"}", null);
     }
 
     private JsonNode courseNode() throws Exception {
@@ -182,11 +187,10 @@ class CourseCreationServiceTest {
                   "title": "2박 3일 제주 힐링 코스",
                   "destinationCountry": "대한민국",
                   "destinationCity": "제주",
-                  "coverImageUrl": "https://cdn.example.com/cover.jpg",
                   "startDate": "2026-08-01",
                   "totalDays": 3,
+                  "totalCost": 350000,
                   "tags": ["힐링"],
-                  "recommendationReason": "여유로운 일정",
                   "itinerary": {"days": [{"day": 1, "stops": [
                     {"sequence": 1, "cost": 5000,
                      "place": {"placeId": "ChIJ_SEONGSAN", "placeName": "성산일출봉",
@@ -210,12 +214,13 @@ class CourseCreationServiceTest {
         assertThat(courses.saved).hasSize(1);
         assertThat(courses.saved.getFirst().userId()).isEqualTo(userId);
         assertThat(courses.saved.getFirst().title()).isEqualTo("2박 3일 제주 힐링 코스");
-        assertThat(courses.saved.getFirst().coverImageUrl())
-                .isEqualTo("https://cdn.example.com/cover.jpg");
+        assertThat(courses.saved.getFirst().totalCost()).isEqualTo(350_000L);
+        // AI 계약(API-AI-2 개정)에서 대표 이미지가 빠졌으므로 없으면 null로 저장된다.
+        assertThat(courses.saved.getFirst().coverImageUrl()).isNull();
         verify(emitter).complete();
     }
 
-    /** 저장 전에 방문지가 내부 placeId·좌표로 정규화되어야 장소 상세(API-PLACE-1)로 이어진다. */
+    /** 저장 전에 방문지가 내부 placeId·좌표로 정규화되어야 외부 식별자가 응답으로 새지 않는다(DOM-3). */
     @Test
     void 저장되는_코스의_방문지가_내부_장소로_정규화된다() throws Exception {
         UUID userId = UUID.randomUUID();
@@ -262,6 +267,31 @@ class CourseCreationServiceTest {
         assertThat(aiClient.lastRequest).isNull();
         assertThat(courses.saved).isEmpty();
         verify(emitter).complete();
+    }
+
+    /** 명세 개정(2026-10): 예산은 유형이 아니라 금액({@code budget})으로 AI에 전달된다. */
+    @Test
+    void 예산_금액이_AI_요청의_budget으로_실린다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        tasteProfiles.latest = Optional.of(savedProfile(userId));
+        aiClient.result = courseNode();
+
+        service().createAndStream(userId, request(), emitter);
+
+        assertThat(aiClient.lastRequest.tripCondition().budget()).isEqualByComparingTo(BigDecimal.valueOf(500_000));
+    }
+
+    /** 2026-10 개정(API-AI-2): 사용자의 선호 언어가 AI 요청의 language 로 실린다. */
+    @Test
+    void 사용자_언어가_AI_요청의_language로_실린다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        tasteProfiles.latest = Optional.of(savedProfile(userId));
+        aiClient.result = courseNode();
+        userLanguage = "en";
+
+        service().createAndStream(userId, request(), emitter);
+
+        assertThat(aiClient.lastRequest.language()).isEqualTo("en");
     }
 
     /** 인수 기준: 저장된 MBTI가 내부 AI 코스 생성 요청에 포함된다. */
@@ -323,11 +353,12 @@ class CourseCreationServiceTest {
         verify(emitter).complete();
     }
 
+    /** 형식(정규식)은 통과하지만 달력에 없는 날짜는 정규화 단계에서 400으로 끊는다. */
     @Test
-    void 잘못된_예산_조건이면_error를_보내고_성향을_조회하지_않는다() throws Exception {
+    void 잘못된_날짜_조건이면_error를_보내고_성향을_조회하지_않는다() throws Exception {
         UUID userId = UUID.randomUUID();
         CourseCreationRequest invalid =
-                new CourseCreationRequest("대한민국", "제주", "2026-08-01", 3, "premium");
+                new CourseCreationRequest("대한민국", "제주", "2026-13-40", 3, BigDecimal.valueOf(500_000));
 
         service().createAndStream(userId, invalid, emitter);
 

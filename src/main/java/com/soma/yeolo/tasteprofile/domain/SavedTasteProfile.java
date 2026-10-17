@@ -21,6 +21,8 @@ public record SavedTasteProfile(
         UUID userId,
         SourceType sourceType,
         Instant updatedAt,
-        String profileJson
+        String profileJson,
+        /** 요약(API-PREF-4 본문) 원본 JSON. 개정 전에 저장된 프로필은 null. */
+        String summaryJson
 ) {
 }

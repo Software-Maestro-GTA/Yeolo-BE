@@ -28,3 +28,12 @@ CREATE INDEX IF NOT EXISTS idx_cities_search_chosung ON cities (search_chosung t
 
 -- search_name 은 부분 일치라 인덱스를 두지 않는다(순차 스캔). 3만 건대에서 실측 1~2ms 수준이며,
 -- 자동완성 디바운스 안에 들어간다. 데이터가 더 커지면 pg_trgm GIN 인덱스를 검토한다.
+
+-- [2026-10] 접두어 검색(API-LOC-3)과 국가 안 완전 일치(사진 조회)가 search_name 을 쓰므로 인덱스를 둔다.
+-- dev 는 엔티티 @Index 로 ddl-auto 가 만들고, prod 는 이 문장이 만든다(text_pattern_ops 로 LIKE 'x%' 대응).
+CREATE INDEX IF NOT EXISTS idx_cities_search_name ON cities (search_name text_pattern_ops);
+-- 국가별 전체 목록(API-LOC-2)은 country_id 로 거른다. 3만 행이라 seq scan 도 버티지만 두는 편이 싸다.
+CREATE INDEX IF NOT EXISTS idx_cities_country_id ON cities (country_id);
+
+-- [2026-10] search_chosung 은 더 이상 조회에 쓰지 않는다(countries.sql 의 같은 항목 참고). 지금은 유지.
+-- ALTER TABLE cities DROP COLUMN IF EXISTS search_chosung;

@@ -1,9 +1,10 @@
 package com.soma.yeolo.location.controller;
 
 import com.soma.yeolo.global.response.ApiResponse;
-import com.soma.yeolo.location.dto.CityAutocompleteResponse;
-import com.soma.yeolo.location.dto.CountryAutocompleteResponse;
-import com.soma.yeolo.location.service.LocationAutocompleteService;
+import com.soma.yeolo.location.dto.CityListResponse;
+import com.soma.yeolo.location.dto.CountryListResponse;
+import com.soma.yeolo.location.dto.LocationSearchResponse;
+import com.soma.yeolo.location.service.LocationQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,39 +12,32 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 국가·도시 자동완성 API (API-LOC-1 / API-LOC-2). 코스 생성 화면의 지역 선택에 쓰인다(FUN-5).
+ * 국가·도시 기준 데이터 조회 (API-LOC-1/2/3). 명세상 인증이 필요 없는 공개 API 다
+ * ({@code SecurityConfig}의 {@code /api/locations/**} 참고).
  *
- * <p>두 엔드포인트 모두 명세의 "인증 필요: N"에 따라 공개다(SecurityConfig). 로그인 전 화면에서도
- * 지역을 훑어볼 수 있고, 응답은 공개 기준 정보라 사용자별로 달라지지 않는다. API-LOC-2 명세에 적힌
- * 401 은 그래서 발생하지 않는다 — 명세의 자기모순을 공개 쪽으로 정리한 결과다(SecurityConfig 주석).
- *
- * <p>{@code keyword}를 {@code required=false}로 받는다. 필수로 두면 파라미터 누락이 스프링의
- * {@code MissingServletRequestParameterException}이 되어 명세와 다른 문구로 응답한다 —
- * 서비스가 검증해 명세의 400 메시지("… 검색어를 확인해주세요.")로 통일한다.
+ * <p>2026-10 개정으로 자동완성 두 개({@code /countries/autocomplete}, {@code /cities/autocomplete})가
+ * 전체 목록 두 개와 키워드 검색 하나로 바뀌었다. 쿼리 파라미터는 모두 {@code required=false}로 받고
+ * 서비스가 명세의 400 문구로 거절한다 — 스프링의 기본 누락 응답은 명세 봉투가 아니다.
  */
 @RestController
 @RequestMapping("/api/locations")
 @RequiredArgsConstructor
 public class LocationController {
 
-    private final LocationAutocompleteService locationAutocompleteService;
+    private final LocationQueryService locationQueryService;
 
-    /** 국가 자동완성 조회 (API-LOC-1). */
-    @GetMapping("/countries/autocomplete")
-    public ApiResponse<CountryAutocompleteResponse> autocompleteCountries(
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Integer limit) {
-        return ApiResponse.success("국가 자동완성 조회 성공",
-                locationAutocompleteService.searchCountries(keyword, limit));
+    @GetMapping("/countries")
+    public ApiResponse<CountryListResponse> listCountries() {
+        return ApiResponse.success("국가 목록 조회 성공", locationQueryService.listCountries());
     }
 
-    /** 도시 자동완성 조회 (API-LOC-2). {@code country}는 선택이며, 주면 그 국가의 도시만 찾는다. */
-    @GetMapping("/cities/autocomplete")
-    public ApiResponse<CityAutocompleteResponse> autocompleteCities(
-            @RequestParam(required = false) String country,
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Integer limit) {
-        return ApiResponse.success("도시 자동완성 조회 성공",
-                locationAutocompleteService.searchCities(country, keyword, limit));
+    @GetMapping("/cities")
+    public ApiResponse<CityListResponse> listCities(@RequestParam(required = false) String countryName) {
+        return ApiResponse.success("도시 목록 조회 성공", locationQueryService.listCities(countryName));
+    }
+
+    @GetMapping("/search")
+    public ApiResponse<LocationSearchResponse> search(@RequestParam(required = false) String keyword) {
+        return ApiResponse.success("국가·도시 검색 성공", locationQueryService.search(keyword));
     }
 }

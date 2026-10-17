@@ -1,62 +1,87 @@
 package com.soma.yeolo.global.exception;
 
 import com.soma.yeolo.global.response.ApiResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
-import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 전역 예외 핸들러. 모든 에러 응답을 명세의 {@code {status, message, data:null}} 봉투로 통일한다.
+ *
+ * <p>봉투는 {@link #envelope} 한 곳에서 만들고 <b>Content-Type 을 JSON 으로 고정한다.</b> SSE 엔드포인트
+ * (코스 생성·취향 분석)로 오는 요청은 {@code Accept: text/event-stream}인데, 검증 실패처럼 핸들러
+ * <i>전에</i> 나는 예외의 응답은 그 Accept 와 JSON 을 협상하지 못해 {@code HttpMediaTypeNotAcceptableException}이
+ * 되고 본문 없는 400 이 나갔다(#107). Spring 은 응답에 구체적인 Content-Type 이 미리 있으면 협상을
+ * 건너뛰므로 봉투가 그대로 나간다. 새 핸들러도 반드시 {@link #envelope}를 거친다.
+ *
+ * <p>응답이 이미 커밋된 경우(SSE 스트림이 열린 뒤 컨테이너의 ASYNC/ERROR 디스패치로 들어온 예외)에는
+ * 본문을 쓰지 않는다 — 상태·헤더를 바꿀 수 없는 열린 스트림에 JSON 을 덧붙이면 클라이언트의 SSE
+ * 파서가 깨진다.
  */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException e) {
+    public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException e, HttpServletResponse response) {
         ErrorCode code = e.getErrorCode();
         if (code.getHttpStatus().is5xxServerError()) {
             log.error("BusinessException(5xx): {}", code, e);
         } else {
             log.warn("BusinessException: {} - {}", code, e.getMessage());
         }
-        return ResponseEntity.status(code.getHttpStatus())
-                .body(ApiResponse.error(code.getHttpStatus().value(), code.getMessage()));
+        return envelope(code.getHttpStatus(), code.getMessage(), response);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException e) {
+    public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException e,
+                                                              HttpServletResponse response) {
         ErrorCode code = ErrorCode.INVALID_REQUEST;
         String message = e.getBindingResult().getFieldError() != null
                 ? e.getBindingResult().getFieldError().getDefaultMessage()
                 : code.getMessage();
-        return ResponseEntity.status(code.getHttpStatus())
-                .body(ApiResponse.error(code.getHttpStatus().value(), message));
+        return envelope(code.getHttpStatus(), message, response);
     }
 
     /**
-     * 경로·쿼리 파라미터의 타입 변환 실패(예: {@code /api/places/{placeId}}에 UUID가 아닌 값).
+     * 경로·쿼리 파라미터의 타입 변환 실패(예: {@code /api/courses/{courseId}}에 UUID가 아닌 값).
      *
      * <p>따로 처리하지 않으면 catch-all {@link #handleUnexpected}에 걸려 500이 된다. 형식이 틀린
-     * 요청은 장애가 아니라 잘못된 입력이므로 명세의 400으로 응답한다(API-PLACE-1 "잘못된 placeId" 등).
+     * 요청은 장애가 아니라 잘못된 입력이므로 명세의 400으로 응답한다(API-COURSE-2 "잘못된 courseId" 등).
      * 메시지에 파라미터명을 담아 어느 값이 문제인지 알린다.
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
-        ErrorCode code = ErrorCode.INVALID_REQUEST;
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException e,
+                                                                HttpServletResponse response) {
         log.warn("요청 값의 형식이 올바르지 않다: {}={}", e.getName(), e.getValue());
-        return ResponseEntity.status(code.getHttpStatus())
-                .body(ApiResponse.error(code.getHttpStatus().value(),
-                        "잘못된 %s 입니다.".formatted(e.getName())));
+        return envelope(ErrorCode.INVALID_REQUEST.getHttpStatus(),
+                "잘못된 %s 입니다.".formatted(e.getName()), response);
+    }
+
+    /**
+     * 본문을 읽지 못한 경우(깨진 JSON, 타입 불일치 등). 따로 처리하지 않으면 500 이 되는데 잘못된
+     * 입력이므로 400 이다(API-USER-4 "잘못된 JSON … 400"). 어느 필드가 문제인지는 본문 형식 자체가
+     * 깨진 상황이라 알 수 없어 공통 문구를 쓴다(API-USER-4 의 예시 문구와 다르다 — docs/spec-index.md).
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadable(HttpMessageNotReadableException e,
+                                                              HttpServletResponse response) {
+        ErrorCode code = ErrorCode.INVALID_REQUEST;
+        log.warn("요청 본문을 읽을 수 없다: {}", e.getMostSpecificCause().getMessage());
+        return envelope(code.getHttpStatus(), code.getMessage(), response);
     }
 
     /**
@@ -67,11 +92,11 @@ public class GlobalExceptionHandler {
      * 응답해야 클라이언트가 한 가지 처리만 하면 된다. (업로드를 받는 엔드포인트는 현재 이것뿐이다.)
      */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<ApiResponse<Void>> handleUploadSize(MaxUploadSizeExceededException e) {
+    public ResponseEntity<ApiResponse<Void>> handleUploadSize(MaxUploadSizeExceededException e,
+                                                              HttpServletResponse response) {
         ErrorCode code = ErrorCode.PROFILE_IMAGE_TOO_LARGE;
         log.warn("업로드 용량이 컨테이너 한도를 초과했다: {}", e.getMessage());
-        return ResponseEntity.status(code.getHttpStatus())
-                .body(ApiResponse.error(code.getHttpStatus().value(), code.getMessage()));
+        return envelope(code.getHttpStatus(), code.getMessage(), response);
     }
 
     /**
@@ -79,12 +104,22 @@ public class GlobalExceptionHandler {
      * 500이 된다 — 잘못된 Content-Type은 장애가 아니라 잘못된 요청이다.
      */
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
-    public ResponseEntity<ApiResponse<Void>> handleUnsupportedMediaType(
-            HttpMediaTypeNotSupportedException e) {
+    public ResponseEntity<ApiResponse<Void>> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException e,
+                                                                        HttpServletResponse response) {
         log.warn("지원하지 않는 Content-Type: {}", e.getContentType());
-        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
-                .body(ApiResponse.error(HttpStatus.UNSUPPORTED_MEDIA_TYPE.value(),
-                        "지원하지 않는 형식입니다."));
+        return envelope(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "지원하지 않는 형식입니다.", response);
+    }
+
+    /**
+     * 요청의 {@code Accept}가 엔드포인트의 응답 형식과 맞지 않는 경우(예: SSE 엔드포인트에
+     * {@code Accept: application/json}). 클라이언트 쪽 요청 오류이므로 500 이 아니라 406 봉투다.
+     * 봉투 자체는 JSON 으로 고정되어 있어 어떤 Accept 로 왔든 나간다.
+     */
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotAcceptable(HttpMediaTypeNotAcceptableException e,
+                                                                 HttpServletResponse response) {
+        log.warn("요청의 Accept 로는 응답할 수 없다: {}", e.getMessage());
+        return envelope(HttpStatus.NOT_ACCEPTABLE, "지원하지 않는 응답 형식입니다.", response);
     }
 
     /**
@@ -93,22 +128,19 @@ public class GlobalExceptionHandler {
      * ERROR 로그가 되므로, 명세 봉투를 씌운 404로 따로 처리한다(오탈자·미구현 API 호출은 장애가 아니다).
      */
     @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException e) {
+    public ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException e,
+                                                              HttpServletResponse response) {
         ErrorCode code = ErrorCode.RESOURCE_NOT_FOUND;
         log.warn("매핑되지 않은 요청: {} /{}", e.getHttpMethod(), e.getResourcePath());
-        return ResponseEntity.status(code.getHttpStatus())
-                .body(ApiResponse.error(code.getHttpStatus().value(), code.getMessage()));
+        return envelope(code.getHttpStatus(), code.getMessage(), response);
     }
 
     /**
      * 비동기(SSE) 응답을 더 이상 쓸 수 없는 상태에서 나오는 예외들.
      *
      * <p>클라이언트가 먼저 끊거나 스트림이 타임아웃되면 컨테이너가 서블릿 에러 디스패치를 태우고,
-     * 그 예외가 catch-all {@link #handleUnexpected}에 걸린다. 하지만 응답 Content-Type은 이미
-     * {@code text/event-stream}으로 고정돼 있어 JSON 봉투를 쓸 컨버터가 없다 —
-     * {@code No converter for [ApiResponse] with preset Content-Type 'text/event-stream'}으로
-     * 500이 찍히는 경로다. 애초에 보낼 곳이 없는 응답이므로 본문을 쓰지 않고 로그만 남긴다
-     * ({@code void} 반환이면 컨버터를 타지 않는다).
+     * 그 예외가 catch-all {@link #handleUnexpected}에 걸린다. 애초에 보낼 곳이 없는 응답이므로
+     * 본문을 쓰지 않고 로그만 남긴다({@code void} 반환이면 컨버터를 타지 않는다).
      */
     @ExceptionHandler({AsyncRequestNotUsableException.class, AsyncRequestTimeoutException.class})
     public void handleAsyncRequestUnusable(Exception e) {
@@ -116,10 +148,25 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception e) {
+    public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception e, HttpServletResponse response) {
         log.error("Unexpected error", e);
         ErrorCode code = ErrorCode.INTERNAL_ERROR;
-        return ResponseEntity.status(code.getHttpStatus())
-                .body(ApiResponse.error(code.getHttpStatus().value(), code.getMessage()));
+        return envelope(code.getHttpStatus(), code.getMessage(), response);
+    }
+
+    /**
+     * 명세 봉투. Content-Type 을 JSON 으로 고정해 요청 Accept 와 무관하게 나가게 한다(클래스 설명).
+     * 응답이 이미 커밋됐으면 본문을 쓸 수 없으므로 null 을 돌려 아무것도 쓰지 않는다 — 열린 SSE 스트림에
+     * JSON 을 덧붙이지 않기 위해서다.
+     */
+    private static ResponseEntity<ApiResponse<Void>> envelope(HttpStatus status, String message,
+                                                              HttpServletResponse response) {
+        if (response != null && response.isCommitted()) {
+            log.warn("응답이 이미 커밋되어 에러 봉투를 쓰지 않는다: {} {}", status.value(), message);
+            return null;
+        }
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(ApiResponse.error(status.value(), message));
     }
 }

@@ -4,12 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.soma.yeolo.course.domain.BudgetType;
 import com.soma.yeolo.course.domain.TripCondition;
 import com.soma.yeolo.place.domain.Place;
 import com.soma.yeolo.place.domain.PlaceQuery;
 import com.soma.yeolo.place.domain.SavedPlace;
 import com.soma.yeolo.place.service.PlaceRegistry;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,9 +22,12 @@ class ItineraryPlaceNormalizerTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static final TripCondition CONDITION = new TripCondition(
-            "대한민국", "제주", LocalDate.of(2026, 8, 1), 2, BudgetType.MODERATE);
+            "대한민국", "제주", LocalDate.of(2026, 8, 1), 2, BigDecimal.valueOf(500_000));
 
-    /** AI가 장소 정보를 온전히 준 코스 (API-AI-2 개정판). */
+    /**
+     * AI가 장소 정보를 준 코스. 첫 장소에는 2026-10 개정으로 계약에서 빠진 상세(영문명·주소·평점·
+     * 사진·운영시간)가 덤으로 섞여 있다 — 전환기 AI(DOM-5)가 아직 보낼 수 있다.
+     */
     private static final String AI_COURSE = """
             {
               "title": "2박 3일 제주 힐링 코스",
@@ -123,7 +126,7 @@ class ItineraryPlaceNormalizerTest {
         assertThat(place(course, 1).path("placeId").asText()).isNotBlank();
     }
 
-    /** AI가 장소를 통째로 주므로(API-AI-2 개정) 외부 provider를 다시 부르지 않는다. */
+    /** AI가 장소 식별자·좌표를 주므로(API-AI-2) 외부 provider를 다시 부르지 않는다. */
     @Test
     void AI가_준_장소는_provider_조회_없이_그대로_등록한다() throws Exception {
         FakePlaceRegistry registry = new FakePlaceRegistry();
@@ -134,11 +137,34 @@ class ItineraryPlaceNormalizerTest {
         assertThat(registry.registered).hasSize(2);
         Place first = registry.registered.get(0);
         assertThat(first.providerPlaceId()).isEqualTo("ChIJ_SEONGSAN");
-        assertThat(first.placeEngName()).isEqualTo("Seongsan Ilchulbong");
-        assertThat(first.address()).isEqualTo("제주특별자치도 서귀포시 성산읍");
-        assertThat(first.rating()).isEqualTo(4.6);
-        assertThat(first.photoUrl()).isEqualTo("https://cdn.example.com/seongsan.jpg");
-        assertThat(first.openingHours()).containsExactly("매일 07:00~20:00");
+        assertThat(first.placeName()).isEqualTo("성산일출봉");
+        assertThat(first.category()).isEqualTo("nature");
+        assertThat(first.latitude()).isEqualTo(33.4581);
+        assertThat(first.longitude()).isEqualTo(126.9425);
+    }
+
+    /**
+     * 2026-10 개정으로 AI 계약은 식별자·이름·분류·좌표뿐이다. 상세는 전환기 AI가 덤으로 주면 그대로
+     * 담고(무손실, provider 폴백 경로와 같은 행 모양), 없으면 null이어야 한다 — 상세가 없다고
+     * 폴백 조회를 타서는 안 된다.
+     */
+    @Test
+    void 장소_상세는_주면_담고_없으면_null로_등록한다() throws Exception {
+        FakePlaceRegistry registry = new FakePlaceRegistry();
+
+        new ItineraryPlaceNormalizer(registry).normalize(parse(AI_COURSE), CONDITION);
+
+        Place withDetails = registry.registered.get(0);
+        assertThat(withDetails.placeEngName()).isEqualTo("Seongsan Ilchulbong");
+        assertThat(withDetails.rating()).isEqualTo(4.6);
+        Place contractOnly = registry.registered.get(1);
+        assertThat(contractOnly.providerPlaceId()).isEqualTo("ChIJ_HYEOPJAE");
+        assertThat(contractOnly.placeEngName()).isNull();
+        assertThat(contractOnly.address()).isNull();
+        assertThat(contractOnly.rating()).isNull();
+        assertThat(contractOnly.photoUrl()).isNull();
+        assertThat(contractOnly.openingHours()).isEmpty();
+        assertThat(registry.queries).isEmpty();
     }
 
     /** AI가 식별자·좌표를 주지 못하면 예전 경로(장소명 조회)로 되돌아간다. */

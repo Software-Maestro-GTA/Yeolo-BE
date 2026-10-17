@@ -24,7 +24,13 @@
 					"name": "GET /actuator/health",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
+							}
+						],
 						"url": "{{baseUrl}}/actuator/health",
 						"description": "k8s readiness/liveness probe 와 같은 경로. status:UP 이면 준비 완료.",
 						"auth": {
@@ -47,6 +53,11 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
 							}
 						],
 						"url": "{{baseUrl}}/api/auth/google",
@@ -127,6 +138,11 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
 							}
 						],
 						"url": "{{baseUrl}}/api/auth/apple",
@@ -177,6 +193,11 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
 							}
 						],
 						"url": "{{baseUrl}}/api/auth/refresh",
@@ -220,6 +241,11 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
 							}
 						],
 						"url": "{{baseUrl}}/api/auth/logout",
@@ -240,66 +266,160 @@
 		},
 		{
 			"name": "02. Location",
-			"description": "국가·도시 자동완성 (API-LOC-1/2). 명세상 인증 불필요한 공개 기준 데이터.",
+			"description": "국가·도시 기준 데이터 (API-LOC-1/2/3, 2026-10 개정 #97). 인증 불필요. 자동완성은 폐기됐고 전체 목록 2개 + 키워드 검색 1개다. 세 API 모두 limit·페이지네이션이 없다.",
 			"item": [
 				{
-					"name": "GET 국가 자동완성 (API-LOC-1)",
+					"name": "GET 국가 전체 목록 (API-LOC-1)",
 					"request": {
 						"method": "GET",
-						"header": [],
-						"url": "{{baseUrl}}/api/locations/countries/autocomplete?keyword=일&limit=10",
-						"description": "keyword 는 한글 초성 검색도 지원한다. 둘 다 선택 파라미터.",
-						"auth": {
-							"type": "noauth"
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "GET 도시 자동완성 (API-LOC-2)",
-					"request": {
-						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
+							}
+						],
 						"url": {
-							"raw": "{{baseUrl}}/api/locations/cities/autocomplete?keyword=오사&limit=10",
+							"raw": "{{baseUrl}}/api/locations/countries",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
 								"locations",
-								"cities",
-								"autocomplete"
+								"countries"
 							],
-							"query": [
-								{
-									"key": "country",
-									"value": "JP",
-									"description": "선택. 국가 식별자(ISO alpha-2) 또는 국가 한국어명(\"일본\"). 주면 그 국가로 좁힌다.",
-									"disabled": true
-								},
-								{
-									"key": "keyword",
-									"value": "오사"
-								},
-								{
-									"key": "limit",
-									"value": "10"
-								}
-							]
+							"query": []
 						},
-						"description": "명세가 자기모순이었으나 공개로 확정됐다 (docs/spec-index.md). country 는 명세 개정으로 추가된 선택 파라미터다 — 체크하면 그 국가의 도시만 나온다.",
+						"description": "서비스가 지원하는 국가 전체를 표시명 오름차순으로 내린다. 응답은 countryName 만(명세 JSON 스키마 기준 — 본문의 countryId 는 스키마에 없어 내리지 않는다).",
 						"auth": {
 							"type": "noauth"
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"pm.test('국가 목록: countryName 만 있고 비어 있지 않다', () => {",
+									"    pm.expect(res.data.countries.length).to.be.above(200);",
+									"    pm.expect(res.data.countries[0]).to.have.all.keys('countryName');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "GET 국가별 도시 전체 목록 (API-LOC-2)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/locations/cities?countryName=일본",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"locations",
+								"cities"
+							],
+							"query": [
+								{
+									"key": "countryName",
+									"value": "일본",
+									"description": "필수. 등록된 국가명과 완전 일치(앞뒤 공백 제거, 영문 대소문자 무시). 없는 국가면 404, 비면 400."
+								}
+							]
+						},
+						"description": "지정한 국가의 도시 전체를 표시명 오름차순으로 — 페이지네이션 없음(명세). 인도는 3,779개, 미국은 3,407개가 한 번에 내려온다.",
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"pm.test('도시 목록: cityName 만', () => {",
+									"    pm.expect(res.data.cities.length).to.be.above(0);",
+									"    pm.expect(res.data.cities[0]).to.have.all.keys('cityName');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "GET 국가·도시 키워드 검색 (API-LOC-3)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/locations/search?keyword=다",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"locations",
+								"search"
+							],
+							"query": [
+								{
+									"key": "keyword",
+									"value": "다",
+									"description": "필수. 공백 제거 후 비면 400. 국가명 완전 일치 → 그 국가 전체 도시, 아니면 국가명·도시명 접두어 검색."
+								}
+							]
+						},
+						"description": "검색 버튼을 눌렀을 때 한 번 호출한다(입력 중 자동완성 아님). 결과는 국가별로 묶이고 국가·도시 모두 표시명 오름차순. 초성 검색은 명세에서 빠졌다.",
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"pm.test('검색: 국가별 그룹', () => {",
+									"    pm.expect(res.data.results).to.be.an('array');",
+									"    if (res.data.results.length) pm.expect(res.data.results[0]).to.have.all.keys('countryName', 'cities');",
+									"});"
+								]
+							}
+						}
+					]
 				}
 			]
 		},
 		{
 			"name": "03. User",
-			"description": "프로필·MBTI·사진 동의·회원탈퇴. 04·05 의 전제조건이 여기에 있다.",
+			"description": "프로필·MBTI·사진 동의·회원탈퇴. 04·05 의 전제조건이 여기에 있다. 2026-10 개정(#99): 언어 설정 조회/변경(API-USER-3/4) 추가.",
 			"item": [
 				{
 					"name": "PATCH MBTI 등록/수정 (API-PREF-1)",
@@ -309,6 +429,11 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
 							}
 						],
 						"url": "{{baseUrl}}/api/users/me/preferences",
@@ -333,6 +458,11 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
 							}
 						],
 						"url": "{{baseUrl}}/api/users/me/consents/photo",
@@ -353,7 +483,13 @@
 					"name": "PATCH 프로필 등록/수정 (API-USER-1)",
 					"request": {
 						"method": "PATCH",
-						"header": [],
+						"header": [
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
+							}
+						],
 						"url": "{{baseUrl}}/api/users/me/profile",
 						"description": "multipart/form-data. 보낸 항목만 반영되는 부분 수정이며, 안 보낸 항목은 유지된다. profileImage 는 파일 선택 후 활성화. 사용자 행을 직접 읽으므로 users 에 없는 UUID 면 404. 명세 개정으로 email 은 요청에서 빠졌다 — 이메일은 OAuth 제공자 값만 쓰고 사용자가 고칠 수 없다(응답에는 그대로 실린다).",
 						"body": {
@@ -375,6 +511,76 @@
 					"response": []
 				},
 				{
+					"name": "GET 내 언어 설정 조회 (API-USER-3)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어. 계정 설정은 본문 language 로만 바뀐다."
+							}
+						],
+						"url": "{{baseUrl}}/api/users/me/language",
+						"description": "저장된 선호 언어(BCP 47). 설정이 없으면 서비스 기본 언어 ko. 응답 헤더 Content-Language 에 메시지 언어가 실린다. 지원 언어는 서버 설정(LANGUAGE_SUPPORTED, 기본 ko)으로 정해진다."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"pm.test('language 코드', () => pm.expect(res.data.language).to.be.a('string'));",
+									"pm.test('Content-Language 헤더', () => pm.expect(pm.response.headers.get('Content-Language')).to.be.a('string'));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "POST 내 언어 설정 변경 (API-USER-4)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어. 계정 설정은 본문 language 로만 바뀐다."
+							}
+						],
+						"url": "{{baseUrl}}/api/users/me/language",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"language\": \"ko\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"description": "본문 language 로만 계정 설정을 바꾼다. 누락·null·빈 문자열·미지원 코드·깨진 JSON 은 400 '지원하는 언어 코드를 입력해주세요.'(깨진 JSON 은 공통 400 문구). 같은 값 반복은 200. 저장된 언어는 AI 요청(API-AI-1/2)의 language 로 실린다."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"pm.test('저장된 코드 반환', () => pm.expect(res.data.language).to.eql('ko'));"
+								]
+							}
+						}
+					]
+				},
+				{
 					"name": "DELETE 회원탈퇴 (API-USER-2) ⚠️",
 					"request": {
 						"method": "DELETE",
@@ -382,6 +588,11 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
 							}
 						],
 						"url": "{{baseUrl}}/api/users/me",
@@ -402,7 +613,7 @@
 		},
 		{
 			"name": "04. Taste Profile",
-			"description": "사진 메타데이터 기반 취향 분석(SSE)과 조회 (API-PREF-3/4). 03 의 사진 분석 동의가 선행되어야 한다.",
+			"description": "사진 메타데이터 기반 취향 분석(SSE)과 조회 (API-PREF-3/4). 03 의 사진 분석 동의가 선행되어야 한다. 2026-10 개정(#98): 분석 결과에 AI 요약(summary)이 함께 저장되고, 조회 응답은 요약 객체다.",
 			"item": [
 				{
 					"name": "POST 취향 분석 (API-PREF-3, SSE)",
@@ -416,10 +627,15 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
 							}
 						],
 						"url": "{{baseUrl}}/api/users/me/taste-profile/analysis",
-						"description": "text/event-stream. LLM 분석이 실측 80초대이므로 Postman 요청 타임아웃을 0(무제한)으로 둘 것. 동의가 없으면 403, 메타데이터가 부족하면 400.",
+						"description": "text/event-stream. LLM 분석이 실측 80초대이므로 Postman 요청 타임아웃을 0(무제한)으로 둘 것. 동의가 없으면 403, 메타데이터가 부족하면 400. 2026-10 개정: AI 가 complete 에 summary(intro·hashtags·types·recommendCity)를 함께 주며 BE 가 저장한다. BE 의 SSE 이벤트(PREPROCESSING_IMAGE_METADATA → ANALYZING_PREFERENCE → complete)는 그대로다. 검증 실패·동의 없음 등 스트림이 열리기 전의 오류는 Accept: text/event-stream 으로 보내도 명세의 JSON 봉투({status,message,data:null})로 돌아온다(#107).",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"images\": [\n    {\n      \"sourceImageId\": \"img-1\",\n      \"capturedAt\": \"2026-05-01T09:30:00Z\",\n      \"latitude\": 34.6873,\n      \"longitude\": 135.5259\n    },\n    {\n      \"sourceImageId\": \"img-2\",\n      \"capturedAt\": \"2026-05-01T18:10:00Z\",\n      \"latitude\": 34.6654,\n      \"longitude\": 135.501\n    }\n  ]\n}",
@@ -436,17 +652,39 @@
 					"name": "GET 취향 조회 (API-PREF-4)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
+							}
+						],
 						"url": "{{baseUrl}}/api/users/me/taste-profile",
-						"description": "저장된 프로필이 없으면 404."
+						"description": "저장된 프로필이 없으면 404. 2026-10 개정(#98): data 는 tasteProfile 래퍼 없이 요약 객체(intro·hashtags·types[]·recommendCity{countryName,cityName,imageUrl,reason})이고, 8개 영역 취향 지표는 더 이상 내려가지 않는다. recommendCity.imageUrl 은 BE 가 도시 사진 데이터셋(#97)에서 채우며 없으면 빈 문자열. 개정 전 AI 로 만든(요약 없는) 프로필도 404 — 재분석하면 된다."
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (pm.response.code === 200) pm.test('개정 계약: 요약 객체', () => {",
+									"    pm.expect(res.data).to.have.all.keys('intro', 'hashtags', 'types', 'recommendCity');",
+									"    pm.expect(res.data.recommendCity).to.have.all.keys('countryName', 'cityName', 'imageUrl', 'reason');",
+									"    pm.expect(res.data).to.not.have.property('tasteProfile');",
+									"});"
+								]
+							}
+						}
+					]
 				}
 			]
 		},
 		{
 			"name": "05. Course",
-			"description": "코스 생성(SSE)·목록·상세·삭제 (API-COURSE-1/2/3/4). 목록/상세가 courseId·placeId 를 환경변수에 저장한다.",
+			"description": "코스 생성(SSE)·목록·상세·삭제 (API-COURSE-1/2/3/4). 생성/목록이 courseId 를 컬렉션 변수에 저장한다. 장소 상세(API-PLACE-1)는 2026-10 명세 개정으로 폐기되어 placeId 변수는 없다.",
 			"item": [
 				{
 					"name": "POST 코스 생성 (API-COURSE-1, SSE)",
@@ -460,13 +698,18 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
 							}
 						],
 						"url": "{{baseUrl}}/api/courses",
-						"description": "text/event-stream. 진행 이벤트는 LOADING_TASTE_PREFERENCE → GENERATING_COURSE → complete. budgetType 은 cost_effective|moderate|luxury 만 허용된다(명세값). MBTI 또는 취향 프로필 중 하나는 있어야 하며 둘 다 없으면 404.",
+						"description": "text/event-stream. 진행 이벤트는 LOADING_TASTE_PREFERENCE → GENERATING_COURSE → complete. 명세 개정(2026-10, #96)으로 예산은 budgetType(유형) 대신 budget(금액, 양수 number)이다 — 옛 budgetType만 보내면 budget 누락으로 400. MBTI 또는 취향 프로필 중 하나는 있어야 하며 둘 다 없으면 404. 검증 실패·동의 없음 등 스트림이 열리기 전의 오류는 Accept: text/event-stream 으로 보내도 명세의 JSON 봉투({status,message,data:null})로 돌아온다(#107).",
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"destinationCountry\": \"일본\",\n  \"destinationCity\": \"오사카\",\n  \"startDate\": \"2026-09-01\",\n  \"totalDays\": 3,\n  \"budgetType\": \"moderate\"\n}",
+							"raw": "{\n  \"destinationCountry\": \"일본\",\n  \"destinationCity\": \"오사카\",\n  \"startDate\": \"2026-09-01\",\n  \"totalDays\": 3,\n  \"budget\": 500000\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -481,12 +724,10 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"// SSE 응답에서 complete 이벤트의 courseId·placeId 를 뽑아 저장한다.",
+									"// SSE 응답에서 complete 이벤트의 courseId 를 뽑아 저장한다.",
 									"const text = pm.response.text();",
 									"const m = text.match(/\"courseId\"\\s*:\\s*\"([0-9a-fA-F-]{36})\"/);",
-									"if (m) { pm.collectionVariables.set('courseId', m[1]); console.log('courseId 저장:', m[1]); }",
-									"const p = text.match(/\"placeId\"\\s*:\\s*\"([0-9a-fA-F-]{36})\"/);",
-									"if (p) { pm.collectionVariables.set('placeId', p[1]); console.log('placeId 저장:', p[1]); }"
+									"if (m) { pm.collectionVariables.set('courseId', m[1]); console.log('courseId 저장:', m[1]); }"
 								]
 							}
 						}
@@ -496,9 +737,15 @@
 					"name": "GET 코스 목록 (API-COURSE-3)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
+							}
+						],
 						"url": "{{baseUrl}}/api/courses",
-						"description": "내가 만든 코스 + 공유받아 수락한 코스를 생성 시각 최신순으로 함께 반환한다(DOM-6). 첫 항목의 courseId 를 환경변수에 저장한다."
+						"description": "내가 만든 코스 + 공유받아 수락한 코스를 생성 시각 최신순으로 함께 반환한다(DOM-6). 첫 항목의 courseId 를 컬렉션 변수에 저장한다. 명세 개정(2026-10, #96)으로 recommendationReason 은 빠졌고 coverImageUrl 은 남아 있다. AI 가 대표 이미지를 더 주지 않으므로(API-AI-2) 저장값이 없으면 목적지 도시 사진(#97 데이터셋: 도시 → 수도 → 사진 있는 최다 인구 도시)으로 채우고, 그것도 없거나 LOCATION_IMAGE_BASE_URL 이 비어 있으면 null 이다."
 					},
 					"response": [],
 					"event": [
@@ -509,8 +756,15 @@
 								"exec": [
 									"const res = pm.response.json();",
 									"if (pm.response.code === 200 && res.data && res.data.courses && res.data.courses.length) {",
-									"    pm.collectionVariables.set('courseId', res.data.courses[0].courseId);",
-									"    console.log('courseId 저장:', res.data.courses[0].courseId);",
+									"    const first = res.data.courses[0];",
+									"    pm.collectionVariables.set('courseId', first.courseId);",
+									"    console.log('courseId 저장:', first.courseId);",
+									"    // 공유 미리보기(API-SHARE-2)가 같은 코스에 같은 그림을 내는지 대조하기 위해 함께 저장한다(#109).",
+									"    // 어느 코스의 값인지도 같이 남긴다 — 목록만 다시 돌려 첫 항목이 바뀌면 대조를 건너뛰기 위함.",
+									"    // null 은 빈 문자열로 둔다(set(null) 은 문자열 'null' 로 저장된다).",
+									"    pm.collectionVariables.set('courseCoverImageUrl', first.coverImageUrl == null ? '' : first.coverImageUrl);",
+									"    pm.collectionVariables.set('courseCoverImageCourseId', first.courseId);",
+									"    console.log('courseCoverImageUrl 저장:', first.coverImageUrl);",
 									"}"
 								]
 							}
@@ -521,9 +775,15 @@
 					"name": "GET 코스 상세 (API-COURSE-2)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
+							}
+						],
 						"url": "{{baseUrl}}/api/courses/{{courseId}}",
-						"description": "소유자 또는 공유받은 사용자만 조회 가능(그 외 403). itinerary 의 첫 placeId 를 저장한다. stop 에는 방문 비용 cost 가 담기며, 이동 비용 transportToNext.cost 와는 별개다(명세 개정). 개정 전 생성된 코스는 stop 의 cost 가 없다."
+						"description": "소유자 또는 공유받은 사용자만 조회 가능(그 외 403). 명세 개정(2026-10, #96·#100): course 에 totalCost(AI 가 주는 원화 금액)·totalCostExRate(목적지 현지 통화로 환산한 반올림 정수)·exRateIcon(현지 통화 기호 ¥·$·₩ 등, 국가 데이터셋)이 추가되고 coverImageUrl·recommendationReason·day.memo·stop.arrivalTime 은 빠졌다. 국내 코스는 환산값이 원화 금액 그대로. 환율을 못 구하면(제공처 장애·통화 미지원·개정 전 코스) totalCostExRate 는 null, 통화를 모르는 국가면 exRateIcon 은 빈 문자열. stop 의 cost 는 방문 비용이며 transportToNext.cost(이동 비용, 새 코스는 null)와 별개다. 환율 제공처: fawazahmed0/currency-api(키 불필요, 기본값). EXCHANGE_RATE_PROVIDER=stub 은 테스트용."
 					},
 					"response": [],
 					"event": [
@@ -533,13 +793,15 @@
 								"type": "text/javascript",
 								"exec": [
 									"const res = pm.response.json();",
-									"if (pm.response.code === 200 && res.data && res.data.course) {",
-									"    const days = (res.data.course.itinerary && res.data.course.itinerary.days) || [];",
-									"    for (const d of days) for (const s of (d.stops || [])) {",
-									"        const id = s.place && s.place.placeId;",
-									"        if (id) { pm.collectionVariables.set('placeId', id); console.log('placeId 저장:', id); return; }",
-									"    }",
-									"}"
+									"pm.test('개정 계약: totalCost·totalCostExRate·exRateIcon 있음, 제거 필드 없음', () => {",
+									"    const c = res.data.course;",
+									"    pm.expect(c).to.have.property('totalCost');",
+									"    pm.expect(c).to.have.property('totalCostExRate');",
+									"    pm.expect(c).to.have.property('exRateIcon');",
+									"    pm.expect(c.exRateIcon).to.be.a('string');",
+									"    pm.expect(c).to.not.have.property('coverImageUrl');",
+									"    pm.expect(c).to.not.have.property('recommendationReason');",
+									"});"
 								]
 							}
 						}
@@ -549,25 +811,15 @@
 					"name": "DELETE 코스 삭제 (API-COURSE-4) ⚠️",
 					"request": {
 						"method": "DELETE",
-						"header": [],
+						"header": [
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
+							}
+						],
 						"url": "{{baseUrl}}/api/courses/{{courseId}}",
 						"description": "⚠️ 소유자면 원본 삭제(공유 권한·링크도 함께 정리), 공유받은 사용자면 내 목록에서만 제거된다(DOM-6). 08. Share 가 쓸 코스도 사라지므로 폴더 실행 시 체크를 끌 것."
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "06. Place",
-			"description": "장소 상세 조회 (API-PLACE-1). 05 가 저장한 placeId 를 쓴다.",
-			"item": [
-				{
-					"name": "GET 장소 상세 (API-PLACE-1)",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": "{{baseUrl}}/api/places/{{placeId}}",
-						"description": "내부 placeId(UUID)로 조회한다. Google Place ID 는 외부로 노출하지 않는다. UUID 형식이 아니면 400, 없으면 404."
 					},
 					"response": []
 				}
@@ -593,13 +845,18 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
 							}
 						],
 						"url": "{{aiBaseUrl}}/internal/ai/taste-profile/analysis",
-						"description": "X-Internal-Api-Key 는 BE 와 AI 가 공유하는 대칭 키다. 한쪽만 바꾸면 전부 401 이 된다.\n\n400 = 인증 통과. 다만 이 400 은 스키마 검증 실패와 문구가 같으므로(AI 의 RequestValidationError 핸들러가 /taste-profile 경로면 같은 메시지로 400 을 낸다) 페이로드가 유효한지까지는 이 요청으로 알 수 없다 — 그건 아래 '유효 항목 1건' 요청으로 확인한다.",
+						"description": "X-Internal-Api-Key 는 BE 와 AI 가 공유하는 대칭 키다. 한쪽만 바꾸면 전부 401 이 된다.\n\n400 = 인증 통과. 다만 이 400 은 스키마 검증 실패와 문구가 같으므로(AI 의 RequestValidationError 핸들러가 /taste-profile 경로면 같은 메시지로 400 을 낸다) 페이로드가 유효한지까지는 이 요청으로 알 수 없다 — 그건 아래 '유효 항목 1건' 요청으로 확인한다. 2026-10 개정(#99): language 필드와 Accept-Language 헤더를 함께 보낸다.",
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"items\": []\n}",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"language\": \"ko\",\n  \"items\": []\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -628,13 +885,18 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
 							}
 						],
 						"url": "{{aiBaseUrl}}/internal/ai/taste-profile/analysis",
-						"description": "BE 의 ImageMetadataPreprocessor 가 만들어 보내는 것과 같은 모양의 전처리 결과다(FE 가 올리는 EXIF 원본이 아니다).\n\nlocation 은 placeTypes 를 뺀 전 필드가 AI 쪽에서 non-nullable 이다 — 한 항목이라도 null 이면 요청 전체가 400 '분석 가능한 전처리 메타데이터가 부족합니다.' 로 반려된다. 실제로 Google Geocoding 이 서울·부산 등 특별시·광역시에 locality/administrative_area_level_2 를 안 내려줘서 city 가 전부 비었고, 취향 분석이 통째로 죽은 적이 있다(2026-08-18).\n\n어느 필드가 걸렸는지는 AI 로그에 남는다: kubectl -n app-dev logs deploy/ai | grep 'Validation Error'",
+						"description": "BE 의 ImageMetadataPreprocessor 가 만들어 보내는 것과 같은 모양의 전처리 결과다(FE 가 올리는 EXIF 원본이 아니다).\n\nlocation 은 placeTypes 를 뺀 전 필드가 AI 쪽에서 non-nullable 이다 — 한 항목이라도 null 이면 요청 전체가 400 '분석 가능한 전처리 메타데이터가 부족합니다.' 로 반려된다. 실제로 Google Geocoding 이 서울·부산 등 특별시·광역시에 locality/administrative_area_level_2 를 안 내려줘서 city 가 전부 비었고, 취향 분석이 통째로 죽은 적이 있다(2026-08-18).\n\n어느 필드가 걸렸는지는 AI 로그에 남는다: kubectl -n app-dev logs deploy/ai | grep 'Validation Error'\n\n2026-10 개정: complete 에 tasteProfile 과 함께 summary(intro·hashtags·types·recommendCity)가 와야 한다. summary 가 없으면 AI 배포가 개정 전인 것이고, BE 는 지표만 저장해 취향 조회(API-PREF-4)가 404 가 된다. 2026-10 개정(#99): language 필드와 Accept-Language 헤더를 함께 보낸다.",
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"items\": [\n    {\n      \"sourceImageId\": \"img-1\",\n      \"location\": {\n        \"country\": \"대한민국\",\n        \"city\": \"마포구\",\n        \"region\": \"서울특별시\",\n        \"district\": \"공덕동\",\n        \"placeName\": \"프릳츠 도화\",\n        \"placeTypes\": [\"coffee_shop\", \"cafe\", \"food\", \"point_of_interest\"]\n      },\n      \"timeContext\": {\n        \"capturedAt\": \"2026-07-16T03:21:07.684Z\",\n        \"dayOfWeek\": \"thu\",\n        \"isWeekend\": false,\n        \"timeBucket\": \"dawn\",\n        \"season\": \"summer\"\n      }\n    }\n  ]\n}",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"language\": \"ko\",\n  \"items\": [\n    {\n      \"sourceImageId\": \"img-1\",\n      \"location\": {\n        \"country\": \"대한민국\",\n        \"city\": \"마포구\",\n        \"region\": \"서울특별시\",\n        \"district\": \"공덕동\",\n        \"placeName\": \"프릳츠 도화\",\n        \"placeTypes\": [\"coffee_shop\", \"cafe\", \"food\", \"point_of_interest\"]\n      },\n      \"timeContext\": {\n        \"capturedAt\": \"2026-07-16T03:21:07.684Z\",\n        \"dayOfWeek\": \"thu\",\n        \"isWeekend\": false,\n        \"timeBucket\": \"dawn\",\n        \"season\": \"summer\"\n      }\n    }\n  ]\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -663,13 +925,18 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
 							}
 						],
 						"url": "{{aiBaseUrl}}/internal/ai/courses",
-						"description": "BE 가 중계하는 것과 같은 요청을 직접 보낸다. complete 이벤트의 course 에는 coverImageUrl 과, stop 마다 방문 비용 cost 및 place/transportToNext 객체가 담긴다(명세 개정).",
+						"description": "BE 가 중계하는 것과 같은 요청을 직접 보낸다. 명세 개정(2026-10): tripCondition.budget(금액) 으로 보내며 budgetType 은 없다. complete 이벤트의 course 에는 totalCost 와, stop 마다 방문 비용 cost 및 place(placeId·placeName·category·좌표)/transportToNext 객체가 담긴다. coverImageUrl·recommendationReason·arrivalTime·day.memo 는 계약에서 빠졌다. AI 가 아직 budgetType 을 요구해 400 이 나면 AI 배포가 개정 전인 것이다(DOM-5). 2026-10 개정(#99): language 필드와 Accept-Language 헤더를 함께 보낸다.",
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"mbti\": \"ENFP\",\n  \"tasteProfile\": null,\n  \"tripCondition\": {\n    \"destinationCountry\": \"일본\",\n    \"destinationCity\": \"오사카\",\n    \"startDate\": \"2026-09-01\",\n    \"totalDays\": 3,\n    \"budgetType\": \"moderate\"\n  }\n}",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"language\": \"ko\",\n  \"mbti\": \"ENFP\",\n  \"tasteProfile\": null,\n  \"tripCondition\": {\n    \"destinationCountry\": \"일본\",\n    \"destinationCity\": \"오사카\",\n    \"startDate\": \"2026-09-01\",\n    \"totalDays\": 3,\n    \"budget\": 500000\n  }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -686,7 +953,13 @@
 					"name": "GET AI 헬스체크",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
+							}
+						],
 						"url": "{{aiBaseUrl}}/health",
 						"description": "port-forward 가 살아 있는지 확인.",
 						"auth": {
@@ -705,7 +978,13 @@
 					"name": "POST 공유 링크 생성 (API-SHARE-1)",
 					"request": {
 						"method": "POST",
-						"header": [],
+						"header": [
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
+							}
+						],
 						"url": "{{baseUrl}}/api/courses/{{courseId}}/share-links",
 						"description": "코스 소유자만 발급 가능. 응답의 shareToken 을 환경변수에 저장한다. 호출할 때마다 새 토큰이 발급되며(토큰을 해시로만 저장하므로 재조회 불가) 이전 링크도 만료 전까지 함께 유효하다. 타인 코스면 403, 없는 코스면 404. 응답의 shareUrl 은 FE 초대 페이지를 가리킨다 — https://yeolo.vercel.app/invite/<shareToken> (base 는 서버의 SHARE_LINK_BASE_URL, 미설정 시 앱 기본값). 이 값을 브라우저에 그대로 넣어 미리보기가 뜨는지 확인할 수 있는데, FE 가 보는 BE 와 링크를 발급한 BE 가 같아야 한다 — 토큰은 발급한 쪽 DB 에만 있어 다른 환경에서 열면 404 다."
 					},
@@ -718,6 +997,9 @@
 								"exec": [
 									"const res = pm.response.json();",
 									"if (pm.response.code === 200 && res.data && res.data.shareToken) {",
+									"    // 이 링크가 어느 코스에서 나왔는지 남긴다 — API-SHARE-2 테스트가 목록의 coverImageUrl 과 대조할 때",
+									"    // 같은 코스인지 확인하는 데 쓴다(#109).",
+									"    pm.collectionVariables.set('shareCourseId', pm.collectionVariables.get('courseId'));",
 									"    pm.collectionVariables.set('shareToken', res.data.shareToken);",
 									"    pm.collectionVariables.set('shareUrl', res.data.shareUrl);",
 									"    console.log('shareToken 저장:', res.data.shareToken);",
@@ -748,20 +1030,80 @@
 					"name": "GET 공유 링크 조회/미리보기 (API-SHARE-2)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
+							}
+						],
 						"url": "{{baseUrl}}/api/share-links/{{shareToken}}",
-						"description": "인증 불필요(No Auth) — 초대받은 사람이 로그인 전에 확인하는 화면이다(DOM-6). 코스 요약 + 초대자만 반환하고 courseId 는 노출하지 않는다. 없는 토큰/삭제된 코스는 404, 만료·회수된 링크는 410.",
+						"description": "인증 불필요(No Auth) — 초대받은 사람이 로그인 전에 확인하는 화면이다(DOM-6). 코스 요약 + 초대자만 반환하고 courseId 는 노출하지 않는다. 없는 토큰/삭제된 코스는 404, 만료·회수된 링크는 410. 명세 개정(2026-10, #109)으로 course 에 coverImageUrl 이 추가됐다 — 코스 목록(API-COURSE-3)과 같은 규칙으로 채운다: 저장값 → 목적지 도시 사진(#97 데이터셋) → null. 새 코스는 AI 가 대표 이미지를 주지 않으므로(API-AI-2) 보통 도시 사진이 나오고, 도시 사진이 없거나 LOCATION_IMAGE_BASE_URL 이 비어 있으면 null 이다(필드 자체는 항상 있다).",
 						"auth": {
 							"type": "noauth"
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"pm.test('200 + 명세 메시지', function () {",
+									"    pm.expect(pm.response.code).to.eql(200);",
+									"    pm.expect(res.message).to.eql('여행 코스 공유 링크 조회 성공');",
+									"});",
+									"",
+									"// README §검증의 404/410 수동 확인(토큰을 아무 문자열로 바꿔 Send)에서는 data 가 null 이다 — 아래 필드 검사는",
+									"// 200 일 때만 돈다. TypeError 대신 위의 상태 코드 검사 하나만 실패하게 둔다.",
+									"if (pm.response.code === 200 && res.data && res.data.course) {",
+									"    pm.test('course 요약 필드(API-SHARE-2)가 있고 courseId 는 없다', function () {",
+									"        const c = res.data.course;",
+									"        ['title', 'destinationCountry', 'destinationCity', 'coverImageUrl', 'startDate', 'totalDays']",
+									"            .forEach(k => pm.expect(c, k).to.have.property(k));",
+									"        pm.expect(c).to.not.have.property('courseId');",
+									"    });",
+									"",
+									"    // 2026-10 개정(#109): 대표 이미지는 목록(GET /api/courses)과 같은 규칙이다. 데이터셋에 사진이 없는",
+									"    // 목적지면 null 이 정상이라 타입만 본다.",
+									"    pm.test('coverImageUrl 은 URL 문자열 또는 null', function () {",
+									"        const url = res.data.course.coverImageUrl;",
+									"        pm.expect(url === null || typeof url === 'string').to.be.true;",
+									"        if (url !== null) { pm.expect(url).to.match(/^https?:\\/\\//); }",
+									"    });",
+									"",
+									"    // 같은 코스면 목록과 같은 URL 이어야 한다. 목록 테스트가 저장한 값(courseCoverImageUrl)이 이 링크의",
+									"    // 원본 코스(shareCourseId, 링크 생성 테스트가 저장)의 것일 때만 대조한다 — 목록만 다시 돌려 첫 항목이",
+									"    // 바뀌었거나, shareToken 을 손으로 넣은 경우에는 건너뛴다.",
+									"    const shareCourseId = pm.collectionVariables.get('shareCourseId');",
+									"    const listedCourseId = pm.collectionVariables.get('courseCoverImageCourseId');",
+									"    if (shareCourseId && listedCourseId && shareCourseId === listedCourseId) {",
+									"        pm.test('coverImageUrl 이 코스 목록의 값과 같다', function () {",
+									"            const url = res.data.course.coverImageUrl;",
+									"            pm.expect(url == null ? '' : url).to.eql(pm.collectionVariables.get('courseCoverImageUrl'));",
+									"        });",
+									"    } else {",
+									"        console.log('목록(API-COURSE-3) → 링크 생성(API-SHARE-1) 순으로 실행하면 목록의 coverImageUrl 과 교차 대조한다.');",
+									"    }",
+									"}"
+								]
+							}
+						}
+					]
 				},
 				{
 					"name": "POST 공유 링크 수락 (API-SHARE-3)",
 					"request": {
 						"method": "POST",
-						"header": [],
+						"header": [
+							{
+								"key": "Accept-Language",
+								"value": "ko",
+								"description": "응답 message 언어(지원 언어 중 우선순위). 계정 설정은 바꾸지 않는다. 2026-10 개정(#99)."
+							}
+						],
 						"url": "{{baseUrl}}/api/share-links/{{shareToken}}/accept",
 						"description": "수락하면 코스가 내 목록(GET /api/courses)에 나타난다. 자기 자신의 코스이거나 이미 수락한 링크면 400 — 명세대로의 정상 동작이다. 200 을 보려면 코스 소유자가 아닌 다른 계정의 accessToken 으로 보내야 한다."
 					},
@@ -812,9 +1154,22 @@
 			"type": "string"
 		},
 		{
-			"key": "placeId",
+			"key": "courseCoverImageUrl",
 			"value": "",
-			"type": "string"
+			"type": "string",
+			"description": "GET /api/courses 테스트가 저장하는 첫 코스의 coverImageUrl(null 이면 빈 문자열). API-SHARE-2 테스트가 교차 대조에 쓴다(#109)."
+		},
+		{
+			"key": "courseCoverImageCourseId",
+			"value": "",
+			"type": "string",
+			"description": "courseCoverImageUrl 이 어느 코스의 값인지. shareCourseId 와 같을 때만 API-SHARE-2 가 대조한다(#109)."
+		},
+		{
+			"key": "shareCourseId",
+			"value": "",
+			"type": "string",
+			"description": "POST share-links 테스트가 저장하는, 현재 shareToken 의 원본 courseId(#109)."
 		},
 		{
 			"key": "shareToken",

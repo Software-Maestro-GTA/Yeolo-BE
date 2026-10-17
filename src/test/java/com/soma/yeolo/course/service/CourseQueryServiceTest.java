@@ -10,15 +10,23 @@ import com.soma.yeolo.course.dto.CourseListResponse;
 import com.soma.yeolo.course.dto.Itinerary;
 import com.soma.yeolo.course.service.port.CourseRepository;
 import com.soma.yeolo.course.service.port.CourseSharing;
+import com.soma.yeolo.course.client.ExchangeRateProperties;
+import com.soma.yeolo.course.service.port.ExchangeRateProvider;
+import com.soma.yeolo.location.service.CountryCurrencyReader;
+import java.math.BigDecimal;
+import java.time.Duration;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
+import com.soma.yeolo.location.service.LocationImageReader;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -107,11 +115,52 @@ class CourseQueryServiceTest {
         }
     }
 
+    /** 도시 사진 포트 fake: (국가, 도시) 쌍에 미리 넣어둔 URL 만 돌려준다. */
+    private static final class FakeLocationImageReader implements LocationImageReader {
+        private final java.util.Map<String, String> images = new java.util.HashMap<>();
+
+        void put(String country, String city, String url) {
+            images.put(country + "/" + city, url);
+        }
+
+        @Override
+        public Optional<String> findCityImageUrl(String countryName, String cityName) {
+            return Optional.ofNullable(images.get(countryName + "/" + cityName));
+        }
+    }
+
+    /** 국가 통화 포트 fake: 국가명별 (코드, 기호). */
+    private static final class FakeCountryCurrencyReader implements CountryCurrencyReader {
+        private final Map<String, CountryCurrency> currencies = new HashMap<>();
+
+        @Override
+        public Optional<CountryCurrency> findCurrency(String countryName) {
+            return Optional.ofNullable(currencies.get(countryName));
+        }
+    }
+
+    /** 환율 포트 fake: (from→to) 쌍별 환율. 같은 통화는 1. */
+    private static final class FakeExchangeRateProvider implements ExchangeRateProvider {
+        private final Map<String, BigDecimal> rates = new HashMap<>();
+        private int calls;
+
+        @Override
+        public Optional<BigDecimal> rate(String from, String to) {
+            calls++;
+            return from.equals(to) ? Optional.of(BigDecimal.ONE) : Optional.ofNullable(rates.get(from + "->" + to));
+        }
+    }
+
     private final FakeCourseRepository courses = new FakeCourseRepository();
     private final FakeCourseSharing sharing = new FakeCourseSharing();
+    private final FakeLocationImageReader cityImages = new FakeLocationImageReader();
+    private final FakeCountryCurrencyReader currencies = new FakeCountryCurrencyReader();
+    private final FakeExchangeRateProvider exchangeRates = new FakeExchangeRateProvider();
 
     private CourseQueryService service() {
-        return new CourseQueryService(courses, sharing);
+        return new CourseQueryService(courses, sharing, new CourseCoverImageResolver(cityImages), currencies,
+                exchangeRates,
+                new ExchangeRateProperties("KRW", "stub", null, null, Duration.ZERO));
     }
 
     private SavedCourse course(UUID courseId, UUID userId, String title, String itineraryJson) {
@@ -120,9 +169,13 @@ class CourseQueryServiceTest {
 
     private SavedCourse course(UUID courseId, UUID userId, String title, String itineraryJson,
                                Instant createdAt) {
-        return new SavedCourse(courseId, userId, title, "대한민국", "제주",
-                "https://cdn.example.com/cover.jpg",
-                LocalDate.of(2026, 8, 1), 3, List.of("힐링"), "이유", itineraryJson, createdAt);
+        return course(courseId, userId, title, itineraryJson, createdAt, "https://cdn.example.com/cover.jpg");
+    }
+
+    private SavedCourse course(UUID courseId, UUID userId, String title, String itineraryJson,
+                               Instant createdAt, String coverImageUrl) {
+        return new SavedCourse(courseId, userId, title, "대한민국", "제주", coverImageUrl,
+                LocalDate.of(2026, 8, 1), 3, 350_000L, List.of("힐링"), itineraryJson, createdAt);
     }
 
     @Test
@@ -145,11 +198,48 @@ class CourseQueryServiceTest {
         assertThat(service().getMyCourses(UUID.randomUUID()).courses()).isEmpty();
     }
 
-    /** 목록에도 대표 이미지가 실린다 (API-COURSE-3 명세 개정). */
+    /** 목록에는 대표 이미지가 남아 있다 (API-COURSE-3 — 2026-10 개정에서도 유지). */
     @Test
     void 목록에_대표_이미지_URL을_담는다() {
         UUID me = UUID.randomUUID();
         courses.store.add(course(UUID.randomUUID(), me, "내 코스", "{\"days\":[]}"));
+
+        assertThat(service().getMyCourses(me).courses())
+                .extracting(CourseListResponse.CourseSummary::coverImageUrl)
+                .containsExactly("https://cdn.example.com/cover.jpg");
+    }
+
+    /**
+     * 2026-10 개정으로 AI 가 대표 이미지를 주지 않아 새 코스는 저장값이 없다. 목록 응답(API-COURSE-3)에는
+     * 필드가 남아 있으므로 목적지 도시 사진(#97)으로 채우고, 그것도 없으면 null 이다.
+     */
+    @Test
+    void 저장된_대표_이미지가_없으면_목적지_도시_사진으로_채운다() {
+        UUID me = UUID.randomUUID();
+        courses.store.add(course(UUID.randomUUID(), me, "사진 없는 코스", "{\"days\":[]}", Instant.now(), null));
+        cityImages.put("대한민국", "제주", "https://cdn.example.com/locations/cities/1846266.jpg");
+
+        assertThat(service().getMyCourses(me).courses())
+                .extracting(CourseListResponse.CourseSummary::coverImageUrl)
+                .containsExactly("https://cdn.example.com/locations/cities/1846266.jpg");
+    }
+
+    @Test
+    void 도시_사진도_없으면_대표_이미지는_null이다() {
+        UUID me = UUID.randomUUID();
+        courses.store.add(course(UUID.randomUUID(), me, "사진 없는 코스", "{\"days\":[]}", Instant.now(), null));
+
+        assertThat(service().getMyCourses(me).courses())
+                .extracting(CourseListResponse.CourseSummary::coverImageUrl)
+                .containsExactly((String) null);
+    }
+
+    /** 저장값이 있으면(전환기 AI 가 준 대표 이미지) 도시 사진보다 우선한다. */
+    @Test
+    void 저장된_대표_이미지가_있으면_그대로_쓴다() {
+        UUID me = UUID.randomUUID();
+        courses.store.add(course(UUID.randomUUID(), me, "내 코스", "{\"days\":[]}"));
+        cityImages.put("대한민국", "제주", "https://cdn.example.com/locations/cities/1846266.jpg");
 
         assertThat(service().getMyCourses(me).courses())
                 .extracting(CourseListResponse.CourseSummary::coverImageUrl)
@@ -208,7 +298,7 @@ class CourseQueryServiceTest {
         UUID courseId = UUID.randomUUID();
         UUID placeId = UUID.randomUUID();
         courses.store.add(course(courseId, me, "내 코스", """
-                {"days":[{"day":1,"stops":[{"sequence":1,"arrivalTime":"09:00","stayMinutes":90,
+                {"days":[{"day":1,"stops":[{"sequence":1,"stayMinutes":90,
                   "memo":"일출","reason":"대표 명소","cost":5000,
                   "place":{"placeId":"%s","placeName":"성산일출봉","category":"nature",
                     "latitude":33.4581,"longitude":126.9425},
@@ -219,7 +309,7 @@ class CourseQueryServiceTest {
         Itinerary.Stop stop = service().getCourse(me, courseId)
                 .course().itinerary().days().get(0).stops().get(0);
 
-        assertThat(stop.arrivalTime()).isEqualTo("09:00");
+        assertThat(stop.stayMinutes()).isEqualTo(90);
         assertThat(stop.place().placeId()).isEqualTo(placeId);
         assertThat(stop.place().placeName()).isEqualTo("성산일출봉");
         assertThat(stop.place().latitude()).isEqualTo(33.4581);
@@ -257,24 +347,138 @@ class CourseQueryServiceTest {
         UUID me = UUID.randomUUID();
         UUID courseId = UUID.randomUUID();
         courses.store.add(course(courseId, me, "예전 코스",
-                "{\"days\":[{\"day\":1,\"stops\":[{\"sequence\":1,\"arrivalTime\":\"09:00\"}]}]}"));
+                "{\"days\":[{\"day\":1,\"stops\":[{\"sequence\":1,\"stayMinutes\":90}]}]}"));
 
         Itinerary.Stop stop = service().getCourse(me, courseId)
                 .course().itinerary().days().get(0).stops().get(0);
 
         assertThat(stop.cost()).isNull();
-        assertThat(stop.arrivalTime()).isEqualTo("09:00");
+        assertThat(stop.stayMinutes()).isEqualTo(90);
     }
 
-    /** 상세는 코스 요약도 명세대로 담는다 — 대표 이미지는 명세 개정으로 추가됐다. */
+    /**
+     * 2026-10 개정으로 day {@code memo}·stop {@code arrivalTime}이 FE 계약에서 빠졌다. 개정 전
+     * 저장된 코스의 원본 JSON에는 남아 있지만, 조회를 깨뜨리지 않고 응답에도 나가지 않아야 한다.
+     */
     @Test
-    void 상세에_대표_이미지_URL을_담는다() {
+    void 개정_전_코스의_arrivalTime과_day_memo는_응답에서_빠진다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, me, "예전 코스",
+                "{\"days\":[{\"day\":1,\"memo\":\"첫날\",\"stops\":[{\"sequence\":1,"
+                        + "\"arrivalTime\":\"09:00\",\"memo\":\"일출\"}]}]}"));
+
+        CourseDetailResponse response = service().getCourse(me, courseId);
+
+        Itinerary.Stop stop = response.course().itinerary().days().get(0).stops().get(0);
+        assertThat(stop.memo()).isEqualTo("일출");
+        assertThat(response.toString()).doesNotContain("09:00", "첫날");
+    }
+
+    /** 상세는 총 예상 비용({@code totalCost})을 담는다 (API-COURSE-2 2026-10 개정). */
+    @Test
+    void 상세에_총_비용을_담는다() {
         UUID me = UUID.randomUUID();
         UUID courseId = UUID.randomUUID();
         courses.store.add(course(courseId, me, "내 코스", "{\"days\":[]}"));
 
-        assertThat(service().getCourse(me, courseId).course().coverImageUrl())
-                .isEqualTo("https://cdn.example.com/cover.jpg");
+        assertThat(service().getCourse(me, courseId).course().totalCost()).isEqualTo(350_000L);
+    }
+
+    // ===== 환율 환산 (API-COURSE-2 totalCostExRate·exRateIcon, #100) =====
+
+    /** AI 가 준 원화 totalCost 를 목적지 현지 통화로 환산해 반올림 정수로 내리고, 그 통화 기호를 함께 내린다. */
+    @Test
+    void 상세에_현지_통화_환산값과_기호를_담는다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(new SavedCourse(courseId, me, "일본 코스", "일본", "도쿄", null,
+                LocalDate.of(2026, 8, 1), 3, 424_894L, List.of(), "{\"days\":[]}", Instant.now()));
+        currencies.currencies.put("일본", new CountryCurrencyReader.CountryCurrency("JPY", "¥"));
+        exchangeRates.rates.put("KRW->JPY", new BigDecimal("0.1177"));
+
+        CourseDetailResponse.CourseDetail detail = service().getCourse(me, courseId).course();
+
+        assertThat(detail.totalCost()).isEqualTo(424_894L);            // 원화 그대로
+        assertThat(detail.exRateIcon()).isEqualTo("¥");
+        assertThat(detail.totalCostExRate()).isEqualTo(50_010L);       // 424,894 × 0.1177 = 50,010.0 → 50010
+    }
+
+    /** 국내 코스는 현지 통화가 원화라 환산값이 원래 금액이고 환율 제공처를 부르지 않는다(같은 통화 → 1). */
+    @Test
+    void 국내_코스는_환산값이_원화_금액_그대로다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, me, "내 코스", "{\"days\":[]}"));   // 대한민국/제주, totalCost 350,000
+        currencies.currencies.put("대한민국", new CountryCurrencyReader.CountryCurrency("KRW", "₩"));
+
+        CourseDetailResponse.CourseDetail detail = service().getCourse(me, courseId).course();
+
+        assertThat(detail.exRateIcon()).isEqualTo("₩");
+        assertThat(detail.totalCostExRate()).isEqualTo(350_000L);
+    }
+
+    @Test
+    void 환율을_못_구하면_환산값은_null이고_기호는_남는다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(new SavedCourse(courseId, me, "일본 코스", "일본", "도쿄", null,
+                LocalDate.of(2026, 8, 1), 3, 424_894L, List.of(), "{\"days\":[]}", Instant.now()));
+        currencies.currencies.put("일본", new CountryCurrencyReader.CountryCurrency("JPY", "¥"));   // KRW->JPY 미등록
+
+        CourseDetailResponse.CourseDetail detail = service().getCourse(me, courseId).course();
+
+        assertThat(detail.totalCostExRate()).isNull();
+        assertThat(detail.exRateIcon()).isEqualTo("¥");
+    }
+
+    /** 국가 데이터셋에 없는 목적지(또는 통화 없는 영토)면 기호는 빈 문자열, 환산은 시도하지 않는다. */
+    @Test
+    void 통화를_모르는_국가면_기호는_빈_문자열이고_환율을_조회하지_않는다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(course(courseId, me, "내 코스", "{\"days\":[]}"));
+
+        CourseDetailResponse.CourseDetail detail = service().getCourse(me, courseId).course();
+
+        assertThat(detail.exRateIcon()).isEmpty();
+        assertThat(detail.totalCostExRate()).isNull();
+        assertThat(exchangeRates.calls).isZero();
+    }
+
+    /** 개정 전 코스(totalCost 없음)는 기호만 내리고 환율을 조회하지 않는다. */
+    @Test
+    void 총비용이_없으면_환산값은_null이고_환율을_조회하지_않는다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(new SavedCourse(courseId, me, "예전 코스", "일본", "도쿄", null,
+                LocalDate.of(2026, 8, 1), 3, null, List.of(), "{\"days\":[]}", Instant.now()));
+        currencies.currencies.put("일본", new CountryCurrencyReader.CountryCurrency("JPY", "¥"));
+
+        CourseDetailResponse.CourseDetail detail = service().getCourse(me, courseId).course();
+
+        assertThat(detail.exRateIcon()).isEqualTo("¥");
+        assertThat(detail.totalCostExRate()).isNull();
+        assertThat(exchangeRates.calls).isZero();
+    }
+
+    /** 환율 어댑터가 예외를 던져도 상세 조회는 성공하고 환산값만 비운다 — 비용은 참고값이다. */
+    @Test
+    void 환율_조회가_예외를_던져도_상세는_환산값_없이_성공한다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        courses.store.add(new SavedCourse(courseId, me, "일본 코스", "일본", "도쿄", null,
+                LocalDate.of(2026, 8, 1), 3, 424_894L, List.of(), "{\"days\":[]}", Instant.now()));
+        currencies.currencies.put("일본", new CountryCurrencyReader.CountryCurrency("JPY", "¥"));
+        CourseQueryService service = new CourseQueryService(courses, sharing,
+                new CourseCoverImageResolver(cityImages), currencies,
+                (from, to) -> { throw new IllegalStateException("provider down"); },
+                new ExchangeRateProperties("KRW", "stub", null, null, Duration.ZERO));
+
+        CourseDetailResponse.CourseDetail detail = service.getCourse(me, courseId).course();
+
+        assertThat(detail.totalCostExRate()).isNull();
+        assertThat(detail.exRateIcon()).isEqualTo("¥");
     }
 
     /**
