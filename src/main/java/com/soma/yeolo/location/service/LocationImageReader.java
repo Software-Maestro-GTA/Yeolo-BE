@@ -7,15 +7,16 @@ import java.util.Optional;
  * {@code recommendCity.imageUrl}, #98)와 코스 대표 이미지 폴백({@code CourseCoverImageResolver} —
  * 코스 목록 API-COURSE-3·공유 미리보기 API-SHARE-2, #109)이 쓴다.
  *
- * <p>폴백 순서는 도시 사진(완전 일치, 없으면 접두어 일치 — "부산"→"부산광역시") → 그 나라 수도 사진 →
- * 그 나라에서 사진이 있는 최다 인구 도시 → 빈 값이다.
+ * <p>폴백 순서는 도시 사진(완전 일치 → 접두어 일치 → 옛 행정 접미사를 뗀 키로 다시: "부산광역시"도 "부산"을 찾는다) →
+ * 그 나라 수도 사진 → 그 나라에서 사진이 있는 최다 인구 도시 → 빈 값이다. 이름은 한국어·영문 어느 쪽이든
+ * 찾는다(호출자가 사용자 언어로 이름을 준다).
  * 사진이 없다고 호출자의 응답을 실패시키지 않는다.
  */
 public interface LocationImageReader {
 
     /**
-     * @param countryName 표시명(예: "일본"). 적재된 국가명과 정규화 후 완전 일치해야 한다
-     * @param cityName    표시명(예: "도쿄"). 없거나 못 찾으면 수도·대표 도시로 폴백한다
+     * @param countryName 표시명(예: "일본"·"Japan"). 적재된 국가명(두 언어)과 정규화 후 완전 일치해야 한다
+     * @param cityName    표시명(예: "도쿄"·"Tokyo"). 없거나 못 찾으면 수도·대표 도시로 폴백한다
      * @return 공개 URL. 국가를 못 찾거나 사진이 하나도 없거나 base-url 미설정이면 빈 값
      */
     Optional<String> findCityImageUrl(String countryName, String cityName);

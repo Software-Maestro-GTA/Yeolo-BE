@@ -5,6 +5,7 @@ import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.i18n.SupportedLanguages;
 import com.soma.yeolo.user.entity.User;
 import com.soma.yeolo.user.repository.UserRepository;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,14 @@ public class UserLanguageService implements UserLanguageReader {
                 .map(User::getLanguage)              // 설정이 없으면 null
                 .flatMap(languages::normalize)       // 저장값이 지원 목록에서 빠졌으면(설정 축소) 기본값으로
                 .orElse(languages.fallback());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> findStoredLanguage(UUID userId) {
+        return userRepository.findById(userId)
+                .map(User::getLanguage)              // 설정이 없으면 null → 빈 값
+                .flatMap(languages::normalize);      // 저장값이 지원 목록에서 빠졌으면(설정 축소) 빈 값
     }
 
     /** 지원하지 않는 코드는 400 으로 거절하고 기존 설정을 유지한다(명세). */

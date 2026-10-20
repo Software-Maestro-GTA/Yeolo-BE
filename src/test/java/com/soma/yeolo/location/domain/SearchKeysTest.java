@@ -97,4 +97,35 @@ class SearchKeysTest {
         assertThat(SearchKeys.isChosungOnly("")).isFalse();
         assertThat(SearchKeys.isChosungOnly(null)).isFalse();
     }
+
+    /** 접미사를 떼기 전에 저장된 옛 표기("부산광역시"·"선전 시")가 데이터셋 표기("부산"·"선전")를 찾게 하는 키. */
+    @Test
+    void 정규화된_키에서_행정_접미사를_하나_뗀다() {
+        assertThat(SearchKeys.withoutAdministrativeSuffix("KR", SearchKeys.normalize("부산광역시"))).contains("부산");
+        assertThat(SearchKeys.withoutAdministrativeSuffix("KR", SearchKeys.normalize("서울특별시"))).contains("서울");
+        assertThat(SearchKeys.withoutAdministrativeSuffix("KR", SearchKeys.normalize("세종특별자치시"))).contains("세종");
+        assertThat(SearchKeys.withoutAdministrativeSuffix("CN", SearchKeys.normalize("선전 시"))).contains("선전");
+        assertThat(SearchKeys.withoutAdministrativeSuffix("CN", SearchKeys.normalize("후루다오시"))).contains("후루다오");
+        assertThat(SearchKeys.withoutAdministrativeSuffix("KP", SearchKeys.normalize("평양직할시"))).contains("평양");
+        assertThat(SearchKeys.withoutAdministrativeSuffix("KR", SearchKeys.normalize("홍천군"))).contains("홍천");
+    }
+
+    /** 접미사 규칙은 빌드 스크립트와 같이 나라별이다 — 다른 나라의 "…시"(마라케시)·"…군"은 지명의 일부라 떼지 않는다. */
+    @Test
+    void 접미사_규칙은_나라별이다() {
+        assertThat(SearchKeys.withoutAdministrativeSuffix("MA", "마라케시")).isEmpty();
+        assertThat(SearchKeys.withoutAdministrativeSuffix("GE", "트빌리시")).isEmpty();
+        assertThat(SearchKeys.withoutAdministrativeSuffix("JP", "홍천군")).isEmpty();
+        assertThat(SearchKeys.withoutAdministrativeSuffix(null, "부산광역시")).isEmpty();
+    }
+
+    /** 접미사가 없거나, 떼면 한 글자만 남는 이름("우시"(無錫))은 건드리지 않는다. */
+    @Test
+    void 접미사가_없거나_너무_짧으면_빈_값이다() {
+        assertThat(SearchKeys.withoutAdministrativeSuffix("JP", "도쿄")).isEmpty();
+        assertThat(SearchKeys.withoutAdministrativeSuffix("CN", "우시")).isEmpty();
+        assertThat(SearchKeys.withoutAdministrativeSuffix("JP", "tokyo")).isEmpty();
+        assertThat(SearchKeys.withoutAdministrativeSuffix("KR", "")).isEmpty();
+        assertThat(SearchKeys.withoutAdministrativeSuffix("KR", null)).isEmpty();
+    }
 }

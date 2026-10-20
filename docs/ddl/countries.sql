@@ -44,3 +44,13 @@ CREATE INDEX IF NOT EXISTS idx_countries_search_name ON countries (search_name t
 -- dev 의 ddl-auto=update 는 컬럼을 지우지 않아 적재 INSERT 가 계속 값을 채운다. 지우려면 엔티티 매핑을
 -- 먼저 걷어낸 뒤 배포 후 단계에서 아래를 실행한다(지금은 주석).
 -- ALTER TABLE countries DROP COLUMN IF EXISTS search_chosung;
+
+-- [2026-10] 언어별 표시명(한국어·영어, API-LOC-1/2/3 §언어 정책). 영문 표시명과 그 검색 키를 둔다.
+-- NOT NULL 을 걸지 않는다 — 기존 행이 있는 테이블에 NOT NULL 컬럼을 더하면 dev 의 ddl-auto=update 가
+-- 실패하고 적재까지 막힌다. 값은 적재가 항상 채우며, 앱은 비어 있으면 한국어명으로 보인다.
+-- 적재 INSERT 가 이 컬럼을 쓰므로 새 이미지 배포 '전'에 적용해야 한다(수도·통화 컬럼과 같은 순서).
+ALTER TABLE countries
+    ADD COLUMN IF NOT EXISTS name_en        TEXT,
+    ADD COLUMN IF NOT EXISTS search_name_en TEXT;
+-- 완전 일치·접두어 검색이 두 키를 OR 로 보므로 영문 키에도 같은 인덱스를 둔다.
+CREATE INDEX IF NOT EXISTS idx_countries_search_name_en ON countries (search_name_en text_pattern_ops);

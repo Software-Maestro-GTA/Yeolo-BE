@@ -1,259 +1,259 @@
-#version	cldr-geonames-20261014
-# countryId	nameKo	capitalCityId	currencyCode	currencySymbol
-AC	어센션섬		SHP	£
-AD	안도라	3041563	EUR	€
-AE	아랍에미리트	292968	AED	AED
-AF	아프가니스탄	1138958	AFN	؋
-AG	앤티가 바부다	3576022	XCD	$
-AI	앵귈라	3573374	XCD	$
-AL	알바니아	3183875	ALL	ALL
-AM	아르메니아	616052	AMD	֏
-AO	앙골라	2240449	AOA	Kz
-AQ	남극 대륙			
-AR	아르헨티나	3435910	ARS	$
-AS	아메리칸 사모아	5881576	USD	$
-AT	오스트리아	2761369	EUR	€
-AU	오스트레일리아	2172517	AUD	$
-AW	아루바	3577154	AWG	AWG
-AX	올란드 제도	3041732	EUR	€
-AZ	아제르바이잔	587084	AZN	₼
-BA	보스니아 헤르체고비나	3191281	BAM	KM
-BB	바베이도스	3374036	BBD	$
-BD	방글라데시	1185241	BDT	৳
-BE	벨기에	2800866	EUR	€
-BF	부르키나파소	2357048	XOF	F CFA
-BG	불가리아	727011	EUR	€
-BH	바레인	290340	BHD	BHD
-BI	부룬디	426272	BIF	BIF
-BJ	베냉	2392087	XOF	F CFA
-BL	생바르텔레미	3579132	EUR	€
-BM	버뮤다	3573197	BMD	$
-BN	브루나이	1820906	BND	$
-BO	볼리비아	3903987	BOB	Bs
-BQ	네덜란드령 카리브	3513563	USD	$
-BR	브라질	3469058	BRL	R$
-BS	바하마	3571824	BSD	$
-BT	부탄	1252416	BTN	BTN
-BV	부베섬		NOK	kr
-BW	보츠와나	933773	BWP	P
-BY	벨라루스	625144	BYN	р.
-BZ	벨리즈	3582672	BZD	$
-CA	캐나다	6094817	CAD	$
-CC	코코스 제도	7304591	AUD	$
-CD	콩고-킨샤사	2314302	CDF	CDF
-CF	중앙 아프리카 공화국	2389853	XAF	FCFA
-CG	콩고-브라자빌	2260535	XAF	FCFA
-CH	스위스	2661552	CHF	CHF
-CI	코트디부아르	2279755	XOF	F CFA
-CK	쿡 제도	4035715	NZD	$
-CL	칠레	3871336	CLP	$
-CM	카메룬	2220957	XAF	FCFA
-CN	중국	1816670	CNY	¥
-CO	콜롬비아	3688689	COP	$
-CP	클리퍼턴섬			
-CQ	사크			
-CR	코스타리카	3621849	CRC	₡
-CU	쿠바	3553478	CUP	$
-CV	카보베르데	3374333	CVE	CVE
-CW	퀴라소	3513090	XCG	Cg.
-CX	크리스마스섬	2078127	AUD	$
-CY	키프로스	146268	EUR	€
-CZ	체코	3067696	CZK	Kč
-DE	독일	2950159	EUR	€
-DG	디에고 가르시아		USD	$
-DJ	지부티	223817	DJF	DJF
-DK	덴마크	2618425	DKK	kr
-DM	도미니카	3575635	XCD	$
-DO	도미니카 공화국	3492908	DOP	$
-DZ	알제리	2507480	DZD	DZD
-EA	세우타 및 멜리야		EUR	€
-EC	에콰도르	3652462	USD	$
-EE	에스토니아	588409	EUR	€
-EG	이집트	360630	EGP	E£
-EH	서사하라		MAD	MAD
-ER	에리트리아	343300	ERN	ERN
-ES	스페인	3117735	EUR	€
-ET	에티오피아	344979	ETB	ETB
-FI	핀란드	658225	EUR	€
-FJ	피지	2198148	FJD	$
-FK	포클랜드 제도	3426691	FKP	£
-FM	미크로네시아	2081986	USD	$
-FO	페로 제도	2611396	DKK	kr
-FR	프랑스	2988507	EUR	€
-GA	가봉	2399697	XAF	FCFA
-GB	영국	2643743	GBP	£
-GD	그레나다	3579925	XCD	$
-GE	조지아	611717	GEL	₾
-GF	프랑스령 기아나	3382160	EUR	€
-GG	건지	3042287	GBP	£
-GH	가나	2306104	GHS	GH₵
-GI	지브롤터	2411585	GIP	£
-GL	그린란드	3421319	DKK	kr
-GM	감비아	2413876	GMD	GMD
-GN	기니	2422465	GNF	FG
-GP	과들루프	3579732	EUR	€
-GQ	적도 기니	12226438	XAF	FCFA
-GR	그리스	264371	EUR	€
-GS	사우스조지아 사우스샌드위치 제도	3426466	GBP	£
-GT	과테말라	3598132	GTQ	Q
-GU	괌	4044012	USD	$
-GW	기니비사우	2374775	XOF	F CFA
-GY	가이아나	3378644	GYD	$
-HK	홍콩(중국 특별행정구)	1819729	HKD	$
-HM	허드 맥도널드 제도		AUD	$
-HN	온두라스	3600949	HNL	L
-HR	크로아티아	3186886	EUR	€
-HT	아이티	3718426	HTG	HTG
-HU	헝가리	3054643	HUF	Ft
-IC	카나리아 제도		EUR	€
-ID	인도네시아	1642911	IDR	Rp
-IE	아일랜드	2964574	EUR	€
-IL	이스라엘		ILS	₪
-IM	맨섬	3042237	GBP	£
-IN	인도	1261481	INR	₹
-IO	영국령 인도양 지역		USD	$
-IQ	이라크	98182	IQD	IQD
-IR	이란	112931	IRR	IRR
-IS	아이슬란드	3413829	ISK	kr
-IT	이탈리아	3169070	EUR	€
-JE	저지	3042091	GBP	£
-JM	자메이카	3489854	JMD	$
-JO	요르단	250441	JOD	JOD
-JP	일본	1850147	JPY	¥
-KE	케냐	184745	KES	KES
-KG	키르기스스탄	1528675	KGS	⃀
-KH	캄보디아	1821306	KHR	៛
-KI	키리바시	2110257	AUD	$
-KM	코모로	921772	KMF	CF
-KN	세인트키츠 네비스	3575551	XCD	$
-KP	북한	1871859	KPW	₩
-KR	대한민국	1835848	KRW	₩
-KW	쿠웨이트	285787	KWD	KWD
-KY	케이맨 제도	3580661	KYD	$
-KZ	카자흐스탄	1526273	KZT	₸
-LA	라오스	1651944	LAK	₭
-LB	레바논	276781	LBP	L£
-LC	세인트루시아	3576812	XCD	$
-LI	리히텐슈타인	3042030	CHF	CHF
-LK	스리랑카	1248991	LKR	Rs
-LR	라이베리아	2274895	LRD	$
-LS	레소토	932505	ZAR	R
-LT	리투아니아	593116	EUR	€
-LU	룩셈부르크	2960316	EUR	€
-LV	라트비아	456172	EUR	€
-LY	리비아	2210247	LYD	LYD
-MA	모로코	2538475	MAD	MAD
-MC	모나코	2993458	EUR	€
-MD	몰도바	618426	MDL	MDL
-ME	몬테네그로	3193044	EUR	€
-MF	생마르탱	3578851	EUR	€
-MG	마다가스카르	1070940	MGA	Ar
-MH	마셜 제도	2113779	USD	$
-MK	북마케도니아	785842	MKD	MKD
-ML	말리	2460596	XOF	F CFA
-MM	미얀마	6611854	MMK	K
-MN	몽골	2028462	MNT	₮
-MO	마카오(중국 특별행정구)	1821274	MOP	MOP
-MP	북마리아나제도	7828758	USD	$
-MQ	마르티니크	3570675	EUR	€
-MR	모리타니	2377450	MRU	MRU
-MS	몬트세라트	3578069	XCD	$
-MT	몰타	2562305	EUR	€
-MU	모리셔스	934154	MUR	Rs
-MV	몰디브	1282027	MVR	MVR
-MW	말라위	927967	MWK	MWK
-MX	멕시코	3530597	MXN	$
-MY	말레이시아	1735161	MYR	RM
-MZ	모잠비크	1040652	MZN	MZN
-NA	나미비아	3352136	NAD	$
-NC	뉴칼레도니아	2139521	XPF	CFPF
-NE	니제르	2440485	XOF	F CFA
-NF	노퍽섬	2161314	AUD	$
-NG	나이지리아	2352778	NGN	₦
-NI	니카라과	3617763	NIO	C$
-NL	네덜란드	2759794	EUR	€
-NO	노르웨이	3143244	NOK	kr
-NP	네팔	1283240	NPR	Rs
-NR	나우루	7626461	AUD	$
-NU	니우에	4036284	NZD	$
-NZ	뉴질랜드	2179537	NZD	$
-OM	오만	287286	OMR	OMR
-PA	파나마	3703443	PAB	PAB
-PE	페루	3936456	PEN	PEN
-PF	프랑스령 폴리네시아	4033936	XPF	CFPF
-PG	파푸아뉴기니	2088122	PGK	PGK
-PH	필리핀	1701668	PHP	₱
-PK	파키스탄	1176615	PKR	Rs
-PL	폴란드	756135	PLN	zł
-PM	생피에르 미클롱	3424934	EUR	€
-PN	핏케언 제도	4030723	NZD	$
-PR	푸에르토리코	4568127	USD	$
-PS	팔레스타인 지구		ILS	₪
-PT	포르투갈	2267057	EUR	€
-PW	팔라우	8063361	USD	$
-PY	파라과이	3439389	PYG	₲
-QA	카타르	290030	QAR	QAR
-RE	레위니옹	935264	EUR	€
-RO	루마니아	683506	RON	L
-RS	세르비아	792680	RSD	RSD
-RU	러시아	524901	RUB	₽
-RW	르완다	202061	RWF	RF
-SA	사우디아라비아	108410	SAR	SAR
-SB	솔로몬 제도	2108502	SBD	$
-SC	세이셸	241131	SCR	SCR
-SD	수단	379252	SDG	SDG
-SE	스웨덴	2673730	SEK	kr
-SG	싱가포르	1880252	SGD	$
-SH	세인트헬레나	3370903	SHP	£
-SI	슬로베니아	3196359	EUR	€
-SJ	스발바르제도-얀마웬섬	2729907	NOK	kr
-SK	슬로바키아	3060972	EUR	€
-SL	시에라리온	2409306	SLE	SLE
-SM	산마리노	3168070	EUR	€
-SN	세네갈	2253354	XOF	F CFA
-SO	소말리아	53654	SOS	SOS
-SR	수리남	3383330	SRD	$
-SS	남수단	373303	SSP	£
-ST	상투메 프린시페	2410763	STN	Db
-SV	엘살바도르	3583361	USD	$
-SX	신트마르턴	3513392	XCG	Cg.
-SY	시리아	170654	SYP	£
-SZ	에스와티니	934985	SZL	SZL
-TA	트리스탄다쿠나		GBP	£
-TC	터크스 케이커스 제도	3576994	USD	$
-TD	차드	2427123	XAF	FCFA
-TF	프랑스령 남방 지역	1546102	EUR	€
-TG	토고	2365267	XOF	F CFA
-TH	태국	1609350	THB	฿
-TJ	타지키스탄	1221874	TJS	TJS
-TK	토켈라우		NZD	$
-TL	동티모르	1645457	USD	$
-TM	투르크메니스탄	162183	TMT	TMT
-TN	튀니지	2464470	TND	TND
-TO	통가	4032402	TOP	T$
-TR	튀르키예	323786	TRY	₺
-TT	트리니다드 토바고	3573890	TTD	$
-TV	투발루	2110394	AUD	$
-TW	대만	1668341	TWD	NT$
-TZ	탄자니아	160196	TZS	TZS
-UA	우크라이나	703448	UAH	₴
-UG	우간다	232422	UGX	UGX
-UM	미국령 해외 제도		USD	$
-US	미국	4140963	USD	$
-UY	우루과이	3441575	UYU	$
-UZ	우즈베키스탄	1512569	UZS	UZS
-VA	바티칸 시국	6691831	EUR	€
-VC	세인트빈센트그레나딘	3577887	XCD	$
-VE	베네수엘라	3646738	VES	VES
-VG	영국령 버진아일랜드	3577430	USD	$
-VI	미국령 버진아일랜드	4795467	USD	$
-VN	베트남	1581130	VND	₫
-VU	바누아투	2135171	VUV	VUV
-WF	왈리스-푸투나 제도	4034821	XPF	CFPF
-WS	사모아	4035413	WST	WST
-XK	코소보	786714	EUR	€
-YE	예멘	71137	YER	YER
-YT	마요트	921815	EUR	€
-ZA	남아프리카	964137	ZAR	R
-ZM	잠비아	909137	ZMW	ZK
-ZW	짐바브웨	890299	ZWG	ZWG
+#version	cldr-geonames-wikidata-20261019
+# countryId	nameKo	nameEn	capitalCityId	currencyCode	currencySymbol
+AC	어센션섬	Ascension Island		SHP	£
+AD	안도라	Andorra	3041563	EUR	€
+AE	아랍에미리트	United Arab Emirates	292968	AED	AED
+AF	아프가니스탄	Afghanistan	1138958	AFN	؋
+AG	앤티가 바부다	Antigua & Barbuda	3576022	XCD	$
+AI	앵귈라	Anguilla	3573374	XCD	$
+AL	알바니아	Albania	3183875	ALL	ALL
+AM	아르메니아	Armenia	616052	AMD	֏
+AO	앙골라	Angola	2240449	AOA	Kz
+AQ	남극 대륙	Antarctica			
+AR	아르헨티나	Argentina	3435910	ARS	$
+AS	아메리칸 사모아	American Samoa	5881576	USD	$
+AT	오스트리아	Austria	2761369	EUR	€
+AU	오스트레일리아	Australia	2172517	AUD	$
+AW	아루바	Aruba	3577154	AWG	AWG
+AX	올란드 제도	Åland Islands	3041732	EUR	€
+AZ	아제르바이잔	Azerbaijan	587084	AZN	₼
+BA	보스니아 헤르체고비나	Bosnia & Herzegovina	3191281	BAM	KM
+BB	바베이도스	Barbados	3374036	BBD	$
+BD	방글라데시	Bangladesh	1185241	BDT	৳
+BE	벨기에	Belgium	2800866	EUR	€
+BF	부르키나파소	Burkina Faso	2357048	XOF	F CFA
+BG	불가리아	Bulgaria	727011	EUR	€
+BH	바레인	Bahrain	290340	BHD	BHD
+BI	부룬디	Burundi	426272	BIF	BIF
+BJ	베냉	Benin	2392087	XOF	F CFA
+BL	생바르텔레미	St. Barthélemy	3579132	EUR	€
+BM	버뮤다	Bermuda	3573197	BMD	$
+BN	브루나이	Brunei	1820906	BND	$
+BO	볼리비아	Bolivia	3903987	BOB	Bs
+BQ	네덜란드령 카리브	Caribbean Netherlands	3513563	USD	$
+BR	브라질	Brazil	3469058	BRL	R$
+BS	바하마	Bahamas	3571824	BSD	$
+BT	부탄	Bhutan	1252416	BTN	BTN
+BV	부베섬	Bouvet Island		NOK	kr
+BW	보츠와나	Botswana	933773	BWP	P
+BY	벨라루스	Belarus	625144	BYN	р.
+BZ	벨리즈	Belize	3582672	BZD	$
+CA	캐나다	Canada	6094817	CAD	$
+CC	코코스 제도	Cocos (Keeling) Islands	7304591	AUD	$
+CD	콩고-킨샤사	Congo - Kinshasa	2314302	CDF	CDF
+CF	중앙 아프리카 공화국	Central African Republic	2389853	XAF	FCFA
+CG	콩고-브라자빌	Congo - Brazzaville	2260535	XAF	FCFA
+CH	스위스	Switzerland	2661552	CHF	CHF
+CI	코트디부아르	Côte d’Ivoire	2279755	XOF	F CFA
+CK	쿡 제도	Cook Islands	4035715	NZD	$
+CL	칠레	Chile	3871336	CLP	$
+CM	카메룬	Cameroon	2220957	XAF	FCFA
+CN	중국	China	1816670	CNY	¥
+CO	콜롬비아	Colombia	3688689	COP	$
+CP	클리퍼턴섬	Clipperton Island			
+CQ	사크	Sark			
+CR	코스타리카	Costa Rica	3621849	CRC	₡
+CU	쿠바	Cuba	3553478	CUP	$
+CV	카보베르데	Cape Verde	3374333	CVE	CVE
+CW	퀴라소	Curaçao	3513090	XCG	Cg.
+CX	크리스마스섬	Christmas Island	2078127	AUD	$
+CY	키프로스	Cyprus	146268	EUR	€
+CZ	체코	Czechia	3067696	CZK	Kč
+DE	독일	Germany	2950159	EUR	€
+DG	디에고 가르시아	Diego Garcia		USD	$
+DJ	지부티	Djibouti	223817	DJF	DJF
+DK	덴마크	Denmark	2618425	DKK	kr
+DM	도미니카	Dominica	3575635	XCD	$
+DO	도미니카 공화국	Dominican Republic	3492908	DOP	$
+DZ	알제리	Algeria	2507480	DZD	DZD
+EA	세우타 및 멜리야	Ceuta & Melilla		EUR	€
+EC	에콰도르	Ecuador	3652462	USD	$
+EE	에스토니아	Estonia	588409	EUR	€
+EG	이집트	Egypt	360630	EGP	E£
+EH	서사하라	Western Sahara		MAD	MAD
+ER	에리트리아	Eritrea	343300	ERN	ERN
+ES	스페인	Spain	3117735	EUR	€
+ET	에티오피아	Ethiopia	344979	ETB	ETB
+FI	핀란드	Finland	658225	EUR	€
+FJ	피지	Fiji	2198148	FJD	$
+FK	포클랜드 제도	Falkland Islands	3426691	FKP	£
+FM	미크로네시아	Micronesia	2081986	USD	$
+FO	페로 제도	Faroe Islands	2611396	DKK	kr
+FR	프랑스	France	2988507	EUR	€
+GA	가봉	Gabon	2399697	XAF	FCFA
+GB	영국	United Kingdom	2643743	GBP	£
+GD	그레나다	Grenada	3579925	XCD	$
+GE	조지아	Georgia	611717	GEL	₾
+GF	프랑스령 기아나	French Guiana	3382160	EUR	€
+GG	건지	Guernsey	3042287	GBP	£
+GH	가나	Ghana	2306104	GHS	GH₵
+GI	지브롤터	Gibraltar	2411585	GIP	£
+GL	그린란드	Greenland	3421319	DKK	kr
+GM	감비아	Gambia	2413876	GMD	GMD
+GN	기니	Guinea	2422465	GNF	FG
+GP	과들루프	Guadeloupe	3579732	EUR	€
+GQ	적도 기니	Equatorial Guinea		XAF	FCFA
+GR	그리스	Greece	264371	EUR	€
+GS	사우스조지아 사우스샌드위치 제도	South Georgia & South Sandwich Islands	3426466	GBP	£
+GT	과테말라	Guatemala	3598132	GTQ	Q
+GU	괌	Guam	4044012	USD	$
+GW	기니비사우	Guinea-Bissau	2374775	XOF	F CFA
+GY	가이아나	Guyana	3378644	GYD	$
+HK	홍콩(중국 특별행정구)	Hong Kong SAR China	1819729	HKD	$
+HM	허드 맥도널드 제도	Heard & McDonald Islands		AUD	$
+HN	온두라스	Honduras	3600949	HNL	L
+HR	크로아티아	Croatia	3186886	EUR	€
+HT	아이티	Haiti	3718426	HTG	HTG
+HU	헝가리	Hungary	3054643	HUF	Ft
+IC	카나리아 제도	Canary Islands		EUR	€
+ID	인도네시아	Indonesia	1642911	IDR	Rp
+IE	아일랜드	Ireland	2964574	EUR	€
+IL	이스라엘	Israel		ILS	₪
+IM	맨섬	Isle of Man	3042237	GBP	£
+IN	인도	India	1261481	INR	₹
+IO	영국령 인도양 지역	British Indian Ocean Territory		USD	$
+IQ	이라크	Iraq	98182	IQD	IQD
+IR	이란	Iran	112931	IRR	IRR
+IS	아이슬란드	Iceland	3413829	ISK	kr
+IT	이탈리아	Italy	3169070	EUR	€
+JE	저지	Jersey	3042091	GBP	£
+JM	자메이카	Jamaica	3489854	JMD	$
+JO	요르단	Jordan	250441	JOD	JOD
+JP	일본	Japan	1850147	JPY	¥
+KE	케냐	Kenya	184745	KES	KES
+KG	키르기스스탄	Kyrgyzstan	1528675	KGS	⃀
+KH	캄보디아	Cambodia	1821306	KHR	៛
+KI	키리바시	Kiribati	2110257	AUD	$
+KM	코모로	Comoros	921772	KMF	CF
+KN	세인트키츠 네비스	St. Kitts & Nevis	3575551	XCD	$
+KP	북한	North Korea	1871859	KPW	₩
+KR	대한민국	South Korea	1835848	KRW	₩
+KW	쿠웨이트	Kuwait	285787	KWD	KWD
+KY	케이맨 제도	Cayman Islands	3580661	KYD	$
+KZ	카자흐스탄	Kazakhstan	1526273	KZT	₸
+LA	라오스	Laos	1651944	LAK	₭
+LB	레바논	Lebanon	276781	LBP	L£
+LC	세인트루시아	St. Lucia	3576812	XCD	$
+LI	리히텐슈타인	Liechtenstein	3042030	CHF	CHF
+LK	스리랑카	Sri Lanka	1248991	LKR	Rs
+LR	라이베리아	Liberia	2274895	LRD	$
+LS	레소토	Lesotho	932505	ZAR	R
+LT	리투아니아	Lithuania	593116	EUR	€
+LU	룩셈부르크	Luxembourg	2960316	EUR	€
+LV	라트비아	Latvia	456172	EUR	€
+LY	리비아	Libya	2210247	LYD	LYD
+MA	모로코	Morocco	2538475	MAD	MAD
+MC	모나코	Monaco	2993458	EUR	€
+MD	몰도바	Moldova	618426	MDL	MDL
+ME	몬테네그로	Montenegro	3193044	EUR	€
+MF	생마르탱	St. Martin	3578851	EUR	€
+MG	마다가스카르	Madagascar	1070940	MGA	Ar
+MH	마셜 제도	Marshall Islands	2113779	USD	$
+MK	북마케도니아	North Macedonia	785842	MKD	MKD
+ML	말리	Mali	2460596	XOF	F CFA
+MM	미얀마	Myanmar (Burma)	6611854	MMK	K
+MN	몽골	Mongolia	2028462	MNT	₮
+MO	마카오(중국 특별행정구)	Macao SAR China	1821274	MOP	MOP
+MP	북마리아나제도	Northern Mariana Islands	7828758	USD	$
+MQ	마르티니크	Martinique	3570675	EUR	€
+MR	모리타니	Mauritania	2377450	MRU	MRU
+MS	몬트세라트	Montserrat	3578069	XCD	$
+MT	몰타	Malta	2562305	EUR	€
+MU	모리셔스	Mauritius	934154	MUR	Rs
+MV	몰디브	Maldives	1282027	MVR	MVR
+MW	말라위	Malawi	927967	MWK	MWK
+MX	멕시코	Mexico	3530597	MXN	$
+MY	말레이시아	Malaysia	1735161	MYR	RM
+MZ	모잠비크	Mozambique	1040652	MZN	MZN
+NA	나미비아	Namibia	3352136	NAD	$
+NC	뉴칼레도니아	New Caledonia	2139521	XPF	CFPF
+NE	니제르	Niger	2440485	XOF	F CFA
+NF	노퍽섬	Norfolk Island	2161314	AUD	$
+NG	나이지리아	Nigeria	2352778	NGN	₦
+NI	니카라과	Nicaragua	3617763	NIO	C$
+NL	네덜란드	Netherlands	2759794	EUR	€
+NO	노르웨이	Norway	3143244	NOK	kr
+NP	네팔	Nepal	1283240	NPR	Rs
+NR	나우루	Nauru	7626461	AUD	$
+NU	니우에	Niue	4036284	NZD	$
+NZ	뉴질랜드	New Zealand	2179537	NZD	$
+OM	오만	Oman	287286	OMR	OMR
+PA	파나마	Panama	3703443	PAB	PAB
+PE	페루	Peru	3936456	PEN	PEN
+PF	프랑스령 폴리네시아	French Polynesia	4033936	XPF	CFPF
+PG	파푸아뉴기니	Papua New Guinea	2088122	PGK	PGK
+PH	필리핀	Philippines	1701668	PHP	₱
+PK	파키스탄	Pakistan	1176615	PKR	Rs
+PL	폴란드	Poland	756135	PLN	zł
+PM	생피에르 미클롱	St. Pierre & Miquelon	3424934	EUR	€
+PN	핏케언 제도	Pitcairn Islands	4030723	NZD	$
+PR	푸에르토리코	Puerto Rico	4568127	USD	$
+PS	팔레스타인 지구	Palestinian Territories		ILS	₪
+PT	포르투갈	Portugal	2267057	EUR	€
+PW	팔라우	Palau	8063361	USD	$
+PY	파라과이	Paraguay	3439389	PYG	₲
+QA	카타르	Qatar	290030	QAR	QAR
+RE	레위니옹	Réunion	935264	EUR	€
+RO	루마니아	Romania	683506	RON	L
+RS	세르비아	Serbia	792680	RSD	RSD
+RU	러시아	Russia	524901	RUB	₽
+RW	르완다	Rwanda	202061	RWF	RF
+SA	사우디아라비아	Saudi Arabia	108410	SAR	SAR
+SB	솔로몬 제도	Solomon Islands	2108502	SBD	$
+SC	세이셸	Seychelles	241131	SCR	SCR
+SD	수단	Sudan	379252	SDG	SDG
+SE	스웨덴	Sweden	2673730	SEK	kr
+SG	싱가포르	Singapore	1880252	SGD	$
+SH	세인트헬레나	St. Helena	3370903	SHP	£
+SI	슬로베니아	Slovenia	3196359	EUR	€
+SJ	스발바르제도-얀마웬섬	Svalbard & Jan Mayen	2729907	NOK	kr
+SK	슬로바키아	Slovakia	3060972	EUR	€
+SL	시에라리온	Sierra Leone	2409306	SLE	SLE
+SM	산마리노	San Marino	3168070	EUR	€
+SN	세네갈	Senegal	2253354	XOF	F CFA
+SO	소말리아	Somalia	53654	SOS	SOS
+SR	수리남	Suriname	3383330	SRD	$
+SS	남수단	South Sudan	373303	SSP	£
+ST	상투메 프린시페	São Tomé & Príncipe	2410763	STN	Db
+SV	엘살바도르	El Salvador	3583361	USD	$
+SX	신트마르턴	Sint Maarten	3513392	XCG	Cg.
+SY	시리아	Syria	170654	SYP	£
+SZ	에스와티니	Eswatini	934985	SZL	SZL
+TA	트리스탄다쿠나	Tristan da Cunha		GBP	£
+TC	터크스 케이커스 제도	Turks & Caicos Islands	3576994	USD	$
+TD	차드	Chad	2427123	XAF	FCFA
+TF	프랑스령 남방 지역	French Southern Territories	1546102	EUR	€
+TG	토고	Togo	2365267	XOF	F CFA
+TH	태국	Thailand	1609350	THB	฿
+TJ	타지키스탄	Tajikistan	1221874	TJS	TJS
+TK	토켈라우	Tokelau		NZD	$
+TL	동티모르	Timor-Leste	1645457	USD	$
+TM	투르크메니스탄	Turkmenistan	162183	TMT	TMT
+TN	튀니지	Tunisia	2464470	TND	TND
+TO	통가	Tonga	4032402	TOP	T$
+TR	튀르키예	Türkiye	323786	TRY	₺
+TT	트리니다드 토바고	Trinidad & Tobago	3573890	TTD	$
+TV	투발루	Tuvalu	2110394	AUD	$
+TW	대만	Taiwan	1668341	TWD	NT$
+TZ	탄자니아	Tanzania	160196	TZS	TZS
+UA	우크라이나	Ukraine	703448	UAH	₴
+UG	우간다	Uganda	232422	UGX	UGX
+UM	미국령 해외 제도	U.S. Outlying Islands		USD	$
+US	미국	United States	4140963	USD	$
+UY	우루과이	Uruguay	3441575	UYU	$
+UZ	우즈베키스탄	Uzbekistan	1512569	UZS	UZS
+VA	바티칸 시국	Vatican City	6691831	EUR	€
+VC	세인트빈센트그레나딘	St. Vincent & Grenadines	3577887	XCD	$
+VE	베네수엘라	Venezuela	3646738	VES	VES
+VG	영국령 버진아일랜드	British Virgin Islands	3577430	USD	$
+VI	미국령 버진아일랜드	U.S. Virgin Islands	4795467	USD	$
+VN	베트남	Vietnam	1581130	VND	₫
+VU	바누아투	Vanuatu	2135171	VUV	VUV
+WF	왈리스-푸투나 제도	Wallis & Futuna	4034821	XPF	CFPF
+WS	사모아	Samoa	4035413	WST	WST
+XK	코소보	Kosovo	786714	EUR	€
+YE	예멘	Yemen	71137	YER	YER
+YT	마요트	Mayotte	921815	EUR	€
+ZA	남아프리카	South Africa	964137	ZAR	R
+ZM	잠비아	Zambia	909137	ZMW	ZK
+ZW	짐바브웨	Zimbabwe	890299	ZWG	ZWG

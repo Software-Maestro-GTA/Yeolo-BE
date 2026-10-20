@@ -27,10 +27,12 @@ public class LocationSeedLoader implements ApplicationRunner {
     static final String CITIES = "cities";
     static final String CITY_IMAGES = "city_images";
 
-    static final int COUNTRY_COLUMNS = 5;
-    /** 국가는 식별자·이름만 필수다. 수도·통화는 없는 국가(남극 등)가 있어 비어 있을 수 있다. */
-    static final int COUNTRY_REQUIRED_COLUMNS = 2;
-    static final int CITY_COLUMNS = 4;
+    /** countryId, nameKo, nameEn, capitalCityId, currencyCode, currencySymbol. */
+    static final int COUNTRY_COLUMNS = 6;
+    /** 국가는 식별자·두 언어 이름만 필수다. 수도·통화는 없는 국가(남극 등)가 있어 비어 있을 수 있다. */
+    static final int COUNTRY_REQUIRED_COLUMNS = 3;
+    /** cityId, nameKo, nameEn, countryId, population. */
+    static final int CITY_COLUMNS = 5;
     static final int CITY_IMAGE_COLUMNS = 4;
 
     private final LocationSeedProperties properties;

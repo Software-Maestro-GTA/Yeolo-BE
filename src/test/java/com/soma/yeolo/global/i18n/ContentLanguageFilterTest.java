@@ -32,6 +32,15 @@ class ContentLanguageFilterTest {
         assertThat(contentLanguageFor("ko")).isEqualTo("ko");
     }
 
+    /** 표시명·메시지가 Accept-Language 에 달려 있으므로 캐시가 언어별로 저장하도록 Vary 를 붙인다. */
+    @Test
+    void 응답에_Vary_Accept_Language를_붙인다() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/locations/countries");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, new MockFilterChain());
+        assertThat(response.getHeaders("Vary")).contains("Accept-Language");
+    }
+
     @Test
     void 헤더가_없거나_미지원이면_기본_언어다() throws Exception {
         assertThat(contentLanguageFor(null)).isEqualTo("ko");
