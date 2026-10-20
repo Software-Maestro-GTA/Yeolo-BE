@@ -43,6 +43,23 @@ class SupportedLanguagesTest {
         assertThat(bilingual.resolveMessageLanguage("en-GB")).isEqualTo("en");
     }
 
+    /**
+     * 콘텐츠(국가·도시 표시명) 언어는 호출자가 준 후보(데이터셋이 가진 언어)에서 고른다 — 저장 가능 언어가
+     * ko 뿐이어도 데이터셋 영문명은 낼 수 있고, 메시지 언어와도 별개다. 매칭이 없으면 빈 값(폴백은 호출자 몫).
+     */
+    @Test
+    void 콘텐츠_언어는_호출자가_준_후보에서_고르고_없으면_빈_값이다() {
+        SupportedLanguages koreanOnly = new SupportedLanguages(new LanguageProperties(List.of("ko"), "ko", List.of("ko")));
+        List<String> dataset = List.of("ko", "en");
+        assertThat(koreanOnly.matchContentLanguage("en-US,en;q=0.9,ko;q=0.5", dataset)).contains("en");
+        assertThat(koreanOnly.resolveMessageLanguage("en-US,en;q=0.9,ko;q=0.5")).isEqualTo("ko");
+        assertThat(koreanOnly.normalize("en")).isEmpty();
+        assertThat(languages.matchContentLanguage("ko-KR,ko;q=0.9,en;q=0.8", dataset)).contains("ko");
+        assertThat(languages.matchContentLanguage("ja", dataset)).isEmpty();
+        assertThat(languages.matchContentLanguage(null, dataset)).isEmpty();
+        assertThat(languages.matchContentLanguage(";;;=", dataset)).isEmpty();
+    }
+
     /** 미지원 언어·깨진 헤더·헤더 없음은 400 이 아니라 기본 언어다(명세). */
     @Test
     void 헤더에_맞는_언어가_없으면_기본_언어다() {

@@ -148,7 +148,17 @@ class CourseCreationServiceTest {
     private final FakeUserMbtiReader mbtiReader = new FakeUserMbtiReader();
     /** 언어 설정 포트 fake: 고정 언어를 돌려준다(기본 ko). */
     private String userLanguage = "ko";
-    private final UserLanguageReader languageReader = userId -> userLanguage;
+    private final UserLanguageReader languageReader = new UserLanguageReader() {
+        @Override
+        public String findLanguage(UUID userId) {
+            return userLanguage;
+        }
+
+        @Override
+        public Optional<String> findStoredLanguage(UUID userId) {
+            return Optional.ofNullable(userLanguage);
+        }
+    };
 
     /** 장소 정규화 fake: AI가 준 장소는 그대로 등록하고, 폴백 조회는 고정 좌표로 해결한다. */
     private final PlaceRegistry placeRegistry = new PlaceRegistry() {

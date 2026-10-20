@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.soma.yeolo.location.domain.LikePatterns;
+import com.soma.yeolo.location.entity.CityEntity;
 import com.soma.yeolo.location.entity.CountryEntity;
 import com.soma.yeolo.location.repository.CityImageRepository;
 import com.soma.yeolo.location.repository.CityRepository;
@@ -20,6 +21,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -51,6 +53,7 @@ class LocationSeedLoaderTest {
     private LocationSeedLoader loader;
 
     private static final Pageable TOP_10 = Pageable.ofSize(10);
+    private static final Sort BY_KO = Sort.by("nameKo");
 
     @BeforeEach
     void setUp() {
@@ -76,21 +79,21 @@ class LocationSeedLoaderTest {
     }
 
     private LocationSeedFile countriesFile() {
-        return parseResource("data/locations/countries.tsv", 5, 2);
+        return parseResource("data/locations/countries.tsv", 6, 3);
     }
 
     private LocationSeedFile citiesFile() {
-        return parseResource("data/locations/cities.tsv", 4);
+        return parseResource("data/locations/cities.tsv", 5);
     }
 
     @Test
     void 커밋된_데이터셋이_그대로_적재된다() {
         loader.run(null);
 
-        // ISO 국가는 250개 안팎, cities15000은 3만 개 대다. 정확한 수는 데이터셋 갱신마다 변하므로
-        // "제대로 들어왔는지" 수준으로만 확인한다.
+        // ISO 국가는 250개 안팎, 도시는 인구 5만 이상·한국어명 있음 조건으로 6천 개 대다. 정확한 수는
+        // 데이터셋 갱신마다 변하므로 "제대로 들어왔는지" 수준으로만 확인한다.
         assertThat(countryRepository.count()).isGreaterThan(200);
-        assertThat(cityRepository.count()).isGreaterThan(10_000);
+        assertThat(cityRepository.count()).isGreaterThan(5_000);
     }
 
     @Test
@@ -109,20 +112,36 @@ class LocationSeedLoaderTest {
     void 도시_접두어_검색_인수기준이_실데이터에서_동작한다() {
         loader.run(null);
 
-        var found = cityRepository.searchByPrefix(LikePatterns.prefix("서울"));
+        var found = cityRepository.searchByPrefix(LikePatterns.prefix("서울"), BY_KO);
         assertThat(found).isNotEmpty();
         assertThat(found).first().satisfies(city -> {
             assertThat(city.getCountryId()).isEqualTo("KR");
             assertThat(city.getCountryNameKo()).isEqualTo("대한민국");
         });
-        assertThat(countryRepository.findBySearchName("대한민국")).map(CountryEntity::getCountryId).contains("KR");
+        assertThat(countryRepository.findByAnySearchName("대한민국")).map(CountryEntity::getCountryId).contains("KR");
+    }
+
+    /** 두 언어 표시명이 실데이터에서 적재되고, 영문 키로도 같은 행을 찾는다. */
+    @Test
+    void 한국어와_영문_표시명이_함께_적재된다() {
+        loader.run(null);
+
+        CountryEntity japan = countryRepository.findById("JP").orElseThrow();
+        assertThat(japan.getNameKo()).isEqualTo("일본");
+        assertThat(japan.getNameEn()).isEqualTo("Japan");
+        assertThat(countryRepository.findByAnySearchName("japan")).map(CountryEntity::getCountryId).contains("JP");
+        CityEntity tokyo = cityRepository.findById("1850147").orElseThrow();
+        assertThat(tokyo.getNameKo()).isEqualTo("도쿄");
+        assertThat(tokyo.getNameEn()).isEqualTo("Tokyo");
+        assertThat(cityRepository.findByCountryIdAndAnySearchName("JP", "tokyo", TOP_10))
+                .extracting(CityEntity::getCityId).containsExactly("1850147");
     }
 
     @Test
     void 후보가_없으면_빈_목록이다() {
         loader.run(null);
 
-        assertThat(cityRepository.searchByPrefix(LikePatterns.prefix("존재하지않는도시명"))).isEmpty();
+        assertThat(cityRepository.searchByPrefix(LikePatterns.prefix("존재하지않는도시명"), BY_KO)).isEmpty();
     }
 
     /** 도시 사진은 도시 데이터셋에 있는 도시만 들어온다 — 사진만 남은 고아 행은 조회 경로가 없다. */
@@ -213,9 +232,9 @@ class LocationSeedLoaderTest {
         // city_id 가 중복인 데이터셋 — 경합이 아니라 파일 자체의 결함이다.
         LocationSeedFile broken = LocationSeedFile.parse(new ByteArrayInputStream("""
                 #version\tbroken-v1
-                1\t중복도시\tKR\t100
-                1\t중복도시\tKR\t100
-                """.getBytes(StandardCharsets.UTF_8)), 4);
+                1\t중복도시\tDup\tKR\t100
+                1\t중복도시\tDup\tKR\t100
+                """.getBytes(StandardCharsets.UTF_8)), 5);
 
         assertThatThrownBy(() -> writer.replace(countriesFile(), true, broken, true, null, false))
                 .isInstanceOf(DataIntegrityViolationException.class);

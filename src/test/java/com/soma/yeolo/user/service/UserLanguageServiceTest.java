@@ -120,4 +120,27 @@ class UserLanguageServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.USER_NOT_FOUND);
     }
+
+    /** 표시명 언어(LocationLanguageResolver)는 "설정 안 함"과 "기본 언어를 고름"을 가려야 한다 — 전자는 빈 값. */
+    @Test
+    void 직접_저장한_언어만_돌려주고_설정이_없으면_빈_값이다() {
+        User unset = user();
+        User chosen = user();
+        chosen.updateLanguage("en");
+        User narrowed = user();
+        narrowed.updateLanguage("en");
+        UUID unsetId = UUID.randomUUID();
+        UUID chosenId = UUID.randomUUID();
+        UUID narrowedId = UUID.randomUUID();
+        when(userRepository.findById(unsetId)).thenReturn(Optional.of(unset));
+        when(userRepository.findById(chosenId)).thenReturn(Optional.of(chosen));
+        when(userRepository.findById(narrowedId)).thenReturn(Optional.of(narrowed));
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThat(service("ko", "en").findStoredLanguage(unsetId)).isEmpty();
+        assertThat(service("ko", "en").findStoredLanguage(chosenId)).contains("en");
+        // 설정이 좁아져 저장값이 지원 목록에서 빠졌으면 빈 값(기본값으로 메우지 않는다).
+        assertThat(service("ko").findStoredLanguage(narrowedId)).isEmpty();
+        assertThat(service("ko", "en").findStoredLanguage(userId)).isEmpty();
+    }
 }

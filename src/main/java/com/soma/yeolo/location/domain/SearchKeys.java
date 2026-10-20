@@ -1,6 +1,8 @@
 package com.soma.yeolo.location.domain;
 
 import java.text.Normalizer;
+import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -82,6 +84,53 @@ public final class SearchKeys {
         String decomposed = Normalizer.normalize(raw, Normalizer.Form.NFD);
         String stripped = COMBINING_MARKS.matcher(decomposed).replaceAll("");
         return Normalizer.normalize(stripped, Normalizer.Form.NFC);
+    }
+
+    /**
+     * 데이터셋이 떼어 낸 한국어 행정 접미사(docs/location-dataset.md §한국어 표기 정리, 빌드 스크립트의
+     * {@code JOINED_SUFFIX}·{@code KR_COUNTY_SUFFIX}와 같은 목록). 긴 것부터 대조한다. 붙여 쓴 "시"·"현"은
+     * 한·북·중·일·대만·홍콩·마카오만, "군"은 한국만 — 다른 나라의 "…시"(마라케시·트빌리시)는 지명의 일부다.
+     */
+    private static final String[] CJK_SUFFIXES = {"특별자치시", "특별자치도", "특별시", "광역시", "직할시", "시", "현"};
+    private static final Set<String> CJK_SUFFIX_COUNTRIES = Set.of("KR", "KP", "JP", "CN", "TW", "HK", "MO");
+    private static final String KR_COUNTY_SUFFIX = "군";
+
+    /**
+     * 정규화된 키에서 그 나라의 한국어 행정 접미사를 하나 뗀 키. 데이터셋은 "서울특별시"·"부산광역시"·"선전 시"를
+     * "서울"·"부산"·"선전"으로 들고 있지만, 그 전에 저장된 코스 목적지와 AI 입력은 옛 표기 그대로다 —
+     * 사진 조회가 완전 일치에 실패하면 이 키로 한 번 더 찾는다(빌드 스크립트의 규칙을 거꾸로 적용).
+     *
+     * <p>남는 글자가 둘 이상일 때만 뗀다("우시"(無錫)→"우"가 되면 안 된다). 접미사가 없거나 뗄 수 없거나 그
+     * 나라에 해당 규칙이 없으면 빈 값. 띄어쓴 "주"("머서티드빌 주")는 정규화 뒤 "광주"·"신의주"와 구분할 수 없어
+     * 다루지 않는다(스크립트가 떼는 유일한 비대칭, 해당 행이 드물다).
+     * 조회 쪽에서 DB 에 "저장명이 입력의 접두어" 질의를 거는 대신 이렇게 하는 이유: 그 질의는 "빈"(Vinh)이
+     * "빈롱"을, 빈 영문 키가 모든 도시를 잡는다 — 떼어 낼 접미사를 알고 있으니 입력 쪽을 고치는 편이 좁고 안전하다.
+     *
+     * @param countryId ISO 3166-1 alpha-2 (대문자)
+     */
+    public static Optional<String> withoutAdministrativeSuffix(String countryId, String normalizedKey) {
+        if (normalizedKey == null || countryId == null) {
+            return Optional.empty();
+        }
+        if (CJK_SUFFIX_COUNTRIES.contains(countryId)) {
+            for (String suffix : CJK_SUFFIXES) {
+                Optional<String> stripped = strip(normalizedKey, suffix);
+                if (stripped.isPresent()) {
+                    return stripped;
+                }
+            }
+        }
+        if ("KR".equals(countryId)) {
+            return strip(normalizedKey, KR_COUNTY_SUFFIX);
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<String> strip(String key, String suffix) {
+        if (key.endsWith(suffix) && key.length() - suffix.length() >= 2) {
+            return Optional.of(key.substring(0, key.length() - suffix.length()));
+        }
+        return Optional.empty();
     }
 
     /**
