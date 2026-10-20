@@ -1,8 +1,10 @@
 package com.soma.yeolo.location.service;
 
+import com.soma.yeolo.location.domain.SearchKeys;
 import com.soma.yeolo.location.entity.CityEntity;
 import com.soma.yeolo.location.entity.CityImageEntity;
 import com.soma.yeolo.location.entity.CountryEntity;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 기준 데이터 테이블을 통째로 교체한다. 한 트랜잭션 안에서 delete+insert 하므로 롤링 배포 중 다른
- * 파드에 중간 상태가 보이지 않는다. JPA 대신 JdbcTemplate 배치를 쓰는 이유는 3만 행의 영속성
+ * 파드에 중간 상태가 보이지 않는다. JPA 대신 JdbcTemplate 배치를 쓰는 이유는 수천 행의 영속성
  * 컨텍스트 비용을 피하기 위해서다.
  */
 @Slf4j
@@ -29,13 +31,15 @@ public class LocationSeedWriter {
     private static final int BATCH_SIZE = 1_000;
     private static final String COUNTRY_INSERT = """
             insert into countries
-                (country_id, name_ko, search_name, search_chosung, capital_city_id, currency_code, currency_symbol)
-            values (?, ?, ?, ?, ?, ?, ?)
+                (country_id, name_ko, name_en, search_name, search_name_en, search_chosung,
+                 capital_city_id, currency_code, currency_symbol)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
     private static final String CITY_INSERT = """
             insert into cities
-                (city_id, name_ko, search_name, search_chosung, country_id, country_name_ko, population)
-            values (?, ?, ?, ?, ?, ?, ?)
+                (city_id, name_ko, name_en, search_name, search_name_en, search_chosung,
+                 country_id, country_name_ko, population)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
     private static final String CITY_IMAGE_INSERT = """
             insert into city_images (city_id, s3_key, source, source_id)
@@ -92,20 +96,24 @@ public class LocationSeedWriter {
     }
 
     private void replaceCountries(LocationSeedFile file) {
-        // search_name 은 국가명 완전 일치 조회(LOC-2·LOC-3·사진)의 유일 키다. 정규화 후 겹치는 이름이
-        // 있으면 조회가 500(IncorrectResultSize)이 되므로 적재 자체를 거부한다(트랜잭션 롤백 → 옛 데이터 유지).
-        Set<String> seen = new java.util.HashSet<>();
+        // 국가명(두 언어)은 완전 일치 조회(LOC-2·LOC-3·사진·통화)의 유일 키다 — 앱은 두 키를 OR 로 찾는다.
+        // 정규화 후 겹치는 이름이 있으면 조회가 500(IncorrectResultSize)이 되므로 적재 자체를 거부한다
+        // (트랜잭션 롤백 → 옛 데이터 유지).
+        Map<String, String> seen = new HashMap<>();
         for (String[] row : file.rows()) {
-            String key = com.soma.yeolo.location.domain.SearchKeys.normalize(row[1]);
-            if (!seen.add(key)) {
-                throw new IllegalStateException("국가 데이터셋에 정규화 후 같은 이름이 둘 있다: " + row[1]);
+            for (String name : List.of(row[1], row[2])) {
+                String key = SearchKeys.normalize(name);
+                String other = seen.putIfAbsent(key, row[0]);
+                if (other != null && !other.equals(row[0])) {
+                    throw new IllegalStateException("국가 데이터셋에 정규화 후 같은 이름이 둘 있다: " + name);
+                }
             }
         }
         jdbcTemplate.update("delete from countries");
         batchInsert(COUNTRY_INSERT, file.rows(), row -> {
-            CountryEntity country = CountryEntity.of(row[0], row[1], row[2], row[3], row[4]);
-            return new Object[]{country.getCountryId(), country.getNameKo(),
-                    country.getSearchName(), country.getSearchChosung(),
+            CountryEntity country = CountryEntity.of(row[0], row[1], row[2], row[3], row[4], row[5]);
+            return new Object[]{country.getCountryId(), country.getNameKo(), country.getNameEn(),
+                    country.getSearchName(), country.getSearchNameEn(), country.getSearchChosung(),
                     country.getCapitalCityId(), country.getCurrencyCode(), country.getCurrencySymbol()};
         });
         markSeeded(LocationSeedLoader.COUNTRIES, file.version());
@@ -117,18 +125,18 @@ public class LocationSeedWriter {
         List<String[]> rows = file.rows().stream()
                 // 국가 기준 정보에 없는 국가의 도시는 버린다. countryNameKo 가 not null 이기도 하지만,
                 // 애초에 FE가 국가 목록에서 고를 수 없는 국가의 도시를 후보로 보여줄 이유가 없다.
-                .filter(row -> countryNames.containsKey(row[2]))
+                .filter(row -> countryNames.containsKey(row[3]))
                 .toList();
         int skipped = file.rows().size() - rows.size();
         if (skipped > 0) {
             log.warn("국가 기준 정보에 없는 국가의 도시 {}건을 건너뛴다", skipped);
         }
         batchInsert(CITY_INSERT, rows, row -> {
-            CityEntity city = CityEntity.of(row[0], row[1], row[2], countryNames.get(row[2]),
-                    Long.parseLong(row[3]));
-            return new Object[]{city.getCityId(), city.getNameKo(), city.getSearchName(),
-                    city.getSearchChosung(), city.getCountryId(), city.getCountryNameKo(),
-                    city.getPopulation()};
+            CityEntity city = CityEntity.of(row[0], row[1], row[2], row[3], countryNames.get(row[3]),
+                    Long.parseLong(row[4]));
+            return new Object[]{city.getCityId(), city.getNameKo(), city.getNameEn(),
+                    city.getSearchName(), city.getSearchNameEn(), city.getSearchChosung(),
+                    city.getCountryId(), city.getCountryNameKo(), city.getPopulation()};
         });
         markSeeded(LocationSeedLoader.CITIES, file.version());
         log.info("도시 기준 데이터 적재 완료: {}건 (version={})", rows.size(), file.version());

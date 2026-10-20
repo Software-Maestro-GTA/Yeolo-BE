@@ -1,0 +1,54 @@
+# 국가·도시 표시명 수동 덮어쓰기 (scripts/build-location-dataset.py 입력, docs/location-dataset.md §수동 덮어쓰기)
+#
+# 열: id	nameKo	nameEn	note
+#   id     — 국가는 ISO 3166-1 alpha-2(예: AU), 도시는 GeoNames geonameid(예: 3037543)
+#   nameKo — 비우면 출처(GeoNames → Wikidata)의 한국어명을 그대로 쓴다
+#   nameEn — 비우면 출처(GeoNames)의 영문명을 그대로 쓴다
+#   note   — 사람용 메모. 스크립트는 읽지 않는다
+#
+# 도시 행이 여기 있으면 인구 하한(--min-population)과 무관하게 데이터셋에 남긴다 — 인구는 적지만
+# 여행지로는 주요한 곳(끄라비·안시·몽트뢰 …)을 위한 것이다. 단 한국어명이 끝내 없으면(출처에도 없고
+# 여기 nameKo 도 비면) 그래도 뺀다 — 한글 표시가 데이터셋의 계약이다.
+#
+# 이름을 바꾸면 #version 을 올려 재적재시킨다(스크립트가 날짜 버전을 새로 찍는다).
+3037543			Annecy (FR) 49,232 — 인구 하한 아래의 여행지
+3028641			Carcassonne (FR) 49,600
+2659601			Montreux (CH) 25,984
+3201047			Dubrovnik (HR) 26,922
+2646088			Inverness (GB) 47,790
+1861416			Ishigaki (JP) 47,637
+1860026			Karuizawa (JP) 20,023
+2130306			Furano (JP) 21,131
+2129365	굿찬		Kutchan (JP) 15,816 — 니세코 관문. 출처에 한국어명이 없어 외래어 표기법으로 적는다
+2511730			Ronda (ES) 36,827
+3108877			Sitges (ES) 27,668
+1152633			Krabi (TH) 31,219
+1580541			Hoi An (VN) 32,757
+3858677			El Calafate (AR) 22,844
+# --- 출처(GeoNames·Wikidata)에 한국어명이 없는 주요 도시. 빌드 출력 missing-ko.tsv 에서 골랐다 ---
+2759794	암스테르담		Amsterdam (NL) 수도 — Wikidata 연결(P1566)이 어긋나 라벨이 안 잡힌다
+1581298	하이퐁		Haiphong (VN) 2,625,200
+3663517	마나우스		Manaus (BR) 2,219,580
+1586203	껀터		Cần Thơ (VN) 1,507,187
+6940394	사이타마		Saitama (JP) 1,324,854
+2530335	탕헤르		Tangier (MA) 1,035,141
+1856215	나가노		Nagano (JP) 372,760
+1859146	고치		Kōchi (JP) 332,059
+2525068	카타니아		Catania (IT) 311,584
+1787323	양숴		Yangshuo (CN) 300,000
+2111901	미토		Mito (JP) 270,685
+2735943	포르투		Porto (PT) 252,687
+2110556	야마가타		Yamagata (JP) 248,772
+2659994	로잔		Lausanne (CH) 139,111
+1809077	하이커우		Haikou (CN) 112,644
+1668295	타이둥		Taitung (TW) 103,260
+3121070	과달라하라		Guadalajara (ES) 93,470
+2513917	메리다		Mérida (ES) 59,857
+# --- 출처 표기가 틀리거나 낡은 도시 ---
+1845020	통영		Tongyeong (KR) — GeoNames 한국어 별명이 옛 이름 "충무"다
+1833105		Wonju	원주 (KR) — GeoNames 영문명이 매큔-라이샤워 "Wŏnju"
+1844191		Hongcheon	홍천 (KR) — "Hongch’ŏn"
+1842859		Gochang	고창 (KR) — "Koch'ang"
+1846095		Jincheon	진천 (KR) — "Chinch'ŏn"
+1848445		Yatsushiro	야쓰시로 (JP) — GeoNames 영어 별명이 동네 이름 "Honmachi"
+1862612		Himi	히미 (JP) — "Himimachi"

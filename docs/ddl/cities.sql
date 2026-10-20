@@ -6,7 +6,7 @@
 -- countries 와 함께 만든다(docs/ddl/countries.sql). 데이터는 앱이 기동 시 적재한다.
 CREATE TABLE IF NOT EXISTS cities (
     city_id         VARCHAR(32) NOT NULL,  -- GeoNames geonameid
-    name_ko         TEXT        NOT NULL,  -- 표시용 도시명. 한국어 이름이 없으면 원문(라틴) 표기
+    name_ko         TEXT        NOT NULL,  -- 한국어 표시명(행정 접미사 제거). 한국어명이 없는 도시는 데이터셋에 없다(2026-10)
     search_name     TEXT        NOT NULL,  -- 부분 일치 검색 키(소문자·구분자 제거)
     search_chosung  TEXT        NOT NULL,  -- 초성 검색 키
     country_id      VARCHAR(2)  NOT NULL,  -- countries.country_id
@@ -37,3 +37,11 @@ CREATE INDEX IF NOT EXISTS idx_cities_country_id ON cities (country_id);
 
 -- [2026-10] search_chosung 은 더 이상 조회에 쓰지 않는다(countries.sql 의 같은 항목 참고). 지금은 유지.
 -- ALTER TABLE cities DROP COLUMN IF EXISTS search_chosung;
+
+-- [2026-10] 언어별 표시명(한국어·영어, API-LOC-2/3 §언어 정책). countries.sql 의 같은 항목과 같은 이유로
+-- NOT NULL 없이 추가하고, 새 이미지 배포 '전'에 적용한다. 데이터셋 자체도 바뀐다(인구 5만 이상·한국어명
+-- 있는 도시 6천여 개, 행정 접미사 제거) — 적용 뒤 첫 부팅이 #version 차이로 cities 를 통째로 교체한다.
+ALTER TABLE cities
+    ADD COLUMN IF NOT EXISTS name_en        TEXT,
+    ADD COLUMN IF NOT EXISTS search_name_en TEXT;
+CREATE INDEX IF NOT EXISTS idx_cities_search_name_en ON cities (search_name_en text_pattern_ops);

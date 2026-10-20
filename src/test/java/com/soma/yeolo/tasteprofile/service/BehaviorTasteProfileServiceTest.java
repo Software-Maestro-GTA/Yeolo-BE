@@ -23,8 +23,10 @@ import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisRequest;
 import com.soma.yeolo.tasteprofile.dto.BehaviorAnalysisRequest.ImageMetadata;
 import com.soma.yeolo.tasteprofile.service.port.TasteProfileRepository;
 import java.io.IOException;
+import com.soma.yeolo.user.service.UserLanguageReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -74,8 +76,21 @@ class BehaviorTasteProfileServiceTest {
 
     private final FakeTasteProfileRepository store = new FakeTasteProfileRepository();
 
+    /** 언어 설정 포트 fake: 항상 ko. */
+    private static final UserLanguageReader KOREAN_USER = new UserLanguageReader() {
+        @Override
+        public String findLanguage(UUID userId) {
+            return "ko";
+        }
+
+        @Override
+        public Optional<String> findStoredLanguage(UUID userId) {
+            return Optional.of("ko");
+        }
+    };
+
     private BehaviorTasteProfileService service() {
-        return new BehaviorTasteProfileService(preprocessor, aiClient, assembler, store, userId -> "ko",
+        return new BehaviorTasteProfileService(preprocessor, aiClient, assembler, store, KOREAN_USER,
                 TestSseHeartbeat.create());
     }
 

@@ -16,7 +16,7 @@ public interface CountryCurrencyReader {
     }
 
     /**
-     * @param countryName 표시명(예: "일본"). 적재된 국가명과 정규화 후 완전 일치해야 한다
+     * @param countryName 표시명(예: "일본"·"Japan"). 적재된 국가명(두 언어)과 정규화 후 완전 일치해야 한다
      * @return 국가를 못 찾거나 통용 통화가 없는 영토(남극 등)면 빈 값
      */
     Optional<CountryCurrency> findCurrency(String countryName);

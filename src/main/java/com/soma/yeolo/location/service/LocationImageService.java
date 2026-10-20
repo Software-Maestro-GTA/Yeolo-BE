@@ -1,5 +1,6 @@
 package com.soma.yeolo.location.service;
 
+import com.soma.yeolo.location.domain.LikePatterns;
 import com.soma.yeolo.location.domain.SearchKeys;
 import com.soma.yeolo.location.entity.CityEntity;
 import com.soma.yeolo.location.entity.CityImageEntity;
@@ -11,19 +12,24 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 /**
  * 도시 대표 사진 조회 ({@link LocationImageReader} 구현). 데이터셋 근거와 폴백 규칙은 인터페이스와
- * {@link CityImageEntity} 설명을 본다. 도시 이름은 완전 일치 → 접두어 일치 순으로 찾는다.
+ * {@link CityImageEntity} 설명을 본다. 국가·도시 이름은 한국어·영문 어느 쪽으로 줘도 찾는다 — 호출자
+ * (코스의 목적지, AI 추천 도시)가 사용자 언어에 따라 어느 언어로든 이름을 줄 수 있기 때문이다.
+ * 도시 이름은 완전 일치 → 접두어 일치 → 옛 행정 접미사를 뗀 키로 다시 두 단계 순으로 찾는다.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class LocationImageService implements LocationImageReader {
+
+    private static final Pageable FIRST = PageRequest.of(0, 1);
 
     private final CountryRepository countryRepository;
     private final CityRepository cityRepository;
@@ -37,7 +43,7 @@ public class LocationImageService implements LocationImageReader {
             log.debug("location.images.base-url 이 비어 있어 도시 사진을 내려줄 수 없다");
             return Optional.empty();
         }
-        Optional<CountryEntity> country = countryRepository.findBySearchName(SearchKeys.normalize(countryName));
+        Optional<CountryEntity> country = countryRepository.findByAnySearchName(SearchKeys.normalize(countryName));
         if (country.isEmpty()) {
             return Optional.empty();
         }
@@ -53,11 +59,19 @@ public class LocationImageService implements LocationImageReader {
         if (key.isEmpty()) {
             return Optional.empty();
         }
-        // 완전 일치 → 접두어 일치("부산" → "부산광역시", 인구 최다). 접두어 단계가 없으면 흔한 입력이
-        // 전부 수도 사진으로 떨어져 "부산"에 서울 사진이 붙는다.
-        return cityRepository.findFirstByCountryIdAndSearchNameOrderByPopulationDesc(countryId, key)
-                .or(() -> cityRepository.findFirstByCountryIdAndSearchNameStartingWithOrderByPopulationDesc(countryId, key))
+        // 완전 일치 → 접두어 일치 → 옛 행정 접미사를 뗀 키("부산광역시"·"수원시"·"선전시" → "부산"·"수원"·"선전")로
+        // 다시 완전 일치·접두어. 세 번째 단계가 없으면 데이터셋이 접미사를 떼기 전에 저장된 코스 목적지가
+        // 전부 수도 사진으로 떨어진다. 어느 단계든 동명이면 인구가 많은 쪽이다.
+        return findCity(countryId, key)
+                .or(() -> SearchKeys.withoutAdministrativeSuffix(countryId, key)
+                        .flatMap(stripped -> findCity(countryId, stripped)))
                 .flatMap(city -> cityImageRepository.findById(city.getCityId()));
+    }
+
+    private Optional<CityEntity> findCity(String countryId, String key) {
+        return cityRepository.findByCountryIdAndAnySearchName(countryId, key, FIRST).stream().findFirst()
+                .or(() -> cityRepository.findByCountryIdAndAnySearchNamePrefix(countryId, LikePatterns.prefix(key), FIRST)
+                        .stream().findFirst());
     }
 
     private Optional<CityImageEntity> capitalImage(CountryEntity country) {
@@ -65,7 +79,7 @@ public class LocationImageService implements LocationImageReader {
     }
 
     private Optional<CityImageEntity> largestCityImage(String countryId) {
-        return cityRepository.findWithImageByCountryIdOrderByPopulationDesc(countryId, PageRequest.of(0, 1))
+        return cityRepository.findWithImageByCountryIdOrderByPopulationDesc(countryId, FIRST)
                 .stream().findFirst()
                 .map(CityEntity::getCityId)
                 .flatMap(cityImageRepository::findById);
