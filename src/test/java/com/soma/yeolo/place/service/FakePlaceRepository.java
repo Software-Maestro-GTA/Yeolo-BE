@@ -3,6 +3,7 @@ package com.soma.yeolo.place.service;
 import com.soma.yeolo.place.domain.Place;
 import com.soma.yeolo.place.domain.SavedPlace;
 import com.soma.yeolo.place.service.port.PlaceRepository;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -39,5 +40,16 @@ class FakePlaceRepository implements PlaceRepository {
     @Override
     public Optional<SavedPlace> findById(UUID placeId) {
         return Optional.ofNullable(byId.get(placeId));
+    }
+
+    @Override
+    public Map<UUID, String> findProviderPlaceIds(Collection<UUID> placeIds) {
+        Map<UUID, String> result = new LinkedHashMap<>();
+        idByProviderPlaceId.forEach((providerPlaceId, placeId) -> {
+            if (placeIds.contains(placeId)) {
+                result.put(placeId, providerPlaceId);
+            }
+        });
+        return result;
     }
 }
