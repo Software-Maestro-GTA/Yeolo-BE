@@ -68,4 +68,27 @@ class PlaceTest {
                 33.3948, 126.2396, null, null, List.of()))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    /** Google Place ID 는 영숫자·-·_ 뿐이고, BE 가 합성한 provider 식별자는 이름공간 접두사(콜론)가 붙는다. */
+    @Test
+    void Google_Place_ID_형식만_되돌린다() {
+        assertThat(Place.toGooglePlaceId("ChIJN1t_tDeuEmsRUsoyG83frY4")).isEqualTo("ChIJN1t_tDeuEmsRUsoyG83frY4");
+        assertThat(Place.toGooglePlaceId("EicxMyBNYXJrZXQgU3RyZWV0LCBXaWxtaW5ndG9uLCBOQyAyODQwMQ"))
+                .isEqualTo("EicxMyBNYXJrZXQgU3RyZWV0LCBXaWxtaW5ndG9uLCBOQyAyODQwMQ");
+        assertThat(Place.toGooglePlaceId("places/ChIJN1t_tDeuEmsRUsoyG83frY4")).isEqualTo("ChIJN1t_tDeuEmsRUsoyG83frY4");
+
+        assertThat(Place.toGooglePlaceId("osm:place12345")).isNull();
+        assertThat(Place.toGooglePlaceId("stub:1a2b3c")).isNull();
+        assertThat(Place.toGooglePlaceId("")).isNull();
+        assertThat(Place.toGooglePlaceId(null)).isNull();
+    }
+
+    /** places/ 접두사가 붙은 채 들어온 식별자는 저장 전에 벗겨, 같은 장소가 두 형태로 두 번 저장되지 않게 한다. */
+    @Test
+    void places_접두사는_저장_전에_벗긴다() {
+        Place place = new Place("places/ChIJN1t_tDeuEmsRUsoyG83frY4", "성산일출봉", null, "nature", null,
+                33.4581, 126.9425, null, null, List.of());
+
+        assertThat(place.providerPlaceId()).isEqualTo("ChIJN1t_tDeuEmsRUsoyG83frY4");
+    }
 }

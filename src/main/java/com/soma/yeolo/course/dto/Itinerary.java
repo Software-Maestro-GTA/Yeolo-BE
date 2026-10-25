@@ -3,7 +3,6 @@ package com.soma.yeolo.course.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * 코스 상세의 {@code itinerary} 페이로드 (API-COURSE-2 / DOM-3). FE가 타입으로 소비할 수 있도록
@@ -49,19 +48,20 @@ public record Itinerary(List<Day> days) {
     /**
      * 방문 장소.
      *
-     * <p>{@code placeId}는 BE가 부여한 <b>내부</b> 식별자다. AI는 provider 식별자(Google Place ID)를
-     * 주지만 {@code ItineraryPlaceNormalizer}가 저장 직전에 내부 식별자로 바꿔 넣는다. 정규화하지
-     * 못한 장소는 {@code placeId}가 {@code null}이다(이름·좌표는 AI가 준 값이 남아 있어 지도 표시는
-     * 된다). 장소 상세 API(API-PLACE-1)는 2026-10 개정으로 폐기되어 FE가 이 식별자로 조회하지는 않는다.
+     * <p>{@code placeId}는 <b>읽는 단계와 응답 단계에서 뜻이 다르다.</b> 저장된 itinerary JSON에는
+     * {@code ItineraryPlaceNormalizer}가 저장 직전에 심은 BE 내부 식별자(UUID)가 들어 있고, 이 타입은
+     * 그 JSON을 읽을 때 {@link LenientUuidDeserializer}로 내부 UUID 문자열만 통과시킨다(UUID가 아닌
+     * 값은 null — 정규화 전 코스에 남은 외부 식별자가 그대로 새지 않게 하는 안전장치). 응답으로 나가기
+     * 전에 {@code ItineraryGooglePlaceIdMapper}가 그 UUID를 장소 테이블의 <b>Google Place ID</b>로
+     * 바꿔 넣는다 — FE가 이 값으로 Google Maps 를 연다(2026-10-25 결정. DOM-3 "Google Place ID
+     * 비노출" 문구와 상충하므로 명세 개정이 뒤따라야 한다).
      *
-     * <p>{@code placeId}를 {@code UUID}로 선언한 것은 계약이자 안전장치다 — 내부 식별자만이 이 타입을
-     * 통과하므로, 외부 식별자가 저장된 JSON에 섞여 있어도 FE 응답으로 나갈 수 없다. 정규화에 실패해
-     * provider 식별자가 남은 코스를 읽다 깨지지 않도록 UUID가 아닌 값은
-     * {@link LenientUuidDeserializer}가 null로 떨어뜨린다.
-     * (DOM-3: "Google Place ID는 앱에 노출하지 않는다")
+     * <p>정규화하지 못한 장소, 장소 행이 없는 경우, Google 형식이 아닌 provider({@code osm:}·
+     * {@code stub:})로 등록된 장소는 {@code placeId}가 {@code null}이다. 이름·좌표는 남아 있어 지도
+     * 표시는 된다.
      */
     public record Place(
-            @JsonDeserialize(using = LenientUuidDeserializer.class) UUID placeId,
+            @JsonDeserialize(using = LenientUuidDeserializer.class) String placeId,
             String placeName,
             String category,
             Double latitude,

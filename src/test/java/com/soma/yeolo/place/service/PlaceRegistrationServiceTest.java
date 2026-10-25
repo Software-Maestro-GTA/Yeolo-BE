@@ -7,7 +7,9 @@ import com.soma.yeolo.place.domain.Place;
 import com.soma.yeolo.place.domain.PlaceQuery;
 import com.soma.yeolo.place.domain.SavedPlace;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class PlaceRegistrationServiceTest {
@@ -26,6 +28,11 @@ class PlaceRegistrationServiceTest {
 
     private PlaceQuery query() {
         return new PlaceQuery("성산일출봉", "nature", "대한민국", "제주");
+    }
+
+    private Place placeWithProviderId(String providerPlaceId) {
+        return new Place(providerPlaceId, "장소 " + providerPlaceId, null, "nature", null,
+                33.4581, 126.9425, null, null, List.of());
     }
 
     @Test
@@ -78,6 +85,35 @@ class PlaceRegistrationServiceTest {
         assertThat(place.placeEngName()).isEqualTo("Seongsan Ilchulbong");
         assertThat(place.photoUrl()).isEqualTo("https://cdn.example.com/seongsan.jpg");
         assertThat(placeRepository.findById(place.placeId())).isPresent();
+    }
+
+    // ===== 내부 placeId → Google Place ID 역조회 (코스 상세 조회 API-COURSE-2) =====
+
+    @Test
+    void 내부_placeId를_Google_Place_ID로_되돌리고_Google_형식이_아닌_장소는_뺀다() {
+        PlaceRegistrationService service = serviceReturning(q -> Optional.empty());
+        SavedPlace google = service.register(placeWithProviderId("ChIJN1t_tDeuEmsRUsoyG83frY4"));
+        SavedPlace osm = service.register(placeWithProviderId("osm:place12345"));
+        SavedPlace stub = service.register(placeWithProviderId("stub:1a2b3c"));
+        UUID unknown = UUID.randomUUID();
+
+        Map<UUID, String> ids = service.findGooglePlaceIds(
+                List.of(google.placeId(), osm.placeId(), stub.placeId(), unknown));
+
+        assertThat(ids).containsExactly(Map.entry(google.placeId(), "ChIJN1t_tDeuEmsRUsoyG83frY4"));
+    }
+
+    /** Places API (New) 리소스 이름 형태로 들어온 장소는 접두사 없는 같은 장소와 한 행으로 모이고, Google Place ID 로 되돌아간다. */
+    @Test
+    void places_접두사가_붙은_식별자는_같은_장소로_합쳐지고_벗겨서_되돌린다() {
+        PlaceRegistrationService service = serviceReturning(q -> Optional.empty());
+        SavedPlace prefixed = service.register(placeWithProviderId("places/ChIJN1t_tDeuEmsRUsoyG83frY4"));
+        SavedPlace bare = service.register(placeWithProviderId("ChIJN1t_tDeuEmsRUsoyG83frY4"));
+
+        assertThat(bare.placeId()).isEqualTo(prefixed.placeId());
+        assertThat(placeRepository.saveCount).isEqualTo(1);
+        assertThat(service.findGooglePlaceIds(List.of(prefixed.placeId())))
+                .containsExactly(Map.entry(prefixed.placeId(), "ChIJN1t_tDeuEmsRUsoyG83frY4"));
     }
 
     @Test

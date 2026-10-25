@@ -18,6 +18,10 @@ import java.time.Duration;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.location.service.LocationImageReader;
+import com.soma.yeolo.place.domain.Place;
+import com.soma.yeolo.place.domain.PlaceQuery;
+import com.soma.yeolo.place.domain.SavedPlace;
+import com.soma.yeolo.place.service.PlaceRegistry;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -151,16 +155,52 @@ class CourseQueryServiceTest {
         }
     }
 
+    /** 장소 레지스트리 fake: 내부 placeId → Google Place ID 매핑과, 역조회에 넘어온 식별자 묶음을 기록한다. */
+    private static final class FakePlaceRegistry implements PlaceRegistry {
+        private final Map<UUID, String> googleIds = new HashMap<>();
+        private final List<Collection<UUID>> lookups = new ArrayList<>();
+        private RuntimeException failure;
+
+        @Override
+        public SavedPlace register(Place place) {
+            throw new UnsupportedOperationException("조회 테스트에서는 등록을 사용하지 않는다.");
+        }
+
+        @Override
+        public Optional<SavedPlace> resolve(PlaceQuery query) {
+            throw new UnsupportedOperationException("조회 테스트에서는 provider 조회를 사용하지 않는다.");
+        }
+
+        @Override
+        public Map<UUID, String> findGooglePlaceIds(Collection<UUID> placeIds) {
+            lookups.add(List.copyOf(placeIds));
+            if (failure != null) {
+                throw failure;
+            }
+            Map<UUID, String> result = new HashMap<>();
+            for (UUID placeId : placeIds) {
+                if (googleIds.containsKey(placeId)) {
+                    result.put(placeId, googleIds.get(placeId));
+                }
+            }
+            return result;
+        }
+    }
+
+    private static final String GOOGLE_PLACE_ID = "ChIJN1t_tDeuEmsRUsoyG83frY4";
+
     private final FakeCourseRepository courses = new FakeCourseRepository();
     private final FakeCourseSharing sharing = new FakeCourseSharing();
     private final FakeLocationImageReader cityImages = new FakeLocationImageReader();
     private final FakeCountryCurrencyReader currencies = new FakeCountryCurrencyReader();
     private final FakeExchangeRateProvider exchangeRates = new FakeExchangeRateProvider();
+    private final FakePlaceRegistry places = new FakePlaceRegistry();
 
     private CourseQueryService service() {
         return new CourseQueryService(courses, sharing, new CourseCoverImageResolver(cityImages), currencies,
                 exchangeRates,
-                new ExchangeRateProperties("KRW", "stub", null, null, Duration.ZERO));
+                new ExchangeRateProperties("KRW", "stub", null, null, Duration.ZERO),
+                new ItineraryGooglePlaceIdMapper(places));
     }
 
     private SavedCourse course(UUID courseId, UUID userId, String title, String itineraryJson) {
@@ -292,11 +332,13 @@ class CourseQueryServiceTest {
         assertThat(response.course().itinerary().days()).hasSize(1);
     }
 
+    /** stop 의 placeId 는 저장된 내부 UUID 가 아니라 장소 테이블의 Google Place ID 로 내려간다(FE가 Google Maps 를 연다). */
     @Test
     void 상세의_stop에_장소와_이동_정보를_명세_구조로_담는다() {
         UUID me = UUID.randomUUID();
         UUID courseId = UUID.randomUUID();
         UUID placeId = UUID.randomUUID();
+        places.googleIds.put(placeId, GOOGLE_PLACE_ID);
         courses.store.add(course(courseId, me, "내 코스", """
                 {"days":[{"day":1,"stops":[{"sequence":1,"stayMinutes":90,
                   "memo":"일출","reason":"대표 명소","cost":5000,
@@ -310,7 +352,8 @@ class CourseQueryServiceTest {
                 .course().itinerary().days().get(0).stops().get(0);
 
         assertThat(stop.stayMinutes()).isEqualTo(90);
-        assertThat(stop.place().placeId()).isEqualTo(placeId);
+        assertThat(stop.place().placeId()).isEqualTo(GOOGLE_PLACE_ID);
+        assertThat(places.lookups).containsExactly(List.of(placeId));
         assertThat(stop.place().placeName()).isEqualTo("성산일출봉");
         assertThat(stop.place().latitude()).isEqualTo(33.4581);
         assertThat(stop.place().longitude()).isEqualTo(126.9425);
@@ -473,7 +516,8 @@ class CourseQueryServiceTest {
         CourseQueryService service = new CourseQueryService(courses, sharing,
                 new CourseCoverImageResolver(cityImages), currencies,
                 (from, to) -> { throw new IllegalStateException("provider down"); },
-                new ExchangeRateProperties("KRW", "stub", null, null, Duration.ZERO));
+                new ExchangeRateProperties("KRW", "stub", null, null, Duration.ZERO),
+                new ItineraryGooglePlaceIdMapper(places));
 
         CourseDetailResponse.CourseDetail detail = service.getCourse(me, courseId).course();
 
@@ -482,8 +526,9 @@ class CourseQueryServiceTest {
     }
 
     /**
-     * AI가 넣은 외부 식별자는 응답에 실리지 않아야 하고(DOM-3: Google Place ID 비노출), 조회를
-     * 깨뜨려서도 안 된다. 장소 정규화에 실패한 코스가 이 경로를 탄다.
+     * 저장 JSON 에 내부 UUID 가 아닌 값이 남아 있으면(장소 정규화 이전에 저장된 코스) 장소 테이블과
+     * 연결되지 않아 Google Place ID 로 되돌릴 수 없다. 그 값을 그대로 흘려보내지 말고 null 로 내리되,
+     * 조회를 깨뜨려서도 안 된다.
      */
     @Test
     void 내부_placeId가_아닌_값은_응답에서_제외하고_조회는_성공한다() {
@@ -497,6 +542,75 @@ class CourseQueryServiceTest {
 
         assertThat(response.course().itinerary().days().get(0).stops().get(0).place().placeId()).isNull();
         assertThat(response.toString()).doesNotContain("ChIJ_GOOGLE_ID");
+        assertThat(places.lookups).isEmpty();
+    }
+
+    /** 장소 행이 없거나 Google 형식이 아닌 장소(레지스트리가 돌려주지 않음)는 placeId 를 null 로 내린다. */
+    @Test
+    void Google_Place_ID로_되돌릴_수_없는_placeId는_null로_내린다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        UUID unknownPlaceId = UUID.randomUUID();
+        courses.store.add(course(courseId, me, "내 코스",
+                "{\"days\":[{\"day\":1,\"stops\":[{\"sequence\":1,"
+                        + "\"place\":{\"placeId\":\"" + unknownPlaceId + "\",\"placeName\":\"협재 해수욕장\","
+                        + "\"latitude\":33.3948,\"longitude\":126.2396}}]}]}"));
+
+        Itinerary.Place place = service().getCourse(me, courseId)
+                .course().itinerary().days().get(0).stops().get(0).place();
+
+        assertThat(place.placeId()).isNull();
+        assertThat(place.placeName()).isEqualTo("협재 해수욕장");
+        assertThat(place.latitude()).isEqualTo(33.3948);
+        // 되돌리지 못한 내부 UUID 를 그대로 흘려보내지 않는다 — FE 가 Google 에 넘겨도 의미 없는 값이다.
+        assertThat(place.toString()).doesNotContain(unknownPlaceId.toString());
+    }
+
+    /** 장소 식별자 조회는 부가 정보다 — 장소 테이블 조회가 실패해도 상세는 placeId 만 비우고 성공한다. */
+    @Test
+    void 장소_식별자_조회가_예외를_던져도_상세는_placeId_없이_성공한다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        UUID placeId = UUID.randomUUID();
+        places.googleIds.put(placeId, GOOGLE_PLACE_ID);
+        places.failure = new IllegalStateException("db down");
+        courses.store.add(course(courseId, me, "내 코스",
+                "{\"days\":[{\"day\":1,\"stops\":[{\"sequence\":1,"
+                        + "\"place\":{\"placeId\":\"" + placeId + "\",\"placeName\":\"성산일출봉\"}}]}]}"));
+
+        Itinerary.Place place = service().getCourse(me, courseId)
+                .course().itinerary().days().get(0).stops().get(0).place();
+
+        assertThat(place.placeId()).isNull();
+        assertThat(place.placeName()).isEqualTo("성산일출봉");
+    }
+
+    /** 같은 장소가 여러 stop·여러 날에 등장해도(숙소 등) 장소 테이블 조회는 코스당 한 번이다. */
+    @Test
+    void 코스의_모든_stop_placeId를_모아_한_번에_되돌린다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        UUID hotel = UUID.randomUUID();
+        UUID sight = UUID.randomUUID();
+        places.googleIds.put(hotel, "ChIJ_HOTEL");
+        places.googleIds.put(sight, GOOGLE_PLACE_ID);
+        courses.store.add(course(courseId, me, "내 코스", """
+                {"days":[
+                  {"day":1,"stops":[{"sequence":1,"place":{"placeId":"%s","placeName":"호텔"}},
+                                    {"sequence":2,"place":{"placeId":"%s","placeName":"성산일출봉"}},
+                                    {"sequence":3,"place":{"placeId":"%s","placeName":"호텔"}}]},
+                  {"day":2,"stops":[{"sequence":1,"place":{"placeId":"%s","placeName":"호텔"}},
+                                    {"sequence":2,"place":{"placeName":"이름만 있는 곳"}}]}]}
+                """.formatted(hotel, sight, hotel, hotel)));
+
+        List<Itinerary.Day> days = service().getCourse(me, courseId).course().itinerary().days();
+
+        assertThat(days.get(0).stops()).extracting(s -> s.place().placeId())
+                .containsExactly("ChIJ_HOTEL", GOOGLE_PLACE_ID, "ChIJ_HOTEL");
+        assertThat(days.get(1).stops()).extracting(s -> s.place().placeId())
+                .containsExactly("ChIJ_HOTEL", null);
+        assertThat(places.lookups).hasSize(1);
+        assertThat(places.lookups.get(0)).containsExactlyInAnyOrder(hotel, sight);
     }
 
     /**

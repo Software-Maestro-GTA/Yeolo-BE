@@ -55,6 +55,7 @@ public class CourseQueryService implements RecentCourseReader {
     private final CountryCurrencyReader countryCurrencyReader;
     private final ExchangeRateProvider exchangeRateProvider;
     private final ExchangeRateProperties exchangeRateProperties;
+    private final ItineraryGooglePlaceIdMapper googlePlaceIds;
 
     /**
      * 사용자의 코스를 최신순 요약 목록으로 반환한다. 없으면 빈 목록. (API-COURSE-3)
@@ -103,11 +104,13 @@ public class CourseQueryService implements RecentCourseReader {
     /**
      * 코스 상세를 반환한다. 코스가 없으면 404, 소유자도 공유받은 사용자도 아니면 403으로 응답한다.
      * (API-COURSE-2 / DOM-6 §권한 정책 — "공유받은 코스 상세 조회")
-     */
-    /**
-     * 상세 조회. 트랜잭션을 걸지 않는다 — 환율 조회({@link #convertCost})가 외부 HTTP 호출이라 트랜잭션
+     *
+     * <p>stop 의 {@code place.placeId}는 저장된 내부 UUID 가 아니라 <b>Google Place ID</b> 로 내려간다
+     * ({@link ItineraryGooglePlaceIdMapper}). FE가 그 값으로 Google Maps 를 열기 때문이다.
+     *
+     * <p>트랜잭션을 걸지 않는다 — 환율 조회({@link #convertCost})가 외부 HTTP 호출이라 트랜잭션
      * 안에서 돌리면 제공처가 느릴 때 커넥션 풀의 연결을 수 초씩 붙들어 다른 API 까지 끌려 들어간다.
-     * 코스·공유 조회는 각각 읽기 전용 모델을 돌려주는 단일 쿼리라 하나의 트랜잭션으로 묶을 이유가 없다.
+     * 코스·공유·장소 조회는 각각 읽기 전용 모델을 돌려주는 단일 쿼리라 하나의 트랜잭션으로 묶을 이유가 없다.
      */
     public CourseDetailResponse getCourse(UUID userId, UUID courseId) {
         SavedCourse course = courseRepository.findById(courseId)
@@ -115,8 +118,7 @@ public class CourseQueryService implements RecentCourseReader {
         if (!course.isOwnedBy(userId) && !courseSharing.isSharedWith(courseId, userId)) {
             throw new BusinessException(ErrorCode.COURSE_ACCESS_DENIED);
         }
-        Itinerary itinerary = parseItinerary(course.itineraryJson());
-        return CourseDetailResponse.from(course, itinerary, convertCost(course));
+        return CourseDetailResponse.from(course, readItinerary(course.itineraryJson()), convertCost(course));
     }
 
     /**
@@ -176,12 +178,19 @@ public class CourseQueryService implements RecentCourseReader {
         courseRepository.deleteById(courseId);
     }
 
-    private Itinerary parseItinerary(String itineraryJson) {
+    /**
+     * 저장된 itinerary JSON 을 응답용으로 읽는다. 파싱과 placeId 치환(내부 UUID → Google Place ID)을 한
+     * 메서드로 묶어, 저장 JSON 을 읽는 모든 경로가 내부 식별자를 그대로 내보낼 수 없게 한다 —
+     * {@code Itinerary.Place.placeId}는 문자열이라 타입이 이를 막아 주지 않는다.
+     */
+    private Itinerary readItinerary(String itineraryJson) {
+        Itinerary stored;
         try {
-            return OBJECT_MAPPER.readValue(itineraryJson, Itinerary.class);
+            stored = OBJECT_MAPPER.readValue(itineraryJson, Itinerary.class);
         } catch (Exception e) {
             // 저장된 itinerary JSON이 손상된 예외적 상황 — 500으로 노출한다.
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, e);
         }
+        return googlePlaceIds.toGooglePlaceIds(stored);
     }
 }

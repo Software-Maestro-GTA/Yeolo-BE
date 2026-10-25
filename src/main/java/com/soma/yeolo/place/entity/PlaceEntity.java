@@ -24,8 +24,9 @@ import lombok.NoArgsConstructor;
  * (API-PLACE-1)는 2026-10 명세 개정으로 폐기됐고, 이 테이블은 식별자 치환·재사용 용도로 남는다.
  *
  * <p>{@code provider_place_id}에 unique 제약을 둬 같은 장소가 코스마다 중복 저장되지 않게 한다
- * (외부 조회 결과 캐시 역할). 이 컬럼은 <b>내부 전용</b>이며 {@link #toSavedPlace()}가 만드는 읽기
- * 모델에는 담기지 않는다 — Google Place ID가 FE로 새어 나갈 경로를 차단한다.
+ * (외부 조회 결과 캐시 역할). 이 컬럼은 {@link #toSavedPlace()}가 만드는 읽기 모델에는 담기지 않고,
+ * 코스 상세 조회가 stop 의 내부 placeId 를 Google Place ID 로 되돌릴 때만
+ * ({@code PlaceRepository.findProviderPlaceIds}) 별도로 읽는다.
  */
 @Getter
 @Entity
