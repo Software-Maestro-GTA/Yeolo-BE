@@ -29,7 +29,9 @@ import com.soma.yeolo.user.service.UserLanguageReader;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -173,6 +175,11 @@ class CourseCreationServiceTest {
         public Optional<SavedPlace> resolve(PlaceQuery query) {
             return Optional.of(new SavedPlace(UUID.randomUUID(), query.placeName(), null,
                     query.category(), "제주", 33.4581, 126.9425, null, null, List.of()));
+        }
+
+        @Override
+        public Map<UUID, String> findGooglePlaceIds(Collection<UUID> placeIds) {
+            throw new UnsupportedOperationException("코스 생성은 Google Place ID 역조회를 쓰지 않는다.");
         }
     };
 

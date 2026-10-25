@@ -5,7 +5,11 @@ import com.soma.yeolo.place.domain.Place;
 import com.soma.yeolo.place.domain.PlaceQuery;
 import com.soma.yeolo.place.domain.SavedPlace;
 import com.soma.yeolo.place.service.port.PlaceRepository;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -59,5 +63,22 @@ public class PlaceRegistrationService implements PlaceRegistry {
             log.info("장소를 정규화하지 못했다(조회 결과 없음) - '{}'", query.searchText());
         }
         return place;
+    }
+
+    /** Google 형식이 아닌 provider 식별자는 걸러낸다 — FE가 Google Maps 에 넘겨도 찾을 수 없는 값이다. */
+    @Override
+    public Map<UUID, String> findGooglePlaceIds(Collection<UUID> placeIds) {
+        Map<UUID, String> result = new HashMap<>();
+        placeRepository.findProviderPlaceIds(placeIds).forEach((placeId, providerPlaceId) -> {
+            String googlePlaceId = Place.toGooglePlaceId(providerPlaceId);
+            if (googlePlaceId != null) {
+                result.put(placeId, googlePlaceId);
+            } else {
+                // 형식이 어긋나 모든 placeId 가 비는 사고를 진단할 수 있게 남긴다(osm 시절 행은 정상적으로 여기 온다).
+                log.debug("Google 형식이 아닌 provider 식별자라 placeId 를 비운다. placeId={}, providerPlaceId={}",
+                        placeId, providerPlaceId);
+            }
+        });
+        return result;
     }
 }

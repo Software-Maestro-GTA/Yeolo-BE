@@ -4,6 +4,9 @@ import com.soma.yeolo.place.domain.Place;
 import com.soma.yeolo.place.domain.SavedPlace;
 import com.soma.yeolo.place.entity.PlaceEntity;
 import com.soma.yeolo.place.service.port.PlaceRepository;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -41,5 +44,17 @@ class PlaceRepositoryImpl implements PlaceRepository {
     @Override
     public Optional<SavedPlace> findById(UUID placeId) {
         return jpaRepository.findById(placeId).map(PlaceEntity::toSavedPlace);
+    }
+
+    @Override
+    public Map<UUID, String> findProviderPlaceIds(Collection<UUID> placeIds) {
+        if (placeIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, String> result = new HashMap<>();
+        for (PlaceJpaRepository.ProviderPlaceIdRow row : jpaRepository.findProviderPlaceIdsByIdIn(placeIds)) {
+            result.put(row.getId(), row.getProviderPlaceId());
+        }
+        return result;
     }
 }

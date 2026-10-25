@@ -2,6 +2,8 @@ package com.soma.yeolo.place.service.port;
 
 import com.soma.yeolo.place.domain.Place;
 import com.soma.yeolo.place.domain.SavedPlace;
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,4 +26,11 @@ public interface PlaceRepository {
 
     /** 내부 식별자로 장소를 조회한다. 없으면 빈 값. (API-PLACE-1) */
     Optional<SavedPlace> findById(UUID placeId);
+
+    /**
+     * 내부 식별자들에 해당하는 장소의 provider 식별자를 한 번에 조회한다. 저장돼 있지 않은 식별자는
+     * 결과에 담기지 않는다. 코스 상세 조회가 stop의 내부 {@code placeId}를 Google Place ID로 되돌리는 데
+     * 쓴다 — {@link SavedPlace}에는 의도적으로 provider 식별자를 담지 않으므로 별도 조회다.
+     */
+    Map<UUID, String> findProviderPlaceIds(Collection<UUID> placeIds);
 }
