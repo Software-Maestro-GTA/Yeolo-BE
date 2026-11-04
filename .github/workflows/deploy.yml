@@ -170,6 +170,13 @@ jobs:
           # variables 에 https://places.googleapis.com/v1/places:searchNearby 를 넣는다.
           # (키에 그 API 가 안 열려 있으면 사진 한 장마다 403 왕복이 붙어 SSE 가 느려진다.)
           GEOCODE_SEARCH_NEARBY_URL: ${{ vars.GEOCODE_SEARCH_NEARBY_URL }}
+          # 취향 분석 역지오코딩 튜닝(#122). 셋 다 선택이며 비우면 앱 기본값(100 / 3 / 4096)을 쓴다.
+          # NEARBY_RADIUS: 사진 위치 기준 Nearby 반경(m, 1~50000). CACHE_GRID_DECIMALS: 좌표 격자 칸의
+          # 소수 자릿수(3~7, 3 ≈ 100m — 같은 칸의 사진은 먼저 온 사진의 좌표로 한 번만 조회). 키우면
+          # 칸이 작아져 Google 호출이 늘고, 범위 밖 값은 기동 실패로 드러난다. CACHE_MAX_SIZE: 칸 캐시 항목 수.
+          GEOCODE_NEARBY_RADIUS: ${{ vars.GEOCODE_NEARBY_RADIUS }}
+          GEOCODE_GOOGLE_CACHE_GRID_DECIMALS: ${{ vars.GEOCODE_GOOGLE_CACHE_GRID_DECIMALS }}
+          GEOCODE_GOOGLE_CACHE_MAX_SIZE: ${{ vars.GEOCODE_GOOGLE_CACHE_MAX_SIZE }}
           PLACE_PROVIDER: ${{ vars.PLACE_PROVIDER }}
           PROFILE_IMAGE_PROVIDER: ${{ vars.PROFILE_IMAGE_PROVIDER }}
           PROFILE_IMAGE_S3_BUCKET: ${{ vars.PROFILE_IMAGE_S3_BUCKET }}
@@ -199,7 +206,8 @@ jobs:
                    APPLE_CLIENT_ID APPLE_TEAM_ID APPLE_KEY_ID APPLE_PRIVATE_KEY \
                    AI_BASE_URL INTERNAL_API_KEY AI_COURSE_PROVIDER \
                    JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT \
-                   GEOCODE_SEARCH_NEARBY_URL PLACE_PROVIDER \
+                   GEOCODE_SEARCH_NEARBY_URL GEOCODE_NEARBY_RADIUS \
+                   GEOCODE_GOOGLE_CACHE_GRID_DECIMALS GEOCODE_GOOGLE_CACHE_MAX_SIZE PLACE_PROVIDER \
                    PROFILE_IMAGE_PROVIDER PROFILE_IMAGE_S3_BUCKET PROFILE_IMAGE_S3_REGION \
                    PROFILE_IMAGE_BASE_URL SHARE_LINK_BASE_URL SHARE_LINK_TTL; do
             v="${!k}"
@@ -377,6 +385,13 @@ jobs:
           # variables 에 https://places.googleapis.com/v1/places:searchNearby 를 넣는다.
           # (키에 그 API 가 안 열려 있으면 사진 한 장마다 403 왕복이 붙어 SSE 가 느려진다.)
           GEOCODE_SEARCH_NEARBY_URL: ${{ vars.GEOCODE_SEARCH_NEARBY_URL }}
+          # 취향 분석 역지오코딩 튜닝(#122). 셋 다 선택이며 비우면 앱 기본값(100 / 3 / 4096)을 쓴다.
+          # NEARBY_RADIUS: 사진 위치 기준 Nearby 반경(m, 1~50000). CACHE_GRID_DECIMALS: 좌표 격자 칸의
+          # 소수 자릿수(3~7, 3 ≈ 100m — 같은 칸의 사진은 먼저 온 사진의 좌표로 한 번만 조회). 키우면
+          # 칸이 작아져 Google 호출이 늘고, 범위 밖 값은 기동 실패로 드러난다. CACHE_MAX_SIZE: 칸 캐시 항목 수.
+          GEOCODE_NEARBY_RADIUS: ${{ vars.GEOCODE_NEARBY_RADIUS }}
+          GEOCODE_GOOGLE_CACHE_GRID_DECIMALS: ${{ vars.GEOCODE_GOOGLE_CACHE_GRID_DECIMALS }}
+          GEOCODE_GOOGLE_CACHE_MAX_SIZE: ${{ vars.GEOCODE_GOOGLE_CACHE_MAX_SIZE }}
           PLACE_PROVIDER: ${{ vars.PLACE_PROVIDER }}
           PROFILE_IMAGE_PROVIDER: ${{ vars.PROFILE_IMAGE_PROVIDER }}
           PROFILE_IMAGE_S3_BUCKET: ${{ vars.PROFILE_IMAGE_S3_BUCKET }}
@@ -406,7 +421,8 @@ jobs:
                    APPLE_CLIENT_ID APPLE_TEAM_ID APPLE_KEY_ID APPLE_PRIVATE_KEY \
                    AI_BASE_URL INTERNAL_API_KEY AI_COURSE_PROVIDER \
                    JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT \
-                   GEOCODE_SEARCH_NEARBY_URL PLACE_PROVIDER \
+                   GEOCODE_SEARCH_NEARBY_URL GEOCODE_NEARBY_RADIUS \
+                   GEOCODE_GOOGLE_CACHE_GRID_DECIMALS GEOCODE_GOOGLE_CACHE_MAX_SIZE PLACE_PROVIDER \
                    PROFILE_IMAGE_PROVIDER PROFILE_IMAGE_S3_BUCKET PROFILE_IMAGE_S3_REGION \
                    PROFILE_IMAGE_BASE_URL SHARE_LINK_BASE_URL SHARE_LINK_TTL; do
             v="${!k}"
