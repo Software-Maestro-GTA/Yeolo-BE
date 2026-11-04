@@ -35,12 +35,8 @@ class GooglePlaceLookupClientTest {
                   "displayName": {"text": "성산일출봉", "languageCode": "ko"},
                   "formattedAddress": "대한민국 제주특별자치도 서귀포시 성산읍",
                   "location": {"latitude": 33.4581, "longitude": 126.9425},
-                  "rating": 4.6,
                   "primaryType": "tourist_attraction",
-                  "types": ["tourist_attraction", "point_of_interest"],
-                  "regularOpeningHours": {
-                    "weekdayDescriptions": ["월요일: 07:00~20:00", "화요일: 07:00~20:00"]
-                  }
+                  "types": ["tourist_attraction", "point_of_interest"]
                 }
               ]
             }
@@ -58,7 +54,7 @@ class GooglePlaceLookupClientTest {
     }
 
     @Test
-    void 한_번의_검색으로_운영시간까지_담은_장소_후보를_만든다() {
+    void 한_번의_검색으로_장소_후보를_만든다() {
         server.expect(requestTo(SEARCH_TEXT_URL))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(jsonPath("$.textQuery").value("성산일출봉, 제주, 대한민국"))
@@ -73,9 +69,8 @@ class GooglePlaceLookupClientTest {
         assertThat(candidate.address()).isEqualTo("대한민국 제주특별자치도 서귀포시 성산읍");
         assertThat(candidate.latitude()).isEqualTo(33.4581);
         assertThat(candidate.longitude()).isEqualTo(126.9425);
-        assertThat(candidate.rating()).isEqualTo(4.6);
-        assertThat(candidate.openingHours())
-                .containsExactly("월요일: 07:00~20:00", "화요일: 07:00~20:00");
+        assertThat(candidate.rating()).isNull();
+        assertThat(candidate.openingHours()).isEmpty();
         server.verify();
     }
 
@@ -87,9 +82,28 @@ class GooglePlaceLookupClientTest {
     void 키는_헤더로_보내고_필요한_필드만_요청한다() {
         server.expect(requestTo(SEARCH_TEXT_URL))
                 .andExpect(header("X-Goog-Api-Key", "test-key"))
-                .andExpect(header("X-Goog-FieldMask",
-                        containsString("places.regularOpeningHours.weekdayDescriptions")))
+                .andExpect(header("X-Goog-FieldMask", containsString("places.location")))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andRespond(withSuccess(SEARCH_OK, MediaType.APPLICATION_JSON));
+
+        assertThat(client.lookup(QUERY)).isPresent();
+        server.verify();
+    }
+
+    /**
+     * 과금 티어 가드. Text Search (New)는 요청 필드 중 가장 비싼 티어로 호출 전체를 청구한다 —
+     * 평점·운영시간 하나만 넣어도 Pro(월 무료 5,000건)가 Enterprise(월 무료 1,000건)가 된다.
+     * 실제로 2026-11까지 평점·운영시간 때문에 Enterprise로 청구됐고, 그 값은 FE 응답에 쓰이지도
+     * 않았다. 금지 목록이 아니라 <b>정확 일치</b>로 잠근다 — Enterprise/Atmosphere 필드는 수십 개라
+     * 목록으로는 구멍이 생긴다. 필드를 추가하려면 Google 문서에서 그 필드의 티어를 확인하고
+     * 여기 기대값도 함께 바꾼다.
+     */
+    @Test
+    void FieldMask는_Pro_티어_필드만_정확히_요청한다() {
+        server.expect(requestTo(SEARCH_TEXT_URL))
+                .andExpect(header("X-Goog-FieldMask",
+                        "places.id,places.displayName,places.formattedAddress,"
+                                + "places.location,places.primaryType,places.types"))
                 .andRespond(withSuccess(SEARCH_OK, MediaType.APPLICATION_JSON));
 
         assertThat(client.lookup(QUERY)).isPresent();
