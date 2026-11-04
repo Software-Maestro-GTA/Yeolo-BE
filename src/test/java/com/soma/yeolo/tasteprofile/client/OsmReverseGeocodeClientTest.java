@@ -179,12 +179,25 @@ class OsmReverseGeocodeClientTest {
         server.verify();
     }
 
+    /** 0으로 캐시를 끄려 해도 LruCache가 1 이상을 요구한다 — 설정 키를 넣은 메시지로 기동을 막는다. */
     @Test
-    void 좌표에_결과가_없으면_빈_위치를_반환한다() {
+    void 캐시_크기가_0이면_기동_시_거부한다() {
+        assertThatThrownBy(() -> new OsmReverseGeocodeClient(RestClient.builder().build(),
+                new OsmGeocodeProperties(REVERSE_URL, 18, "ko", 0),
+                new NominatimProperties(USER_AGENT, 0L),
+                new IntervalRateLimiter(0L)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("geocode.osm.cache-max-size");
+    }
+
+    /** 빈 위치도 캐시한다 — Nominatim은 1초 간격 제한이 있어 같은 칸의 바다 사진을 매번 다시 물으면 N초가 늦어진다. */
+    @Test
+    void 좌표에_결과가_없으면_빈_위치를_반환하고_캐시한다() {
         server.expect(requestTo(containsString("/reverse")))
                 .andRespond(withSuccess("{\"error\":\"Unable to geocode\"}", MediaType.APPLICATION_JSON));
 
         GeoLocation location = client.reverseGeocode(0.0, 0.0);
+        client.reverseGeocode(0.0, 0.0);   // 캐시 — 서버 응답은 한 번만 준비돼 있다
 
         assertThat(location.country()).isNull();
         assertThat(location.city()).isNull();
