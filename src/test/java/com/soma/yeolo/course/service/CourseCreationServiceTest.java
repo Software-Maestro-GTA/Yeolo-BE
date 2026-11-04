@@ -16,7 +16,6 @@ import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.sse.TestSseHeartbeat;
 import com.soma.yeolo.place.domain.Place;
-import com.soma.yeolo.place.domain.PlaceQuery;
 import com.soma.yeolo.place.domain.SavedPlace;
 import com.soma.yeolo.place.service.PlaceRegistry;
 import com.soma.yeolo.preference.domain.Mbti;
@@ -171,11 +170,6 @@ class CourseCreationServiceTest {
                     place.rating(), place.photoUrl(), place.openingHours());
         }
 
-        @Override
-        public Optional<SavedPlace> resolve(PlaceQuery query) {
-            return Optional.of(new SavedPlace(UUID.randomUUID(), query.placeName(), null,
-                    query.category(), "제주", 33.4581, 126.9425, null, null, List.of()));
-        }
 
         @Override
         public Map<UUID, String> findGooglePlaceIds(Collection<UUID> placeIds) {
@@ -210,7 +204,7 @@ class CourseCreationServiceTest {
                   "tags": ["힐링"],
                   "itinerary": {"days": [{"day": 1, "stops": [
                     {"sequence": 1, "cost": 5000,
-                     "place": {"placeId": "ChIJ_SEONGSAN", "placeName": "성산일출봉",
+                     "place": {"googlePlaceId": "ChIJ_SEONGSAN", "placeName": "성산일출봉",
                       "category": "nature", "latitude": 33.4581, "longitude": 126.9425},
                      "transportToNext": {"type": "walking", "minutes": 10}}
                   ]}]}

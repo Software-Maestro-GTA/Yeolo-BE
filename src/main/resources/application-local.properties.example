@@ -49,10 +49,3 @@ geocode.google.nearby-radius=100
 #   geocode.google.search-nearby-url=https://places.googleapis.com/v1/places:searchNearby
 geocode.google.search-nearby-url=
 
-# ===== 장소 조회 (API-PLACE-1 / DOM-3) =====
-# AI가 stop마다 장소 정보를 통째로 주므로 정상 경로에서는 호출되지 않는다 —
-# 'AI가 식별자·좌표를 빠뜨렸을 때'만 타는 폴백 전용이다.
-# provider: osm(기본, 키 불필요) | google(Places API (New) 필요) | stub(키 불필요, 합성 좌표)
-# osm 선택 시 user-agent는 GEOCODE_OSM_USER_AGENT 환경변수를 공유한다.
-place.provider=osm
-place.google.api-key=

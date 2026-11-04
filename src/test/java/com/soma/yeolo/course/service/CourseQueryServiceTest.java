@@ -19,7 +19,6 @@ import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.location.service.LocationImageReader;
 import com.soma.yeolo.place.domain.Place;
-import com.soma.yeolo.place.domain.PlaceQuery;
 import com.soma.yeolo.place.domain.SavedPlace;
 import com.soma.yeolo.place.service.PlaceRegistry;
 import java.time.Instant;
@@ -166,10 +165,6 @@ class CourseQueryServiceTest {
             throw new UnsupportedOperationException("조회 테스트에서는 등록을 사용하지 않는다.");
         }
 
-        @Override
-        public Optional<SavedPlace> resolve(PlaceQuery query) {
-            throw new UnsupportedOperationException("조회 테스트에서는 provider 조회를 사용하지 않는다.");
-        }
 
         @Override
         public Map<UUID, String> findGooglePlaceIds(Collection<UUID> placeIds) {
@@ -352,7 +347,7 @@ class CourseQueryServiceTest {
                 .course().itinerary().days().get(0).stops().get(0);
 
         assertThat(stop.stayMinutes()).isEqualTo(90);
-        assertThat(stop.place().placeId()).isEqualTo(GOOGLE_PLACE_ID);
+        assertThat(stop.place().googlePlaceId()).isEqualTo(GOOGLE_PLACE_ID);
         assertThat(places.lookups).containsExactly(List.of(placeId));
         assertThat(stop.place().placeName()).isEqualTo("성산일출봉");
         assertThat(stop.place().latitude()).isEqualTo(33.4581);
@@ -540,7 +535,7 @@ class CourseQueryServiceTest {
 
         CourseDetailResponse response = service().getCourse(me, courseId);
 
-        assertThat(response.course().itinerary().days().get(0).stops().get(0).place().placeId()).isNull();
+        assertThat(response.course().itinerary().days().get(0).stops().get(0).place().googlePlaceId()).isNull();
         assertThat(response.toString()).doesNotContain("ChIJ_GOOGLE_ID");
         assertThat(places.lookups).isEmpty();
     }
@@ -559,11 +554,37 @@ class CourseQueryServiceTest {
         Itinerary.Place place = service().getCourse(me, courseId)
                 .course().itinerary().days().get(0).stops().get(0).place();
 
-        assertThat(place.placeId()).isNull();
+        assertThat(place.googlePlaceId()).isNull();
         assertThat(place.placeName()).isEqualTo("협재 해수욕장");
         assertThat(place.latitude()).isEqualTo(33.3948);
         // 되돌리지 못한 내부 UUID 를 그대로 흘려보내지 않는다 — FE 가 Google 에 넘겨도 의미 없는 값이다.
         assertThat(place.toString()).doesNotContain(unknownPlaceId.toString());
+    }
+
+    /**
+     * 전환기(2026-10-25 ~)에 저장된 코스: AI 가 검증한 {@code googlePlaceId}가 남아 있고 이름 조회 폴백이 (동명의
+     * 다른 장소일 수 있는) 내부 {@code placeId}를 덧붙인 형태. 상세는 500 없이, 폴백 장소가 아니라 <b>AI 의
+     * Google Place ID</b> 를 내린다 — 데이터 수선 없이 기존 코스가 맞는 핀을 연다.
+     */
+    @Test
+    void 전환기에_저장된_코스는_AI의_Google_Place_ID를_내린다() {
+        UUID me = UUID.randomUUID();
+        UUID courseId = UUID.randomUUID();
+        UUID fallbackPlaceId = UUID.randomUUID();
+        places.googleIds.put(fallbackPlaceId, "ChIJ_WRONG_SAME_NAME");
+        courses.store.add(course(courseId, me, "전환기 코스", """
+                {"days":[{"day":1,"stops":[{"sequence":1,
+                  "place":{"googlePlaceId":"%s","placeName":"성산일출봉","category":"nature",
+                    "latitude":33.4581,"longitude":126.9425,"placeId":"%s"}}]}]}
+                """.formatted(GOOGLE_PLACE_ID, fallbackPlaceId)));
+
+        Itinerary.Place place = service().getCourse(me, courseId)
+                .course().itinerary().days().get(0).stops().get(0).place();
+
+        assertThat(place.googlePlaceId()).isEqualTo(GOOGLE_PLACE_ID);
+        assertThat(place.placeName()).isEqualTo("성산일출봉");
+        assertThat(places.lookups).isEmpty();
+        assertThat(place.toString()).doesNotContain("ChIJ_WRONG_SAME_NAME", fallbackPlaceId.toString());
     }
 
     /** 장소 식별자 조회는 부가 정보다 — 장소 테이블 조회가 실패해도 상세는 placeId 만 비우고 성공한다. */
@@ -581,7 +602,7 @@ class CourseQueryServiceTest {
         Itinerary.Place place = service().getCourse(me, courseId)
                 .course().itinerary().days().get(0).stops().get(0).place();
 
-        assertThat(place.placeId()).isNull();
+        assertThat(place.googlePlaceId()).isNull();
         assertThat(place.placeName()).isEqualTo("성산일출봉");
     }
 
@@ -605,9 +626,9 @@ class CourseQueryServiceTest {
 
         List<Itinerary.Day> days = service().getCourse(me, courseId).course().itinerary().days();
 
-        assertThat(days.get(0).stops()).extracting(s -> s.place().placeId())
+        assertThat(days.get(0).stops()).extracting(s -> s.place().googlePlaceId())
                 .containsExactly("ChIJ_HOTEL", GOOGLE_PLACE_ID, "ChIJ_HOTEL");
-        assertThat(days.get(1).stops()).extracting(s -> s.place().placeId())
+        assertThat(days.get(1).stops()).extracting(s -> s.place().googlePlaceId())
                 .containsExactly("ChIJ_HOTEL", null);
         assertThat(places.lookups).hasSize(1);
         assertThat(places.lookups.get(0)).containsExactlyInAnyOrder(hotel, sight);
@@ -634,7 +655,7 @@ class CourseQueryServiceTest {
                     service().getCourse(me, courseId).course().itinerary().days().get(0).stops();
 
             assertThat(stops).hasSize(1);
-            assertThat(stops.get(0).place().placeId()).isNull();
+            assertThat(stops.get(0).place().googlePlaceId()).isNull();
             assertThat(stops.get(0).place().placeName()).isEqualTo("성산일출봉");
         }
     }

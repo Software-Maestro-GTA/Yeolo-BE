@@ -48,20 +48,22 @@ public record Itinerary(List<Day> days) {
     /**
      * 방문 장소.
      *
-     * <p>{@code placeId}는 <b>읽는 단계와 응답 단계에서 뜻이 다르다.</b> 저장된 itinerary JSON에는
-     * {@code ItineraryPlaceNormalizer}가 저장 직전에 심은 BE 내부 식별자(UUID)가 들어 있고, 이 타입은
-     * 그 JSON을 읽을 때 {@link LenientUuidDeserializer}로 내부 UUID 문자열만 통과시킨다(UUID가 아닌
-     * 값은 null — 정규화 전 코스에 남은 외부 식별자가 그대로 새지 않게 하는 안전장치). 응답으로 나가기
-     * 전에 {@code ItineraryGooglePlaceIdMapper}가 그 UUID를 장소 테이블의 <b>Google Place ID</b>로
-     * 바꿔 넣는다 — FE가 이 값으로 Google Maps 를 연다(2026-10-25 결정. DOM-3 "Google Place ID
-     * 비노출" 문구와 상충하므로 명세 개정이 뒤따라야 한다).
+     * <p>응답 필드는 {@code googlePlaceId}다(API-COURSE-2, SPEC 0bd2d08 개정 — 2026-10-25). FE가 이 값으로
+     * Google Maps 를 연다. 개정 전 이름 {@code placeId}는 응답에 <b>나가지 않는다</b>.
+     *
+     * <p>이 필드는 <b>읽는 단계와 응답 단계에서 뜻이 다를 수 있다.</b> 저장된 itinerary JSON 의 키는
+     * {@code placeId}이고 값은 {@code ItineraryPlaceNormalizer}가 저장 직전에 심은 BE 내부 식별자(UUID)다
+     * (DOM-3 "내부 placeId"). {@code ItineraryStorageJson}이 그 UUID 를(또는 전환기 코스에 남은 AI 의 Google
+     * Place ID 를) 검증해 이 자리로 옮겨 읽고, 응답으로 나가기 전에 {@code ItineraryGooglePlaceIdMapper}가
+     * UUID 를 장소 테이블의 <b>Google Place ID</b>로 바꿔 넣는다. 이 타입 자체는 저장 키·검증 규칙을 모른다.
+     * (DOM-3 "Google Place ID 비노출" 문구와 상충하므로 도메인 명세 개정이 뒤따라야 한다.)
      *
      * <p>정규화하지 못한 장소, 장소 행이 없는 경우, Google 형식이 아닌 provider({@code osm:}·
-     * {@code stub:})로 등록된 장소는 {@code placeId}가 {@code null}이다. 이름·좌표는 남아 있어 지도
-     * 표시는 된다.
+     * {@code stub:})로 등록된 장소는 {@code googlePlaceId}가 {@code null}이다. 이름·좌표는 남아 있어
+     * 지도 표시는 된다.
      */
     public record Place(
-            @JsonDeserialize(using = LenientUuidDeserializer.class) String placeId,
+            String googlePlaceId,
             String placeName,
             String category,
             Double latitude,

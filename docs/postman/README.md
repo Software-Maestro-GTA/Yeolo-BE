@@ -193,7 +193,6 @@ AI 서버·지도 API 없이 흐름만 확인하려면 provider를 stub으로 �
 ```bash
 AI_COURSE_PROVIDER=stub \
 GEOCODE_PROVIDER=stub \
-PLACE_PROVIDER=stub \
 PROFILE_IMAGE_PROVIDER=stub \
 ./gradlew bootRun
 ```
