@@ -6,7 +6,6 @@ import com.soma.yeolo.course.dto.Itinerary;
 import com.soma.yeolo.course.dto.Itinerary.Day;
 import com.soma.yeolo.course.dto.Itinerary.Place;
 import com.soma.yeolo.course.dto.Itinerary.Stop;
-import com.soma.yeolo.place.domain.PlaceQuery;
 import com.soma.yeolo.place.domain.SavedPlace;
 import com.soma.yeolo.place.service.PlaceRegistry;
 import java.util.ArrayList;
@@ -33,10 +32,6 @@ class ItineraryGooglePlaceIdMapperTest {
             throw new UnsupportedOperationException();
         }
 
-        @Override
-        public Optional<SavedPlace> resolve(PlaceQuery query) {
-            throw new UnsupportedOperationException();
-        }
 
         @Override
         public Map<UUID, String> findGooglePlaceIds(Collection<UUID> placeIds) {
@@ -85,18 +80,37 @@ class ItineraryGooglePlaceIdMapperTest {
         List<Stop> stops = mapped.days().get(2).stops();
         assertThat(stops.get(0)).isNull();
         assertThat(stops.get(1).place()).isNull();
-        assertThat(stops.get(2).place().placeId()).isEqualTo(GOOGLE_PLACE_ID);
+        assertThat(stops.get(2).place().googlePlaceId()).isEqualTo(GOOGLE_PLACE_ID);
         assertThat(stops.get(2).place().latitude()).isEqualTo(33.4581);
         assertThat(mapper.toGooglePlaceIds(null)).isNull();
         assertThat(mapper.toGooglePlaceIds(new Itinerary(null)).days()).isNull();
     }
 
+    /** UUID 가 아닌 값은 {@code ItineraryStorageJson}이 검증해 올린 저장된 Google Place ID 다 — 조회 없이 그대로 둔다. */
     @Test
-    void UUID가_아닌_placeId는_조회하지_않고_null로_내린다() {
-        Itinerary mapped = mapper.toGooglePlaceIds(new Itinerary(List.of(
-                new Day(1, null, List.of(stop(new Place("ChIJ_RAW_FROM_AI", "장소", null, null, null)))))));
+    void UUID가_아닌_값은_저장된_Google_Place_ID로_보고_조회_없이_그대로_둔다() {
+        Itinerary itinerary = new Itinerary(List.of(
+                new Day(1, null, List.of(stop(new Place("ChIJ_RAW_FROM_AI", "장소", null, null, null))))));
 
-        assertThat(mapped.days().get(0).stops().get(0).place().placeId()).isNull();
+        Itinerary mapped = mapper.toGooglePlaceIds(itinerary);
+
+        assertThat(mapped).isSameAs(itinerary);
+        assertThat(mapped.days().get(0).stops().get(0).place().googlePlaceId()).isEqualTo("ChIJ_RAW_FROM_AI");
         assertThat(registry.lookups).isEmpty();
+    }
+
+    /** 한 코스에 저장된 Google Place ID(전환기 stop)와 내부 UUID 가 섞여 있어도 UUID 만 조회해 되돌린다. */
+    @Test
+    void 저장된_Google_Place_ID와_내부_UUID가_섞여_있으면_UUID만_되돌린다() {
+        UUID placeId = UUID.randomUUID();
+        registry.googleIds.put(placeId, GOOGLE_PLACE_ID);
+
+        Itinerary mapped = mapper.toGooglePlaceIds(new Itinerary(List.of(new Day(1, null, List.of(
+                stop(new Place("ChIJ_RAW_FROM_AI", "전환기", null, null, null)),
+                stop(new Place(placeId.toString(), "정상", null, null, null)))))));
+
+        assertThat(mapped.days().get(0).stops()).extracting(s -> s.place().googlePlaceId())
+                .containsExactly("ChIJ_RAW_FROM_AI", GOOGLE_PLACE_ID);
+        assertThat(registry.lookups).containsExactly(List.of(placeId));
     }
 }

@@ -39,6 +39,25 @@
 | API-USER-3 | `API-USER-3.md` | `GET /api/users/me/language` — 내 언어 설정 조회 | #99 |
 | API-USER-4 | `API-USER-4.md` | `POST /api/users/me/language` — 내 언어 설정 변경 | #99 |
 
+## 2026-10-25 명세 개정 반영 (pin `5a3d421` → `0bd2d08`)
+
+SPEC `0bd2d08`("fix: placeId 이름 변경", 2026-10-25)은 **stop `place`의 식별자 필드명**을 바꿨다. Yeolo-AI 는
+같은 날 `4066b4b`("fix!: API-AI-2 장소 ID 응답 필드명 변경")로 먼저 배포됐고, BE 가 옛 키를 읽는 동안
+prod 의 모든 장소가 이름 조회 폴백을 탔다(2026-11-04 확인). 상세 근거는 각 코드의 주석에 남겼다.
+
+| 명세 | 변경 | BE 대응 |
+| :--- | :--- | :--- |
+| API-AI-2 | stop `place.placeId` → **`place.googlePlaceId`** (AI → BE) | `ItineraryPlaceNormalizer`가 `googlePlaceId`를 읽는다. 개정 전 키 `placeId`로만 오면 **경고 로그 후 같은 값으로 받는다**(코스당 1회 WARN). 이는 CLAUDE.md의 "제거된 옛 값은 거부된다" 규칙과 **의도적으로 반대**다 — 키 하나 때문에 검증된 식별자를 버리면 장소가 식별자 없이 저장되는데, 그 실패는 로그로만 드러나므로 거부보다 수용+경고가 낫다고 판단했다. 대신 `개정_전_키_placeId로만_온_식별자도_받는다` 테스트가 그 결정을 고정한다. 두 키 모두 저장 전에 지운다 |
+| API-COURSE-2 | stop `place.placeId` → **`place.googlePlaceId`** (BE → FE) | `Itinerary.Place.googlePlaceId`로 응답. **저장 JSON 의 키는 `placeId`(내부 UUID, DOM-3) 그대로** — `ItineraryStorageJson`이 트리에서 옮겨 읽고 `ItineraryGooglePlaceIdMapper`가 Google Place ID 로 되돌린다. 저장 키를 바꾸지 않아 기존 코스에 마이그레이션이 없다. 전환기(10/25~)에 저장된 코스에는 AI 가 검증한 `googlePlaceId`가 남아 있고(옛 정규화기는 `placeId`만 지웠다) 폴백이 붙인 `placeId`는 동명의 다른 장소일 수 있으므로, 읽을 때 **AI 값을 우선**해 데이터 수선 없이 복구한다(`ItineraryStorageJsonTest`·`CourseQueryServiceTest`의 전환기 테스트). **단 좌표는 복구하지 못한다** — 옛 정규화기가 폴백 장소의 좌표로 덮어썼고 AI 원래 좌표는 남아 있지 않다. 폴백이 동명의 다른 장소를 골랐다면 마커(좌표)와 링크(식별자)가 어긋날 수 있고, 바로잡으려면 오프라인 데이터 수선이 필요하다. 옛 이름이 응답에 나가지 않는 것은 `ItineraryStorageJsonTest`가 고정한다 |
+| DOM-4 / DOM-5 | AI 내부 동작 기술 개정(DOM-4 머리말 삭제, DOM-5 재편) | 대응 없음. DOM-3 의 "Google Place ID 는 앱에 노출하지 않는다"·"`placeId`: 서버 내부 장소 ID"는 API-COURSE-2 와 여전히 상충한다 — **DOM-3 개정은 명세 담당 몫**(2026-10-25 결정 당시부터 미결) |
+
+**BE 결정(2026-11-04) — 코스 생성에서 외부 지도 API 호출 제거.** AI 가 식별자·좌표를 빠뜨린 stop 을 장소명으로
+provider(Google Text Search / OSM / stub)에 조회하던 폴백(`PlaceRegistry.resolve`·`PlaceLookupClient`·`PlaceQuery`·
+`place.*` 설정·`PLACE_PROVIDER` 배포 변수)을 삭제했다. 그런 stop 은 식별자 없이(이름·좌표는 AI 값) 남는다.
+Google Maps API 는 취향 분석의 역지오코딩(`geocode.*`)에서만 쓴다. 이유: API-AI-2 가 Google Place ID 를 보장하고,
+그 Text Search 가 Places 과금의 주범이었다(#121). `osm:`·`stub:` 접두사 행은 폴백 시절 데이터라 그대로 두고,
+`Place.toGooglePlaceId`가 계속 걸러낸다.
+
 ## 2026-10-14 명세 개정 반영 (pin `c0f1b29` → `3d7b0f9`)
 
 SPEC 커밋 `3d7b0f9`("UI/UX 변경에 따른 API 수정")의 변경과 BE 대응 이슈다. 모든 API 헤더에
