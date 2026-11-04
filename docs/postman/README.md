@@ -43,7 +43,8 @@
 `baseUrl` · `googleClientId` · `googleRedirectUri` 는 비밀이 아니라 값이 채워진 채로 관리합니다
 (client_id 는 어차피 브라우저 주소창까지 노출되는 값입니다).
 
-> `.gitignore` 에 `docs` 가 있어 이 파일을 커밋하려면 `git add -f` 가 필요합니다.
+> 컬렉션 JSON 두 개는 **커밋하지 않습니다**(2026-10-18부터, `.gitignore` 의
+> `docs/postman/*.postman_collection.json`). 로컬에 두고 Postman 과 export/import 로 맞춥니다.
 
 > **파일은 위 표의 것들로 유지합니다.** 로컬을 찔러야 할 일이 생기더라도 새 컬렉션이나 환경을
 > 만들지 말고 dev 컬렉션의 `baseUrl` 만 `http://localhost:8080` 으로 바꿔 쓰고 되돌리세요.
@@ -184,6 +185,16 @@ curl -N -X POST http://localhost:8080/api/courses \
 
 또한 LLM 분석이 실측 80초대라 Postman 기본 요청 타임아웃에 걸릴 수 있습니다 —
 **Settings → General → Request timeout**을 `0`(무제한)으로 두세요.
+
+> ⚠️ **취향 분석 근거 기준(2026-10-17 AI 개정, Yeolo-AI #58).** AI는 **서로 다른 관심 그룹 3개**
+> (문화·쇼핑·미식·자연 등)가 각각 **3방문 이상 + 서로 다른 날짜 2일 이상**일 때만 LLM 분석으로
+> 넘어갑니다. 같은 장소에서 2시간 안에 찍은 사진은 1방문으로 합쳐집니다. 미달이면 AI가 LLM 호출
+> 없이 400 `분석 가능한 기록이 부족해요. 다른 날짜와 장소의 사진을 추가해 주세요.`를 돌려주고,
+> BE는 현재 AI의 4xx/5xx를 모두 `AI_ANALYSIS_ERROR`(500)로 감싸 SSE `error`로 내보냅니다. 그래서
+> 사진 2장짜리 옛 본문은 prod·dev 모두에서 **500**이 났습니다(2026-10-18). 컬렉션 본문은 오사카 성
+> (문화)·다카시마야 오사카(쇼핑+미식)를 3일에 걸쳐 10장 찍은 데이터로 바꿔 두었고, 본문을 줄이거나
+> 날짜를 하루로 모으면 다시 걸립니다. 500이 나면 WAS 로그의 `AI behavior analysis rejected`
+> 줄에서 AI가 돌려준 status·message를 먼저 보세요.
 
 ## 6. 외부 의존 없이 돌려보기 (로컬을 쓸 때만 — 평소엔 불필요)
 
@@ -455,8 +466,10 @@ AI는 인증을 통과한 뒤 400을 돌려주므로, **400이 성공 신호**�
 **단, 이 400은 "인증 통과" 신호로만 쓰세요 — 페이로드가 유효한지는 알 수 없습니다.** AI의
 `RequestValidationError` 핸들러(`app/main.py`)가 `/taste-profile` 경로면 **스키마 검증 실패도
 똑같은 문구의 400**으로 바꿔 내보내기 때문입니다. 즉 `items`를 아무리 채워 보내도 필드 하나가
-어긋나면 이 요청과 구분되지 않는 응답이 옵니다. 그래서 **"유효 항목 1건 (200 기대)"** 요청을
+어긋나면 이 요청과 구분되지 않는 응답이 옵니다. 그래서 **"유효 항목 9건·3그룹 (200 기대)"** 요청을
 같이 둡니다 — 이쪽이 200 + `complete` 이벤트면 스키마까지 정상입니다.
+9건인 이유는 5절의 근거 기준(3그룹 × 3방문 × 2일) 때문입니다 — 1건만 보내면 스키마가 맞아도
+같은 400 문구가 아니라 "분석 가능한 기록이 부족해요"로 거절됩니다.
 
 어느 필드가 걸렸는지는 AI 로그에 그대로 남습니다:
 
@@ -488,8 +501,8 @@ kubectl -n app-dev logs deploy/ai --since=1h | grep "Validation Error"
 
 | 파일 | 커밋 | 주의 |
 | :--- | :--- | :--- |
-| `Yeolo-BE-Dev.postman_collection.json` | **O (`git add -f`)** | 시크릿 변수는 빈 값으로만 커밋 |
-| `Yeolo-BE-Prod.postman_collection.json` | **O (`git add -f`)** | **직접 고치지 않습니다** — 10절대로 생성 |
+| `Yeolo-BE-Dev.postman_collection.json` | **X (미추적, gitignore)** | 시크릿 변수는 `Current value` 에만 |
+| `Yeolo-BE-Prod.postman_collection.json` | **X (미추적, gitignore)** | **직접 고치지 않습니다** — 10절대로 생성 |
 
 Postman 에서 prod 컬렉션을 만졌다면 export 하지 말고 버리세요. 다음 생성 때 덮어쓰여집니다.
 
@@ -498,8 +511,7 @@ Postman 에서 prod 컬렉션을 만졌다면 export 하지 말고 버리세요.
 prod 컬렉션은 dev 파일에서 기계적으로 만듭니다. 두 벌을 손으로 맞추면 반드시 어긋나기 때문입니다.
 
 ```bash
-python3 docs/postman/make-prod-collection.py
-git add -f docs/postman/Yeolo-BE-Prod.postman_collection.json
+python3 docs/postman/make-prod-collection.py   # 생성물은 로컬에만 남는다(미추적)
 ```
 
 스크립트가 하는 일은 여섯입니다 — `baseUrl` 을 prod 로 교체, 컬렉션 이름·`_postman_id` 를 별개로

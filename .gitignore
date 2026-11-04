@@ -52,3 +52,6 @@ docs
 
 # 검증 루프 훅의 상태 파일 (.claude/hooks/README.md)
 .claude/.loop-state/
+
+# Postman 컬렉션은 저장소에 두지 않는다 (2026-10-18). 로컬 export 는 유지하되 커밋하지 않는다.
+docs/postman/*.postman_collection.json
