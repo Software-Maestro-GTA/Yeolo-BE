@@ -8,7 +8,7 @@ import java.util.UUID;
  * 저장 후 profileImageUrl 을 생성한다").
  *
  * <p>외부 저장소(S3) 연동을 격리하는 인터페이스이며 {@code profile-image.provider} 설정으로
- * 구현체를 교체한다({@code PlaceLookupClient}와 같은 방식, docs/architecture.md §5).
+ * 구현체를 교체한다({@code ReverseGeocodeClient}와 같은 방식, docs/architecture.md §5).
  *
  * <p><b>구현 계약:</b> 조회 계열 포트와 달리 실패를 삼키지 않는다. 저장에 실패했는데 성공으로
  * 응답하면 존재하지 않는 URL이 사용자 프로필에 박히므로, 실패는 예외로 드러낸다.

@@ -1,7 +1,5 @@
 package com.soma.yeolo.course.service;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.soma.yeolo.course.domain.SavedCourse;
 import com.soma.yeolo.course.dto.CourseDetailResponse;
 import com.soma.yeolo.course.dto.CourseDetailResponse.CostConversion;
@@ -44,10 +42,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class CourseQueryService implements RecentCourseReader {
-
-    // 저장된 원본 itinerary JSON에 명세에 없는 필드가 섞일 수 있으므로 미지 필드는 무시하고 역직렬화한다.
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private final CourseRepository courseRepository;
     private final CourseSharing courseSharing;
@@ -105,7 +99,7 @@ public class CourseQueryService implements RecentCourseReader {
      * 코스 상세를 반환한다. 코스가 없으면 404, 소유자도 공유받은 사용자도 아니면 403으로 응답한다.
      * (API-COURSE-2 / DOM-6 §권한 정책 — "공유받은 코스 상세 조회")
      *
-     * <p>stop 의 {@code place.placeId}는 저장된 내부 UUID 가 아니라 <b>Google Place ID</b> 로 내려간다
+     * <p>stop 의 {@code place.googlePlaceId}는 저장된 내부 UUID({@code placeId} 키)가 아니라 <b>Google Place ID</b> 로 내려간다
      * ({@link ItineraryGooglePlaceIdMapper}). FE가 그 값으로 Google Maps 를 열기 때문이다.
      *
      * <p>트랜잭션을 걸지 않는다 — 환율 조회({@link #convertCost})가 외부 HTTP 호출이라 트랜잭션
@@ -179,14 +173,14 @@ public class CourseQueryService implements RecentCourseReader {
     }
 
     /**
-     * 저장된 itinerary JSON 을 응답용으로 읽는다. 파싱과 placeId 치환(내부 UUID → Google Place ID)을 한
-     * 메서드로 묶어, 저장 JSON 을 읽는 모든 경로가 내부 식별자를 그대로 내보낼 수 없게 한다 —
-     * {@code Itinerary.Place.placeId}는 문자열이라 타입이 이를 막아 주지 않는다.
+     * 저장된 itinerary JSON 을 응답용으로 읽는다. 파싱({@link ItineraryStorageJson})과 식별자 치환(내부 UUID →
+     * Google Place ID)을 한 메서드로 묶어, 저장 JSON 을 읽는 모든 경로가 내부 식별자를 그대로 내보낼 수 없게
+     * 한다 — {@code Itinerary.Place.googlePlaceId}는 문자열이라 타입이 이를 막아 주지 않는다.
      */
     private Itinerary readItinerary(String itineraryJson) {
         Itinerary stored;
         try {
-            stored = OBJECT_MAPPER.readValue(itineraryJson, Itinerary.class);
+            stored = ItineraryStorageJson.read(itineraryJson);
         } catch (Exception e) {
             // 저장된 itinerary JSON이 손상된 예외적 상황 — 500으로 노출한다.
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, e);

@@ -4,13 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.soma.yeolo.course.domain.TripCondition;
 import com.soma.yeolo.place.domain.Place;
-import com.soma.yeolo.place.domain.PlaceQuery;
 import com.soma.yeolo.place.domain.SavedPlace;
 import com.soma.yeolo.place.service.PlaceRegistry;
-import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -22,9 +18,6 @@ import org.junit.jupiter.api.Test;
 class ItineraryPlaceNormalizerTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-
-    private static final TripCondition CONDITION = new TripCondition(
-            "대한민국", "제주", LocalDate.of(2026, 8, 1), 2, BigDecimal.valueOf(500_000));
 
     /**
      * AI가 장소 정보를 준 코스. 첫 장소에는 2026-10 개정으로 계약에서 빠진 상세(영문명·주소·평점·
@@ -41,7 +34,7 @@ class ItineraryPlaceNormalizerTest {
                       {
                         "sequence": 1,
                         "place": {
-                          "placeId": "ChIJ_SEONGSAN",
+                          "googlePlaceId": "ChIJ_SEONGSAN",
                           "placeName": "성산일출봉",
                           "placeEngName": "Seongsan Ilchulbong",
                           "category": "nature",
@@ -57,7 +50,7 @@ class ItineraryPlaceNormalizerTest {
                       {
                         "sequence": 2,
                         "place": {
-                          "placeId": "ChIJ_HYEOPJAE",
+                          "googlePlaceId": "ChIJ_HYEOPJAE",
                           "placeName": "협재 해수욕장",
                           "category": "beach",
                           "latitude": 33.3936,
@@ -83,17 +76,9 @@ class ItineraryPlaceNormalizerTest {
         return places(course).get(index).path("place");
     }
 
-    /**
-     * 등록·조회를 모두 기록하는 fake 레지스트리. 조회(폴백)는 장소명을 그대로 좌표에 매핑한다.
-     */
+    /** 등록을 기록하는 fake 레지스트리. */
     private static final class FakePlaceRegistry implements PlaceRegistry {
         private final List<Place> registered = new ArrayList<>();
-        private final List<PlaceQuery> queries = new ArrayList<>();
-        private final List<String> unresolvable;
-
-        private FakePlaceRegistry(String... unresolvable) {
-            this.unresolvable = List.of(unresolvable);
-        }
 
         @Override
         public SavedPlace register(Place place) {
@@ -103,15 +88,6 @@ class ItineraryPlaceNormalizerTest {
                     place.rating(), place.photoUrl(), place.openingHours());
         }
 
-        @Override
-        public Optional<SavedPlace> resolve(PlaceQuery query) {
-            queries.add(query);
-            if (unresolvable.contains(query.placeName())) {
-                return Optional.empty();
-            }
-            return Optional.of(new SavedPlace(UUID.randomUUID(), query.placeName(), null,
-                    query.category(), "제주", 33.4581, 126.9425, null, null, List.of()));
-        }
 
         @Override
         public Map<UUID, String> findGooglePlaceIds(Collection<UUID> placeIds) {
@@ -124,7 +100,7 @@ class ItineraryPlaceNormalizerTest {
         FakePlaceRegistry registry = new FakePlaceRegistry();
         JsonNode course = parse(AI_COURSE);
 
-        new ItineraryPlaceNormalizer(registry).normalize(course, CONDITION);
+        new ItineraryPlaceNormalizer(registry).normalize(course);
 
         JsonNode first = place(course, 0);
         assertThat(UUID.fromString(first.path("placeId").asText())).isNotNull();
@@ -133,14 +109,13 @@ class ItineraryPlaceNormalizerTest {
         assertThat(place(course, 1).path("placeId").asText()).isNotBlank();
     }
 
-    /** AI가 장소 식별자·좌표를 주므로(API-AI-2) 외부 provider를 다시 부르지 않는다. */
+    /** AI가 장소 식별자·좌표를 주므로(API-AI-2) 그대로 등록한다. */
     @Test
-    void AI가_준_장소는_provider_조회_없이_그대로_등록한다() throws Exception {
+    void AI가_준_장소를_그대로_등록한다() throws Exception {
         FakePlaceRegistry registry = new FakePlaceRegistry();
 
-        new ItineraryPlaceNormalizer(registry).normalize(parse(AI_COURSE), CONDITION);
+        new ItineraryPlaceNormalizer(registry).normalize(parse(AI_COURSE));
 
-        assertThat(registry.queries).isEmpty();
         assertThat(registry.registered).hasSize(2);
         Place first = registry.registered.get(0);
         assertThat(first.providerPlaceId()).isEqualTo("ChIJ_SEONGSAN");
@@ -159,7 +134,7 @@ class ItineraryPlaceNormalizerTest {
     void 장소_상세는_주면_담고_없으면_null로_등록한다() throws Exception {
         FakePlaceRegistry registry = new FakePlaceRegistry();
 
-        new ItineraryPlaceNormalizer(registry).normalize(parse(AI_COURSE), CONDITION);
+        new ItineraryPlaceNormalizer(registry).normalize(parse(AI_COURSE));
 
         Place withDetails = registry.registered.get(0);
         assertThat(withDetails.placeEngName()).isEqualTo("Seongsan Ilchulbong");
@@ -171,27 +146,33 @@ class ItineraryPlaceNormalizerTest {
         assertThat(contractOnly.rating()).isNull();
         assertThat(contractOnly.photoUrl()).isNull();
         assertThat(contractOnly.openingHours()).isEmpty();
-        assertThat(registry.queries).isEmpty();
     }
 
-    /** AI가 식별자·좌표를 주지 못하면 예전 경로(장소명 조회)로 되돌아간다. */
+    /**
+     * AI가 식별자·좌표를 주지 못한 stop 은 <b>외부 지도 API 를 부르지 않고</b> 정규화하지 않은 채 남긴다
+     * (2026-11-04 결정 — 장소명 조회 폴백 제거). 이름·분류는 AI 값 그대로다.
+     */
     @Test
-    void 장소_정보가_부족하면_장소명으로_조회한다() throws Exception {
+    void 장소_정보가_부족하면_외부_조회_없이_정규화하지_않고_남긴다() throws Exception {
         FakePlaceRegistry registry = new FakePlaceRegistry();
         JsonNode course = parse("""
                 {"itinerary": {"days": [{"day": 1, "stops": [
-                  {"sequence": 1, "place": {"placeName": "성산일출봉", "category": "nature"}}
+                  {"sequence": 1, "place": {"placeName": "성산일출봉", "category": "nature"}},
+                  {"sequence": 2, "place": {"placeName": "좌표만 있는 곳", "latitude": 33.5, "longitude": 126.5}},
+                  {"sequence": 3, "place": {"googlePlaceId": "ChIJ_NO_COORDS", "placeName": "식별자만 있는 곳"}}
                 ]}]}}
                 """);
 
-        new ItineraryPlaceNormalizer(registry).normalize(course, CONDITION);
+        new ItineraryPlaceNormalizer(registry).normalize(course);
 
         assertThat(registry.registered).isEmpty();
-        assertThat(registry.queries).hasSize(1);
-        // 목적지를 붙여 동명 장소를 구분한다.
-        assertThat(registry.queries.get(0).searchText()).isEqualTo("성산일출봉, 제주, 대한민국");
-        assertThat(registry.queries.get(0).category()).isEqualTo("nature");
-        assertThat(place(course, 0).path("placeId").asText()).isNotBlank();
+        for (int i = 0; i < 3; i++) {
+            assertThat(place(course, i).has("placeId")).as("stop %d", i + 1).isFalse();
+            assertThat(place(course, i).has("googlePlaceId")).as("stop %d", i + 1).isFalse();
+        }
+        assertThat(place(course, 0).path("placeName").asText()).isEqualTo("성산일출봉");
+        assertThat(place(course, 0).path("category").asText()).isEqualTo("nature");
+        assertThat(place(course, 1).path("latitude").asDouble()).isEqualTo(33.5);
     }
 
     /** 숙소처럼 한 코스에서 반복 등장하는 장소를 매번 다시 등록하지 않는다. */
@@ -201,15 +182,15 @@ class ItineraryPlaceNormalizerTest {
         JsonNode course = parse("""
                 {"itinerary": {"days": [
                   {"day": 1, "stops": [{"sequence": 1, "place": {
-                    "placeId": "ChIJ_HOTEL", "placeName": "제주 호텔",
+                    "googlePlaceId": "ChIJ_HOTEL", "placeName": "제주 호텔",
                     "latitude": 33.5, "longitude": 126.5}}]},
                   {"day": 2, "stops": [{"sequence": 1, "place": {
-                    "placeId": "ChIJ_HOTEL", "placeName": "제주 호텔",
+                    "googlePlaceId": "ChIJ_HOTEL", "placeName": "제주 호텔",
                     "latitude": 33.5, "longitude": 126.5}}]}
                 ]}}
                 """);
 
-        new ItineraryPlaceNormalizer(registry).normalize(course, CONDITION);
+        new ItineraryPlaceNormalizer(registry).normalize(course);
 
         assertThat(registry.registered).hasSize(1);
         // 두 장소 모두 같은 내부 placeId로 채워진다.
@@ -220,17 +201,17 @@ class ItineraryPlaceNormalizerTest {
 
     @Test
     void 정규화하지_못한_장소는_placeId_없이_남는다() throws Exception {
-        FakePlaceRegistry registry = new FakePlaceRegistry("협재 해수욕장");
+        FakePlaceRegistry registry = new FakePlaceRegistry();
         JsonNode course = parse("""
                 {"itinerary": {"days": [{"day": 1, "stops": [
                   {"sequence": 1, "place": {
-                    "placeId": "ChIJ_SEONGSAN", "placeName": "성산일출봉",
+                    "googlePlaceId": "ChIJ_SEONGSAN", "placeName": "성산일출봉",
                     "latitude": 33.4581, "longitude": 126.9425}},
                   {"sequence": 2, "place": {"placeName": "협재 해수욕장"}}
                 ]}]}}
                 """);
 
-        new ItineraryPlaceNormalizer(registry).normalize(course, CONDITION);
+        new ItineraryPlaceNormalizer(registry).normalize(course);
 
         JsonNode unresolved = place(course, 1);
         assertThat(unresolved.has("placeId")).isFalse();
@@ -239,27 +220,88 @@ class ItineraryPlaceNormalizerTest {
         assertThat(place(course, 0).path("placeId").asText()).isNotBlank();
     }
 
-    /** AI가 준 provider 식별자는 FE 응답으로 새어 나가면 안 된다 (DOM-3). */
+    /** AI가 준 provider 식별자는 저장 JSON 에 남지 않는다 — 응답의 Google Place ID 는 장소 테이블에서 되돌린다. */
     @Test
-    void AI가_보낸_provider_placeId는_응답에_남지_않는다() throws Exception {
+    void AI가_보낸_googlePlaceId는_저장_JSON에_남지_않는다() throws Exception {
         JsonNode course = parse(AI_COURSE);
 
-        new ItineraryPlaceNormalizer(new FakePlaceRegistry()).normalize(course, CONDITION);
+        new ItineraryPlaceNormalizer(new FakePlaceRegistry()).normalize(course);
 
-        assertThat(course.toString()).doesNotContain("ChIJ_SEONGSAN", "ChIJ_HYEOPJAE");
+        assertThat(course.toString()).doesNotContain("ChIJ_SEONGSAN", "ChIJ_HYEOPJAE", "googlePlaceId");
     }
 
-    /** 정규화에 실패해도 AI가 준 외부 식별자를 그대로 남겨 두지 않는다. */
+    /**
+     * API-AI-2 개정(SPEC 0bd2d08, 2026-10-25) 전 키 {@code placeId}로만 식별자가 와도 같은 값으로 받는다.
+     * 키 하나 때문에 검증된 식별자를 버리고 이름 조회(폴백)로 빠지면 안 된다 — prod 에서 그렇게 모든
+     * 장소가 폴백을 타며 조용히 깨졌다(2026-11-04). 경고 로그는 남긴다.
+     */
     @Test
-    void 정규화에_실패해도_외부_식별자는_제거한다() throws Exception {
-        FakePlaceRegistry registry = new FakePlaceRegistry("성산일출봉");
+    void 개정_전_키_placeId로만_온_식별자도_받는다() throws Exception {
+        FakePlaceRegistry registry = new FakePlaceRegistry();
+        JsonNode course = parse("""
+                {"itinerary": {"days": [{"day": 1, "stops": [
+                  {"sequence": 1, "place": {
+                    "placeId": "ChIJ_LEGACY", "placeName": "성산일출봉",
+                    "latitude": 33.4581, "longitude": 126.9425}}
+                ]}]}}
+                """);
+
+        new ItineraryPlaceNormalizer(registry).normalize(course);
+
+        assertThat(registry.registered).extracting(Place::providerPlaceId).containsExactly("ChIJ_LEGACY");
+        assertThat(UUID.fromString(place(course, 0).path("placeId").asText())).isNotNull();
+        assertThat(course.toString()).doesNotContain("ChIJ_LEGACY");
+    }
+
+    /** 두 키가 같이 오면 명세의 {@code googlePlaceId}가 우선이고, 둘 다 저장 JSON 에서 지운다. */
+    @Test
+    void googlePlaceId와_placeId가_같이_오면_googlePlaceId를_쓴다() throws Exception {
+        FakePlaceRegistry registry = new FakePlaceRegistry();
+        JsonNode course = parse("""
+                {"itinerary": {"days": [{"day": 1, "stops": [
+                  {"sequence": 1, "place": {
+                    "googlePlaceId": "ChIJ_CURRENT", "placeId": "ChIJ_LEGACY", "placeName": "성산일출봉",
+                    "latitude": 33.4581, "longitude": 126.9425}}
+                ]}]}}
+                """);
+
+        new ItineraryPlaceNormalizer(registry).normalize(course);
+
+        assertThat(registry.registered).extracting(Place::providerPlaceId).containsExactly("ChIJ_CURRENT");
+        assertThat(place(course, 0).has("googlePlaceId")).isFalse();
+        assertThat(UUID.fromString(place(course, 0).path("placeId").asText())).isNotNull();
+        assertThat(course.toString()).doesNotContain("ChIJ_CURRENT", "ChIJ_LEGACY");
+    }
+
+    /** 정규화에 실패한 stop 에는 어느 키의 외부 식별자도 남지 않는다. */
+    @Test
+    void 정규화에_실패해도_googlePlaceId_키를_남기지_않는다() throws Exception {
+        FakePlaceRegistry registry = new FakePlaceRegistry();
+        JsonNode course = parse("""
+                {"itinerary": {"days": [{"day": 1, "stops": [
+                  {"sequence": 1, "place": {"placeName": "성산일출봉", "googlePlaceId": "ChIJ_GOOGLE_ID"}}
+                ]}]}}
+                """);
+
+        new ItineraryPlaceNormalizer(registry).normalize(course);
+
+        JsonNode unresolved = place(course, 0);
+        assertThat(unresolved.has("googlePlaceId")).isFalse();
+        assertThat(unresolved.has("placeId")).isFalse();
+        assertThat(course.toString()).doesNotContain("ChIJ_GOOGLE_ID");
+    }
+
+    /** 정규화에 실패해도 AI가 준 외부 식별자를 — 개정 전 키로 왔더라도 — 그대로 남겨 두지 않는다. */
+    @Test
+    void 정규화에_실패해도_개정_전_키의_외부_식별자도_제거한다() throws Exception {
+        FakePlaceRegistry registry = new FakePlaceRegistry();
         JsonNode course = parse("""
                 {"itinerary": {"days": [{"day": 1, "stops": [
                   {"sequence": 1, "place": {"placeName": "성산일출봉", "placeId": "ChIJ_GOOGLE_ID"}}
                 ]}]}}
                 """);
 
-        new ItineraryPlaceNormalizer(registry).normalize(course, CONDITION);
+        new ItineraryPlaceNormalizer(registry).normalize(course);
 
         assertThat(course.toString()).doesNotContain("ChIJ_GOOGLE_ID");
     }
@@ -272,10 +314,6 @@ class ItineraryPlaceNormalizerTest {
                 throw new IllegalStateException("db down");
             }
 
-            @Override
-            public Optional<SavedPlace> resolve(PlaceQuery query) {
-                throw new IllegalStateException("provider down");
-            }
 
             @Override
             public Map<UUID, String> findGooglePlaceIds(Collection<UUID> placeIds) {
@@ -284,7 +322,7 @@ class ItineraryPlaceNormalizerTest {
         };
         JsonNode course = parse(AI_COURSE);
 
-        new ItineraryPlaceNormalizer(failing).normalize(course, CONDITION);
+        new ItineraryPlaceNormalizer(failing).normalize(course);
 
         assertThat(places(course)).hasSize(2);
         assertThat(place(course, 0).has("placeId")).isFalse();
@@ -294,7 +332,7 @@ class ItineraryPlaceNormalizerTest {
     void itinerary_구조가_비어도_그대로_통과한다() throws Exception {
         JsonNode course = parse("{\"title\": \"코스\"}");
 
-        new ItineraryPlaceNormalizer(new FakePlaceRegistry()).normalize(course, CONDITION);
+        new ItineraryPlaceNormalizer(new FakePlaceRegistry()).normalize(course);
 
         assertThat(course.path("title").asText()).isEqualTo("코스");
     }
@@ -307,12 +345,12 @@ class ItineraryPlaceNormalizerTest {
                 {"itinerary": {"days": [{"day": 1, "stops": [
                   {"sequence": 1, "placeName": "옛 형식 stop"},
                   {"sequence": 2, "place": {
-                    "placeId": "ChIJ_HYEOPJAE", "placeName": "협재 해수욕장",
+                    "googlePlaceId": "ChIJ_HYEOPJAE", "placeName": "협재 해수욕장",
                     "latitude": 33.3936, "longitude": 126.2396}}
                 ]}]}}
                 """);
 
-        new ItineraryPlaceNormalizer(registry).normalize(course, CONDITION);
+        new ItineraryPlaceNormalizer(registry).normalize(course);
 
         assertThat(registry.registered).hasSize(1);
         assertThat(place(course, 1).path("placeId").asText()).isNotBlank();

@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  * SSE 파이프라인이 도는 동안 연결에 주기적으로 keepalive를 흘려보낸다.
  *
  * <p>SSE 파이프라인에는 응답 바이트가 한 번도 나가지 않는 긴 블로킹 구간이 여럿 있다 — AI 호출은
- * 수십 초가 걸리고, Reverse Geocode(이미지당)·장소 정규화(방문지당)는 {@code IntervalRateLimiter}로
+ * 수십 초가 걸리고, Reverse Geocode(이미지당)는 {@code IntervalRateLimiter}로
  * 호출 간 최소 간격(기본 1초)을 두고 직렬 반복한다. 그동안 앞단 프록시는 연결을 idle로 보고 끊고
  * (ALB·NGINX Ingress 모두 기본 60초), 서버는 다음 전송 시점에야 {@code Broken pipe}로 이를
  * 알아차린다 — 그때는 이미 결과를 보낼 곳이 없다.

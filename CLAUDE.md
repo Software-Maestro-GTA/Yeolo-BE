@@ -107,7 +107,7 @@ git submodule update --remote specs   # 최신 명세로 갱신 후, 커밋으�
   - **prod 파일은 dev→main 릴리스 직후에 재생성한다**(`python3 docs/postman/make-prod-collection.py`).
     평소 dev 작업에서는 돌리지 않는다 — 아직 배포되지 않은 기능이 prod 컬렉션에 들어가면 파일을
     나눈 의미가 없어진다.
-  - **API 계약이 바뀌면 dev 파일을 같은 커밋에서 고친다** — 새 엔드포인트뿐 아니라 기존 요청·응답의
+  - **API 계약이 바뀌면 dev 파일을 같은 작업에서 고친다** — 새 엔드포인트뿐 아니라 기존 요청·응답의
     필드 변경도 포함이다(판정 기준과 체크리스트는 §작업 흐름 5). 코드만 고치고 컬렉션을 빠뜨리면
     "Postman에 왜 없지?"가 된다. 새 변수가 필요하면(예: `shareToken`) 컬렉션 변수에도 추가한다.
   - **prod 컬렉션의 파괴적 요청(회원탈퇴·코스 삭제)은 `allowDestructive` 가드로 기본 차단**돼 있다.
@@ -118,14 +118,16 @@ git submodule update --remote specs   # 최신 명세로 갱신 후, 커밋으�
     대가가 실사용자 계정 삭제다.
   - **prod 전용 값은 생성물이 아니라 `PROD_OVERRIDES`(생성기)에 적는다.** 생성된 JSON 을 손으로
     고치면 다음 릴리스 재생성에서 조용히 되돌아가고, diff 에도 원인이 남지 않는다.
-  - **이 파일이 `git ls-files docs/postman/` 에 잡히는지 확인한다.** `.gitignore` 의 `docs` 때문에
-    `git add -f` 를 한 번이라도 빠뜨리면 파일이 **추적되지 않은 채** 로컬에만 남고, 그 뒤로는
-    `git status` 에도 안 뜨고 diff에도 안 잡혀 아무도 눈치채지 못한다. 실제로 컬렉션을 최신으로
-    맞춰 놓고도 저장소에는 한 번도 올라간 적이 없는 상태였다(2026-08). 출력이 비면 미추적이다.
-  - **시크릿(`internalApiKey`·`jwtSecret`)은 빈 값으로 커밋한다.** Postman 에서는 `Current value`
+  - **컬렉션 JSON 두 개는 커밋하지 않는다(2026-10-18부터).** `.gitignore` 에
+    `docs/postman/*.postman_collection.json` 이 있고 추적도 해제했다. 파일은 로컬 `docs/postman/` 에
+    두고 Postman 워크스페이스와 export/import 로 맞춘다. 저장소에 추적되는 것은 `README.md`·
+    `make-prod-collection.py`·`test-account.sql` 뿐이다. 계약 변경을 컬렉션에 반영했는지는 커밋이
+    아니라 **로컬 파일 diff 와 Postman 재import** 로 확인한다.
+  - **시크릿(`internalApiKey`·`jwtSecret`)은 빈 값으로 둔다.** Postman 에서는 `Current value`
     칸에만 입력한다 — `Initial value` 에 넣으면 export 시 파일에 박힌다.
   - 스크립트는 `pm.collectionVariables` 를 쓴다(`pm.environment` 는 환경이 없어 동작하지 않는다).
-  - `.gitignore` 의 `docs` 때문에 커밋에는 `git add -f` 가 필요하다.
+  - 추적되는 세 파일(`README.md`·생성기·`test-account.sql`)을 고쳤을 때는 `.gitignore` 의 `docs` 때문에
+    `git add -f` 가 필요하다.
 - **Postman 테스트 대상은 dev 서버 하나다.** `baseUrl`은 dev CloudFront를 가리키며 로컬(`localhost:8080`)
   대상 테스트는 현재 하지 않는다 — 환경 파일을 하나로 유지하는 이유이기도 하다. 로컬을 찔러야 할
   일이 생기면 새 환경 파일을 만들지 말고 그 환경의 `baseUrl`·`jwtSecret`만 바꿔 쓴다.
@@ -163,8 +165,9 @@ git submodule update --remote specs   # 최신 명세로 갱신 후, 커밋으�
 
    반영 대상은 요청 본문·쿼리뿐 아니라 **요청 `description`과 테스트 스크립트**까지다 — 응답 필드가
    바뀌면 `pm.collectionVariables.set(...)`이 조용히 `undefined`를 저장한다. 새 변수가 필요하면
-   컬렉션 변수에도 추가한다. **`docs`가 gitignore라 `git add -f` 로 함께 스테이징**하고, 커밋 메시지
-   초안에 이 파일이 포함되어 있는지 확인한다 — 이 단계의 실패는 대부분 "고쳤는데 커밋이 안 됨"이다.
+   컬렉션 변수에도 추가한다. 컬렉션 JSON 은 커밋하지 않으므로(§환경 설정) 스테이징 대상이 아니다.
+   대신 고친 파일을 Postman 에 import 해 두고, 커밋 메시지 초안에 "Postman dev 컬렉션 반영(로컬)" 을
+   남긴다 — 이 단계의 실패는 대부분 "코드만 고치고 컬렉션은 안 고침"이다.
 6. L1 통과 + 5번 반영 후 **L2 리뷰 루프**(§검증 루프) 진입: 변경 diff를 **별도 agent**로
    `/code-review high` (런타임 동작 확인이 필요하면 `/verify`).
 7. 이슈 단위 브랜치 생성(Claude) → L1·L2 통과 시 **커밋 메시지 초안 제시(Claude)**.
@@ -203,9 +206,9 @@ L2 리뷰 지적을 반영해 `src/`가 바뀌면 L1으로 되돌아가고, L1�
     리뷰 agent의 의견으로 명세를 바꾸지 않는다).
 - **L3 계약 반영 루프** — FE가 보내고 받는 것이 컬렉션에 있는가. (5번의 루프 표현)
   - 진입: `controller/`·`dto/`·Enum·예외 핸들러 diff가 생겼을 때.
-  - 검사: 5번의 체크리스트 + `git ls-files docs/postman/`에 dev 컬렉션이 잡히는지.
-  - 종료: 컬렉션 diff가 코드 diff와 **같이 스테이징**된 상태. 계약 변경이 아니면 커밋 메시지 초안에
-    "계약 변경 없음"을 명시해 판단을 남긴다.
+  - 검사: 5번의 체크리스트. 컬렉션 JSON 은 미추적이므로 로컬 파일 diff 로 확인한다.
+  - 종료: 로컬 dev 컬렉션이 코드 diff 를 반영한 상태이고 커밋 메시지 초안에 그 사실이 적힌 상태.
+    계약 변경이 아니면 "계약 변경 없음"을 명시해 판단을 남긴다.
 - **L4 런타임 루프** — 배포된 것이 실제로 도는가. (머지 후, 사용자 주도)
   - 진입: dev 배포 직후. 검사: Postman dev 컬렉션 실행. 종료: 전 요청 통과.
   - 실패 시: §환경 설정의 진단 규칙(401은 지금 서명한 토큰으로, 500은 BE/AI 경계 가르기) → fix
