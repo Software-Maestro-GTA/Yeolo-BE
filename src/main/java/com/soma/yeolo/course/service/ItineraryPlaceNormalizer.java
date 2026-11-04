@@ -111,8 +111,9 @@ public class ItineraryPlaceNormalizer {
             return null;
         }
         // 명세 개정(2026-10)으로 AI 계약은 식별자·이름·분류·좌표뿐이다. 그 밖의 상세(영문명·주소·
-        // 평점·사진·운영시간)는 전환기 AI가 덤으로 보낼 수 있고 provider 폴백 경로는 여전히 채우므로,
-        // 오면 그대로 담고 없으면 null로 둔다 — 등록 경로에 따라 행 내용이 달라지지 않게 한다.
+        // 평점·사진·운영시간)는 전환기 AI가 덤으로 보낼 수 있고 provider 폴백도 provider에 따라 일부를
+        // 채우므로(Google은 과금 티어 때문에 평점·운영시간을 요청하지 않는다), 오면 그대로 담고 없으면
+        // null로 둔다 — 등록 경로에 따라 행 내용이 달라지지 않게 한다.
         return new Place(
                 providerPlaceId,
                 placeName,

@@ -23,11 +23,17 @@ import org.springframework.web.client.RestClientResponseException;
  * Google Places API (New) 기반 장소 조회. ({@code place.provider=google}일 때 활성화)
  *
  * <p>Text Search({@code places:searchText})를 <b>한 번만</b> 호출한다. 구 Places API는 검색과 상세를
- * 나눠 두 번 불러야 했지만, 신 API는 FieldMask로 요청한 필드를 한 응답에 담아주므로 운영시간까지
- * 같이 받는다. 구 API는 2025-03 이후 생성된 프로젝트에서 활성화가 불가능해 선택지도 아니다.
+ * 나눠 두 번 불러야 했지만, 신 API는 FieldMask로 요청한 필드를 한 응답에 담아준다. 구 API는
+ * 2025-03 이후 생성된 프로젝트에서 활성화가 불가능해 선택지도 아니다.
  *
- * <p><b>FieldMask는 필요한 필드만 지정한다.</b> 신 API는 요청한 필드에 따라 과금 티어가 갈려서,
- * {@code places.*}처럼 전체를 요청하면 최상위 티어로 청구된다.
+ * <p><b>FieldMask는 Pro 티어 필드만 지정한다.</b> 신 API는 요청한 필드 중 가장 비싼 티어로 호출
+ * 전체를 청구한다(Essentials &lt; Pro &lt; Enterprise &lt; Enterprise + Atmosphere). 식별자·이름·
+ * 주소·좌표·유형·사진은 Pro이지만 {@code rating}·{@code regularOpeningHours}·{@code userRatingCount}·
+ * {@code priceLevel}·전화·웹사이트는 Enterprise, {@code reviews}·{@code editorialSummary}는
+ * Enterprise + Atmosphere다. 2026-11까지 평점·운영시간을 함께 요청해 Enterprise(월 무료 1,000건, 이후 $35/1k)로
+ * 청구되고 있었는데, 그 두 값은 {@code places} 행에만 저장될 뿐 FE 응답 어디에도 쓰이지 않았다.
+ * 그래서 Pro(월 무료 5,000건, 이후 $32/1k)로 내렸다 — <b>평점·운영시간은 항상 비어 있다.</b>
+ * 티어를 올리는 필드를 다시 넣으면 {@code GooglePlaceLookupClientTest}의 티어 가드가 막는다.
  *
  * <p><b>사진은 내려보내지 않는다({@code photoUrl}은 항상 null).</b> Places의 사진 URL은 API 키를
  * 요구해서, 그대로 FE에 주면 키가 노출된다. 사진을 제공하려면 BE 이미지 프록시가 필요하며 이번
@@ -49,16 +55,14 @@ public class GooglePlaceLookupClient implements PlaceLookupClient {
     private static final String API_KEY_HEADER = "X-Goog-Api-Key";
     private static final String FIELD_MASK_HEADER = "X-Goog-FieldMask";
 
-    /** 응답에 담아올 필드 — 필요한 것만 지정해 호출 비용(티어)을 줄인다. */
+    /** 응답에 담아올 필드 — 전부 Pro 티어 이하다. Enterprise 필드를 하나라도 섞으면 호출 전체가 Enterprise로 청구된다. */
     private static final String FIELD_MASK = String.join(",",
             "places.id",
             "places.displayName",
             "places.formattedAddress",
             "places.location",
-            "places.rating",
             "places.primaryType",
-            "places.types",
-            "places.regularOpeningHours.weekdayDescriptions");
+            "places.types");
 
     private final RestClient restClient;
     private final GooglePlaceProperties properties;
@@ -128,9 +132,10 @@ public class GooglePlaceLookupClient implements PlaceLookupClient {
                 text(result, "formattedAddress"),
                 latitude,
                 longitude,
-                number(result, "rating"),
+                // 평점·운영시간은 Enterprise 티어 필드라 요청하지 않는다(클래스 설명 참고).
                 null,
-                textList(result.path("regularOpeningHours"), "weekdayDescriptions")
+                null,
+                List.of()
         ));
     }
 
