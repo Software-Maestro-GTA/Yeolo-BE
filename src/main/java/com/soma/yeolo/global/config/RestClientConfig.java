@@ -1,15 +1,16 @@
 package com.soma.yeolo.global.config;
 
 import com.soma.yeolo.global.client.AiClientProperties;
+import com.soma.yeolo.global.client.RestClients;
 import java.time.Duration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 /**
  * 외부 API 호출용 RestClient. 무한 대기 방지를 위해 연결/응답 타임아웃을 명시한다.
- * (docs/architecture.md 5)
+ * (docs/architecture.md 5) 도메인 전용 클라이언트(마이리얼트립 등)는 각 도메인의 설정 클래스가
+ * {@link RestClients#timed}로 만든다 — global 이 도메인 패키지를 import 하지 않기 위해서다.
  */
 @Configuration
 public class RestClientConfig {
@@ -17,12 +18,7 @@ public class RestClientConfig {
     /** 일반 외부 호출(Google OAuth 등)용. 짧은 응답 타임아웃. */
     @Bean
     public RestClient restClient() {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(3));
-        factory.setReadTimeout(Duration.ofSeconds(5));
-        return RestClient.builder()
-                .requestFactory(factory)
-                .build();
+        return RestClients.timed(Duration.ofSeconds(3), Duration.ofSeconds(5));
     }
 
     /**
@@ -34,11 +30,7 @@ public class RestClientConfig {
      */
     @Bean
     public RestClient aiRestClient(AiClientProperties properties) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofMillis(properties.connectTimeoutMs()));
-        factory.setReadTimeout(Duration.ofMillis(properties.readTimeoutMs()));
-        return RestClient.builder()
-                .requestFactory(factory)
-                .build();
+        return RestClients.timed(Duration.ofMillis(properties.connectTimeoutMs()),
+                Duration.ofMillis(properties.readTimeoutMs()));
     }
 }
