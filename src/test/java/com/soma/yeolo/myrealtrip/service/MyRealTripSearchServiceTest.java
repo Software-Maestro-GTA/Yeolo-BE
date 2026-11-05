@@ -8,6 +8,8 @@ import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.exception.RateLimitExceededException;
 import com.soma.yeolo.myrealtrip.client.MyRealTripPartnerClient;
 import com.soma.yeolo.myrealtrip.domain.Airport;
+import com.soma.yeolo.myrealtrip.domain.HotelSearchQuery;
+import com.soma.yeolo.myrealtrip.domain.ProductPage;
 import com.soma.yeolo.myrealtrip.domain.Region;
 import com.soma.yeolo.myrealtrip.dto.AirportSearchResponse;
 import com.soma.yeolo.myrealtrip.dto.RegionSearchResponse;
@@ -120,6 +122,16 @@ class MyRealTripSearchServiceTest {
         public List<Region> searchRegions(String keyword, boolean isDomestic) {
             regionCalls.add(keyword + "|" + isDomestic);
             return regions;
+        }
+
+        @Override
+        public ProductPage searchHotels(HotelSearchQuery query) {
+            throw new UnsupportedOperationException("상품 조회는 MyRealTripProductServiceTest 가 검증한다");
+        }
+
+        @Override
+        public ProductPage searchTickets(String keyword, int page) {
+            throw new UnsupportedOperationException("상품 조회는 MyRealTripProductServiceTest 가 검증한다");
         }
     }
 }

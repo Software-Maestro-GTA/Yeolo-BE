@@ -2,6 +2,8 @@ package com.soma.yeolo.myrealtrip.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -21,9 +23,15 @@ import com.soma.yeolo.global.security.RestAuthenticationEntryPoint;
 import com.soma.yeolo.global.security.WithdrawnUserChecker;
 import com.soma.yeolo.myrealtrip.domain.Airport;
 import com.soma.yeolo.myrealtrip.domain.Region;
+import com.soma.yeolo.myrealtrip.domain.Product;
+import com.soma.yeolo.myrealtrip.domain.ProductPage;
 import com.soma.yeolo.myrealtrip.dto.AirportSearchResponse;
+import com.soma.yeolo.myrealtrip.dto.HotelSearchResponse;
 import com.soma.yeolo.myrealtrip.dto.RegionSearchResponse;
+import com.soma.yeolo.myrealtrip.dto.TicketSearchResponse;
+import com.soma.yeolo.myrealtrip.service.MyRealTripProductService;
 import com.soma.yeolo.myrealtrip.service.MyRealTripSearchService;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,7 +45,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * API-MRT-1/2 — 경로·인증·봉투·메시지·에러 코드를 명세대로 고정한다. 429 는 {@code Retry-After} 헤더까지 본다
+ * API-MRT-1/2/3/4 — 경로·인증·봉투·메시지·에러 코드를 명세대로 고정한다. 429 는 {@code Retry-After} 헤더까지 본다
  * (전역 핸들러의 {@code RateLimitExceededException} 처리).
  */
 @WebMvcTest(MyRealTripController.class)
@@ -52,6 +60,9 @@ class MyRealTripControllerTest {
 
     @MockitoBean
     private MyRealTripSearchService searchService;
+
+    @MockitoBean
+    private MyRealTripProductService productService;
 
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
@@ -110,6 +121,66 @@ class MyRealTripControllerTest {
                 .andExpect(jsonPath("$.data.regions[0].name").value("도쿄"))
                 .andExpect(jsonPath("$.data.regions[0].subName").value("일본"))
                 .andExpect(jsonPath("$.data.regions[1].subName").doesNotExist());
+    }
+
+    @Test
+    void 숙소_조회_성공_봉투는_totalCount_null을_생략하지_않고_내린다() throws Exception {
+        when(productService.searchHotels(userId, "12345", "2026-12-10", "2026-12-12", "2", null))
+                .thenReturn(HotelSearchResponse.from(ProductPage.of(List.of(
+                        new Product("숙소 이름 예시", "https://accommodation.myrealtrip.com/union/products/example",
+                                new BigDecimal("120000"), null, null, new BigDecimal("4"), 4.5, 120)), 1, null, 20)));
+
+        mockMvc.perform(get("/api/myrealtrip/hotels")
+                        .param("regionId", "12345").param("checkIn", "2026-12-10").param("checkOut", "2026-12-12")
+                        .param("adultCount", "2")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("숙소 조회 성공"))
+                .andExpect(jsonPath("$.data.items[0].itemName").value("숙소 이름 예시"))
+                .andExpect(jsonPath("$.data.items[0].productUrl")
+                        .value("https://accommodation.myrealtrip.com/union/products/example"))
+                .andExpect(jsonPath("$.data.items[0].salePrice").value(120000))
+                .andExpect(jsonPath("$.data.items[0].imageUrl").value((Object) null))
+                .andExpect(jsonPath("$.data.items[0].starRating").value(4))
+                .andExpect(jsonPath("$.data.items[0].reviewScore").value(4.5))
+                .andExpect(jsonPath("$.data.items[0].reviewCount").value(120))
+                .andExpect(jsonPath("$.data.items[0].description").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].category").doesNotExist())
+                .andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.totalCount").value((Object) null))
+                .andExpect(jsonPath("$.data.hasMore").value(true));
+    }
+
+    @Test
+    void 투어_티켓_검색_성공_봉투() throws Exception {
+        when(productService.searchTickets(userId, "도쿄", "1"))
+                .thenReturn(TicketSearchResponse.from(ProductPage.of(List.of(
+                        new Product("투어·티켓 이름 예시", "https://experiences.myrealtrip.com/products/example",
+                                new BigDecimal("30000"), null, "상품 설명 예시", null, "4.7", 80)), 1, 1L, 1)));
+
+        mockMvc.perform(get("/api/myrealtrip/tickets").param("keyword", "도쿄").param("page", "1")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("투어·티켓 검색 성공"))
+                .andExpect(jsonPath("$.data.items[0].description").value("상품 설명 예시"))
+                .andExpect(jsonPath("$.data.items[0].reviewScore").value("4.7"))   // 문자열 평점은 그대로
+                .andExpect(jsonPath("$.data.items[0].starRating").doesNotExist())
+                .andExpect(jsonPath("$.data.totalCount").value(1))
+                .andExpect(jsonPath("$.data.hasMore").value(false));
+    }
+
+    @Test
+    void 상품_조회의_입력값_오류와_미인증도_같은_규칙이다() throws Exception {
+        when(productService.searchHotels(eq(userId), any(), any(), any(), any(), any()))
+                .thenThrow(new BusinessException(ErrorCode.INVALID_MYREALTRIP_REQUEST));
+
+        mockMvc.perform(get("/api/myrealtrip/hotels").param("regionId", "1")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("요청 값을 확인해주세요."));
+        mockMvc.perform(get("/api/myrealtrip/tickets").param("keyword", "도쿄"))
+                .andExpect(status().isUnauthorized());
+        verify(productService, never()).searchTickets(any(), any(), any());
     }
 
     @Test

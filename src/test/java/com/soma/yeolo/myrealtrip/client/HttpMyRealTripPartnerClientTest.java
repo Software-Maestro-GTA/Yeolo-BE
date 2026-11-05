@@ -16,7 +16,12 @@ import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.exception.RateLimitExceededException;
 import com.soma.yeolo.myrealtrip.domain.Airport;
+import com.soma.yeolo.myrealtrip.domain.HotelSearchQuery;
+import com.soma.yeolo.myrealtrip.domain.Product;
+import com.soma.yeolo.myrealtrip.domain.ProductPage;
 import com.soma.yeolo.myrealtrip.domain.Region;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
@@ -39,6 +44,8 @@ class HttpMyRealTripPartnerClientTest {
     private static final String BASE = "http://partner.test";
     private static final String AIRPORTS = BASE + HttpMyRealTripPartnerClient.AIRPORT_AUTOCOMPLETE_PATH;
     private static final String REGIONS = BASE + HttpMyRealTripPartnerClient.REGION_AUTOCOMPLETE_PATH;
+    private static final String HOTELS = BASE + HttpMyRealTripPartnerClient.HOTEL_SEARCH_PATH;
+    private static final String TICKETS = BASE + HttpMyRealTripPartnerClient.TICKET_SEARCH_PATH;
 
     private MockRestServiceServer server;
     private HttpMyRealTripPartnerClient client;
@@ -212,6 +219,136 @@ class HttpMyRealTripPartnerClientTest {
         assertCode(() -> client.searchAirports("인천"), ErrorCode.MYREALTRIP_PARTNER_ERROR);
         assertCode(() -> client.searchAirports("인천"), ErrorCode.MYREALTRIP_PARTNER_ERROR);
         assertCode(() -> client.searchRegions("도쿄", true), ErrorCode.MYREALTRIP_PARTNER_ERROR);
+        server.verify();
+    }
+
+    @Test
+    void 숙소_조회는_페이지를_0부터로_바꿔_size_20과_함께_보내고_유효한_상품만_남긴다() {
+        server.expect(once(), requestTo(HOTELS))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer partner-key"))
+                .andExpect(jsonPath("$.regionId").value(12345))
+                .andExpect(jsonPath("$.checkIn").value("2026-12-10"))
+                .andExpect(jsonPath("$.checkOut").value("2026-12-12"))
+                .andExpect(jsonPath("$.adultCount").value(2))
+                .andExpect(jsonPath("$.page").value(1))     // FE→BE 2 페이지 = 상위 1 페이지
+                .andExpect(jsonPath("$.size").value(20))
+                .andRespond(withSuccess("""
+                        {"result":{"status":200},"data":{"totalCount":45,"page":1,"items":[
+                          {"itemName":"호텔 A","productUrl":"https://accommodation.myrealtrip.com/union/products/a",
+                           "salePrice":120000,"imageUrl":"https://img.myrealtrip.com/a.jpg","starRating":4,
+                           "reviewScore":"4.5","reviewCount":120,"category":"hotel","tags":["x"],"priceDisplay":"12만원"},
+                          {"itemName":"호텔 B","productUrl":"https://accommodation.myrealtrip.com/union/products/b",
+                           "salePrice":0,"reviewScore":4.7},
+                          {"itemName":"HTTP 링크","productUrl":"http://accommodation.myrealtrip.com/x","salePrice":1000},
+                          {"itemName":"유사 도메인","productUrl":"https://myrealtrip.com.evil.example/x","salePrice":1000},
+                          {"itemName":"음수 가격","productUrl":"https://myrealtrip.com/x","salePrice":-1},
+                          {"itemName":"문자열 가격","productUrl":"https://myrealtrip.com/x","salePrice":"12000"},
+                          {"productUrl":"https://myrealtrip.com/x","salePrice":1000},
+                          "문자열 항목", null
+                        ]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        ProductPage page = client.searchHotels(new HotelSearchQuery(12345, LocalDate.parse("2026-12-10"),
+                LocalDate.parse("2026-12-12"), 2, 2));
+
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.totalCount()).isEqualTo(45L);
+        assertThat(page.hasMore()).isTrue();     // 2*20 < 45
+        assertThat(page.items()).containsExactly(
+                new Product("호텔 A", "https://accommodation.myrealtrip.com/union/products/a", new BigDecimal("120000"),
+                        "https://img.myrealtrip.com/a.jpg", null, new BigDecimal("4"), "4.5", 120),
+                new Product("호텔 B", "https://accommodation.myrealtrip.com/union/products/b", new BigDecimal("0"),
+                        null, null, null, 4.7, null));
+        server.verify();
+    }
+
+    @Test
+    void 투어_티켓_검색은_페이지를_그대로_보내고_전체_건수가_없으면_원본_페이지_크기로_다음_페이지를_판단한다() {
+        StringBuilder items = new StringBuilder();
+        for (int i = 0; i < 20; i++) {
+            items.append(i > 0 ? "," : "")
+                    .append("{\"itemName\":\"티켓 ").append(i).append("\",\"productUrl\":\"https://experiences.myrealtrip.com/products/")
+                    .append(i).append("\",\"salePrice\":30000,\"description\":\"설명\"")
+                    .append(i == 0 ? ",\"productUrl\":\"http://bad\"" : "")     // 첫 항목은 걸러진다
+                    .append("}");
+        }
+        server.expect(once(), requestTo(TICKETS))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(jsonPath("$.keyword").value("도쿄"))
+                .andExpect(jsonPath("$.page").value(3))
+                .andExpect(jsonPath("$.size").value(20))
+                .andRespond(withSuccess("{\"data\":{\"items\":[" + items + "]}}", MediaType.APPLICATION_JSON));
+
+        ProductPage page = client.searchTickets("도쿄", 3);
+
+        assertThat(page.page()).isEqualTo(3);
+        assertThat(page.totalCount()).isNull();
+        assertThat(page.items()).hasSize(19);
+        assertThat(page.items().get(0).description()).isEqualTo("설명");
+        assertThat(page.hasMore()).isTrue();     // 필터링 전 원본이 20개
+        server.verify();
+    }
+
+    @Test
+    void 숙소_첫_페이지는_상위_0페이지이고_정수값_실수_건수는_정수로_읽고_빈_상품명은_제외한다() {
+        server.expect(once(), requestTo(HOTELS))
+                .andExpect(jsonPath("$.page").value(0))
+                .andRespond(withSuccess("""
+                        {"data":{"totalCount":45.0,"items":[
+                          {"itemName":"","productUrl":"https://myrealtrip.com/x","salePrice":1000},
+                          {"itemName":"  ","productUrl":"https://myrealtrip.com/x","salePrice":1000},
+                          {"itemName":"A","productUrl":"https://myrealtrip.com/a","salePrice":1000,"reviewCount":120.0,"starRating":4.5,"imageUrl":"","description":" "},
+                          {"itemName":"B","productUrl":"https://myrealtrip.com/b","salePrice":12000000.0,"reviewCount":-1}
+                        ]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        ProductPage page = client.searchHotels(new HotelSearchQuery(1, LocalDate.parse("2026-12-10"),
+                LocalDate.parse("2026-12-12"), 1, 1));
+
+        assertThat(page.page()).isEqualTo(1);
+        assertThat(page.totalCount()).isEqualTo(45L);
+        assertThat(page.items()).hasSize(2);
+        assertThat(page.items().get(0).reviewCount()).isEqualTo(120);
+        assertThat(page.items().get(0).starRating()).isEqualByComparingTo("4.5");
+        assertThat(page.items().get(0).imageUrl()).isNull();        // 빈 문자열은 "없음"
+        assertThat(page.items().get(0).description()).isNull();
+        assertThat(page.items().get(1).reviewCount()).isNull();     // 음수 리뷰 수는 모름
+        assertThat(page.items().get(1).salePrice().toString()).isEqualTo("12000000");   // 1.2E+7 로 나가지 않는다
+        server.verify();
+    }
+
+    @Test
+    void 전체_건수가_음수나_비정수면_미제공으로_본다() {
+        server.expect(once(), requestTo(TICKETS))
+                .andRespond(withSuccess("{\"data\":{\"totalCount\":-1,\"items\":[]}}", MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(TICKETS))
+                .andRespond(withSuccess("{\"data\":{\"totalCount\":\"many\",\"items\":[]}}", MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(TICKETS))
+                .andRespond(withSuccess("{\"data\":{\"totalCount\":45.5,\"items\":[]}}", MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(TICKETS))   // Jackson 은 1e999 를 무한대로 읽는다 — 500 이 아니라 "미제공"
+                .andRespond(withSuccess("{\"data\":{\"totalCount\":1e999,\"items\":[{\"itemName\":\"A\",\"productUrl\":\"https://myrealtrip.com/a\",\"salePrice\":1,\"reviewCount\":1e999}]}}", MediaType.APPLICATION_JSON));
+
+        assertThat(client.searchTickets("도쿄", 1).totalCount()).isNull();
+        assertThat(client.searchTickets("도쿄", 1).totalCount()).isNull();
+        assertThat(client.searchTickets("도쿄", 1).totalCount()).isNull();
+        ProductPage infinite = client.searchTickets("도쿄", 1);
+        assertThat(infinite.totalCount()).isNull();
+        assertThat(infinite.items()).hasSize(1);
+        assertThat(infinite.items().get(0).reviewCount()).isNull();
+        server.verify();
+    }
+
+    @Test
+    void items_배열이_없거나_배열이_아니면_빈_결과로_숨기지_않고_502다() {
+        server.expect(once(), requestTo(HOTELS))
+                .andRespond(withSuccess("{\"data\":{\"totalCount\":3}}", MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(TICKETS))
+                .andRespond(withSuccess("{\"data\":{\"items\":{\"a\":1}}}", MediaType.APPLICATION_JSON));
+
+        HotelSearchQuery query = new HotelSearchQuery(1, LocalDate.parse("2026-12-10"), LocalDate.parse("2026-12-12"), 1, 1);
+        assertCode(() -> client.searchHotels(query), ErrorCode.MYREALTRIP_PARTNER_ERROR);
+        assertCode(() -> client.searchTickets("도쿄", 1), ErrorCode.MYREALTRIP_PARTNER_ERROR);
         server.verify();
     }
 
