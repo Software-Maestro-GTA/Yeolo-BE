@@ -3,6 +3,7 @@ package com.soma.yeolo.global.exception;
 import com.soma.yeolo.global.response.ApiResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -44,6 +45,27 @@ public class GlobalExceptionHandler {
             log.warn("BusinessException: {} - {}", code, e.getMessage());
         }
         return envelope(code.getHttpStatus(), code.getMessage(), response);
+    }
+
+    /**
+     * 요청 한도 초과(429). {@link BusinessException}보다 구체적인 타입이라 이 핸들러가 먼저 잡힌다.
+     * 재시도 시점을 알면 {@code Retry-After}(초)를 함께 내린다 — 명세(API-MRT-1~6 §실패 응답)가
+     * "재시도 시점을 알 수 있으면 Retry-After 헤더를 반환한다"고 정했고, 봉투만으로는 클라이언트가
+     * 얼마나 기다릴지 알 수 없다.
+     */
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRateLimit(RateLimitExceededException e,
+                                                             HttpServletResponse response) {
+        ErrorCode code = e.getErrorCode();
+        log.warn("요청 한도 초과: {} (retryAfter={}s)", code, e.getRetryAfterSeconds());
+        ResponseEntity<ApiResponse<Void>> base = envelope(code.getHttpStatus(), code.getMessage(), response);
+        if (base == null || e.getRetryAfterSeconds() == null) {
+            return base;
+        }
+        return ResponseEntity.status(base.getStatusCode())
+                .headers(base.getHeaders())
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(e.getRetryAfterSeconds()))
+                .body(base.getBody());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -21,6 +21,10 @@
 | [#46](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/46) | TSK-32 | 국가·도시 자동완성 | API-LOC-1, API-LOC-2 | FUN-5, FUN-8 | REQ-4, REQ-9 | — | In progress |
 | [#78](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/78) | — | 회원탈퇴·코스 삭제 복구 + 토큰 재발급 | API-USER-2, API-AUTH-3, API-COURSE-4 | FUN-1, FUN-9 | REQ-11 | DOM-1, DOM-3 | In progress |
 | [#49](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/49) | TSK-40 | 친구 초대 공유 링크 생성·조회·수락 | API-SHARE-1, API-SHARE-2, API-SHARE-3 | FUN-7 | REQ-6 | DOM-6 | In progress |
+| [#131](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/131) | — | 마이리얼트립 파트너 연동 기반 + 공항·숙박 지역 검색 (+ `X-App-Version` 접근 로그) | API-MRT-1, API-MRT-2 | — | REQ-4 | — | In progress |
+| [#132](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/132) | — | 마이리얼트립 숙소·투어 티켓 목록 조회 | API-MRT-3, API-MRT-4 | — | REQ-4 | — | Backlog |
+| [#133](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/133) | — | 마이리얼트립 항공 검색·상품 제휴 링크 생성 | API-MRT-5, API-MRT-6 | — | REQ-4 | — | Backlog |
+| [#134](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/134) | — | 마이리얼트립 쿠폰 목록 | API-MRT-7 | — | REQ-4 | — | Backlog |
 
 > ⚠️ **명세 ID 재편:** SPEC 저장소가 갱신되며 API·DOM ID 체계가 바뀌었다
 > (`API-FB-*` → `API-AUTH-*`/`API-COURSE-*`/`API-PREF-*`/`API-USER-*`, DOM 번호도 이동 —
@@ -87,9 +91,12 @@
 
 - **API:** API-FB-3(최소 설문 성향분석), API-FB-11(로그아웃), API-FB-12(회원탈퇴)
 - **기능/요구사항:** 그룹 톡방·일정조율(REQ-1), 그룹 교차분석(REQ-2), AI 앨범 정리(REQ-3),
-  예약/제휴 링크(REQ-4), 마이페이지 통합(REQ-5), 추천 서버 운영 안정성(REQ-6),
+  마이페이지 통합(REQ-5), 추천 서버 운영 안정성(REQ-6),
   동행자 커뮤니티(REQ-10), 공동 앨범(REQ-12), 추천 일정 상세 UI(REQ-9, FE 영역)
 - **타 파트:** FE 구현, AI 엔진 내부 로직, 인프라/배포
+- **예약/제휴 링크(REQ-4)는 2026-11-05 부터 In Scope 다** — 명세 개정(SPEC `a816a75`)으로 마이리얼트립 제휴 연동이
+  FE 직접 호출에서 BE 프록시(API-MRT-1~7)로 바뀌었다(#131~#134). 단 객실·예약 상세·결제, 편도·다구간 항공,
+  개인 쿠폰 발급·검증은 명세가 이관 범위 밖으로 못 박았으므로 여전히 하지 않는다.
 
 ## 담당 외
 - FE·AI·인프라는 다른 담당자 몫입니다. BE는 AI 내부 API를 **호출**만 합니다.

@@ -84,6 +84,15 @@ public enum ErrorCode {
     COUNTRY_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 국가를 찾을 수 없습니다."),
     INVALID_SEARCH_KEYWORD(HttpStatus.BAD_REQUEST, "검색 키워드를 입력해주세요."),
 
+    // 마이리얼트립 파트너 연동 (API-MRT-1~6). 400·401 문구는 명세 예시 그대로, 429·500·502·504 는 명세가
+    // 사유만 적고 문구를 주지 않아 BE 에서 정했다. 파트너의 401·403 은 "BE 의 파트너 키·등록 IP 문제"라
+    // 사용자의 로그인 만료로 오인되지 않도록 401 이 아니라 502 로 낸다(명세 §실패 응답).
+    INVALID_MYREALTRIP_REQUEST(HttpStatus.BAD_REQUEST, "요청 값을 확인해주세요."),
+    MYREALTRIP_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요."),
+    MYREALTRIP_NOT_CONFIGURED(HttpStatus.INTERNAL_SERVER_ERROR, "파트너 연동 설정이 없습니다."),
+    MYREALTRIP_PARTNER_ERROR(HttpStatus.BAD_GATEWAY, "파트너 서비스 호출에 실패했습니다."),
+    MYREALTRIP_PARTNER_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "파트너 서비스 응답이 지연되고 있습니다."),
+
     // Common
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "내부 처리 오류가 발생했습니다."),
     INVALID_REQUEST(HttpStatus.BAD_REQUEST, "요청이 유효하지 않습니다."),
