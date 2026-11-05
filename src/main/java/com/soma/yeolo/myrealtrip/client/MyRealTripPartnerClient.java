@@ -1,6 +1,8 @@
 package com.soma.yeolo.myrealtrip.client;
 
 import com.soma.yeolo.myrealtrip.domain.Airport;
+import com.soma.yeolo.myrealtrip.domain.HotelSearchQuery;
+import com.soma.yeolo.myrealtrip.domain.ProductPage;
 import com.soma.yeolo.myrealtrip.domain.Region;
 import java.util.List;
 
@@ -18,4 +20,10 @@ public interface MyRealTripPartnerClient {
 
     /** 숙박 지역 자동완성 (API-MRT-2). 정수 {@code regionId}와 이름이 있는 항목만 남긴다. */
     List<Region> searchRegions(String keyword, boolean isDomestic);
+
+    /** 숙소 조회 (API-MRT-3). 페이지 크기 20 고정, 유효하지 않은 상품은 제외. 응답 구조가 잘못되면 502. */
+    ProductPage searchHotels(HotelSearchQuery query);
+
+    /** 투어·티켓 검색 (API-MRT-4). {@code page}는 1 부터. 페이지 크기 20 고정. */
+    ProductPage searchTickets(String keyword, int page);
 }

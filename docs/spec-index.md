@@ -60,12 +60,15 @@ SPEC `a816a75`("header app version 및 myrealtrip api 서버 분리 api 추가")
 | 명세 | 내용 | BE 대응 |
 | :--- | :--- | :--- |
 | API-MRT-1/2 | 공항·숙박 지역 자동완성 | #131 — `myrealtrip` 패키지. 포트 `MyRealTripPartnerClient` ← `HttpMyRealTripPartnerClient`. 실패 매핑: 키 미설정 500, 파트너 401/403·호출 실패·잘못된 응답 502, 응답 시간 초과 504, 파트너 429 → 429(+`Retry-After` 숫자면 전달). 사용자별 고정 창 요청 제한(`MyRealTripRateLimiter`, 기본 60회/1분, 초과 429 + `Retry-After`). 검색 결과 없음은 200 + 빈 배열 |
-| API-MRT-3/4 | 숙소·투어 티켓 목록(페이지 20 고정, `totalCount` nullable, `hasMore`) | #132 (대기) |
+| API-MRT-3/4 | 숙소·투어 티켓 목록(페이지 20 고정, `totalCount` nullable, `hasMore`) | #132 — 같은 포트·어댑터에 `searchHotels`/`searchTickets` 추가, `MyRealTripProductService`. 숙소 상위 API 는 page 0 시작이라 `page - 1` 로 변환(응답 `page`는 Client 값), 티켓은 1 시작 — 명세는 "상위 계약 확인 후 구현"이라 했는데, 확인 근거는 **운영 중인 FE 어댑터**다(`searchHotels`가 `page ?? 0`을 보내고 `hasMore`를 `(page+1)*size`로 계산, 티켓은 `page=1`). 파트너 문서로 재확인된 것은 아니므로 숙소 2페이지가 1페이지와 같은 상품을 돌려주면 이 변환을 의심한다. 상품명·HTTPS myrealtrip.com(서브도메인) 원본 URL(`MyRealTripUrls`, URL 파서)·0 이상 숫자 가격이 없는 항목은 제외하되 `hasMore`는 필터링 전 원본 수 기준. 상위 `totalCount`가 0 이상 정수가 아니면 null + 원본 20개면 `hasMore: true`. `items` 배열이 없으면 502. 과거 체크인 판정은 Asia/Seoul. 파트너 항목은 `JsonNode`가 아니라 `Object`(Map)로 받는다 — RestClient 변환기는 Jackson 3, 프로젝트 `JsonNode`는 Jackson 2 라 트리 모델로 역직렬화할 수 없다 |
 | API-MRT-5/6 | 항공 검색·상품 제휴 링크(mylink) 생성, URL 파서 검증 | #133 (대기) |
 | API-MRT-7 | 쿠폰 목록(파트너 호출 없음, BE 관리 데이터) | #134 (대기) |
 
 **BE 가 정한 것(명세 미규정):** 429·500·502·504 의 응답 문구(`ErrorCode.MYREALTRIP_*`), 요청 제한 수치
 (설정 `myrealtrip.rate-limit-*`), `isDomestic`은 `true`/`false` 문자열만 허용(스프링 Boolean 변환의 `1`/`on`은 400).
+MRT-3/4 의 `reviewScore`는 명세가 "string, number 또는 null — 현재 Client 타입 유지"라 공급자 값을 타입 그대로 넘긴다
+(`Object`, String 또는 Number 만). 모든 쿼리 파라미터는 문자열로 받아 `MyRealTripRequests`가 엄격히 해석한다(정수는
+소수·문자열 거부, 날짜는 `YYYY-MM-DD` 만). `imageUrl`·`totalCount` 미제공은 생략이 아니라 명시적 `null` 이다.
 **미해소 명세 모순 — 401 문구.** API-MRT-1~7 은 401 본문을 `"인증이 필요합니다."`로 적었는데, 보호 리소스 전체의 401 은
 `RestAuthenticationEntryPoint` 한 곳에서 `"인증이 필요하거나 토큰이 만료되었습니다."`로 나간다(다른 API 명세와 같은 문구).
 MRT 만 바꾸면 FE 가 엔드포인트별로 두 문구를 알아야 하므로 **일단 공통 문구를 유지**했고, 명세 쪽을 공통 문구로

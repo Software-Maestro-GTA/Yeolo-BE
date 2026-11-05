@@ -22,7 +22,7 @@
 | [#78](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/78) | — | 회원탈퇴·코스 삭제 복구 + 토큰 재발급 | API-USER-2, API-AUTH-3, API-COURSE-4 | FUN-1, FUN-9 | REQ-11 | DOM-1, DOM-3 | In progress |
 | [#49](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/49) | TSK-40 | 친구 초대 공유 링크 생성·조회·수락 | API-SHARE-1, API-SHARE-2, API-SHARE-3 | FUN-7 | REQ-6 | DOM-6 | In progress |
 | [#131](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/131) | — | 마이리얼트립 파트너 연동 기반 + 공항·숙박 지역 검색 (+ `X-App-Version` 접근 로그) | API-MRT-1, API-MRT-2 | — | REQ-4 | — | In progress |
-| [#132](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/132) | — | 마이리얼트립 숙소·투어 티켓 목록 조회 | API-MRT-3, API-MRT-4 | — | REQ-4 | — | Backlog |
+| [#132](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/132) | — | 마이리얼트립 숙소·투어 티켓 목록 조회 | API-MRT-3, API-MRT-4 | — | REQ-4 | — | In progress |
 | [#133](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/133) | — | 마이리얼트립 항공 검색·상품 제휴 링크 생성 | API-MRT-5, API-MRT-6 | — | REQ-4 | — | Backlog |
 | [#134](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/134) | — | 마이리얼트립 쿠폰 목록 | API-MRT-7 | — | REQ-4 | — | Backlog |
 

@@ -3,17 +3,24 @@ package com.soma.yeolo.myrealtrip.client;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.exception.RateLimitExceededException;
+import com.soma.yeolo.global.client.RetryAfterHeader;
 import com.soma.yeolo.myrealtrip.client.dto.PartnerAirportsData;
 import com.soma.yeolo.myrealtrip.client.dto.PartnerEnvelope;
+import com.soma.yeolo.myrealtrip.client.dto.PartnerProductsData;
 import com.soma.yeolo.myrealtrip.client.dto.PartnerRegionsData;
 import com.soma.yeolo.myrealtrip.domain.Airport;
+import com.soma.yeolo.myrealtrip.domain.HotelSearchQuery;
+import com.soma.yeolo.myrealtrip.domain.MyRealTripUrls;
+import com.soma.yeolo.myrealtrip.domain.Product;
+import com.soma.yeolo.myrealtrip.domain.ProductPage;
 import com.soma.yeolo.myrealtrip.domain.Region;
-import com.soma.yeolo.global.client.RetryAfterHeader;
+import java.math.BigDecimal;
 import java.net.SocketTimeoutException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalLong;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -42,6 +49,8 @@ public class HttpMyRealTripPartnerClient implements MyRealTripPartnerClient {
 
     static final String AIRPORT_AUTOCOMPLETE_PATH = "/v1/products/flight/airport-autocomplete";
     static final String REGION_AUTOCOMPLETE_PATH = "/v1/products/accommodation/region-autocomplete";
+    static final String HOTEL_SEARCH_PATH = "/v1/products/accommodation/search";
+    static final String TICKET_SEARCH_PATH = "/v1/products/tna/search";
     /** 공항 자동완성 결과 수. Client 에서 받지 않고 서버가 고정한다(API-MRT-1 §처리 규칙). */
     static final int AIRPORT_RESULT_SIZE = 10;
     /** 파트너 오류 본문은 로그에만 남기되 길이를 자른다 — 장애 중 자동완성이 입력마다 HTML 페이지를 통째로 찍지 않게. */
@@ -51,6 +60,9 @@ public class HttpMyRealTripPartnerClient implements MyRealTripPartnerClient {
             new ParameterizedTypeReference<>() {
             };
     private static final ParameterizedTypeReference<PartnerEnvelope<PartnerRegionsData>> REGIONS_TYPE =
+            new ParameterizedTypeReference<>() {
+            };
+    private static final ParameterizedTypeReference<PartnerEnvelope<PartnerProductsData>> PRODUCTS_TYPE =
             new ParameterizedTypeReference<>() {
             };
 
@@ -94,6 +106,132 @@ public class HttpMyRealTripPartnerClient implements MyRealTripPartnerClient {
                 .filter(entry -> entry != null && entry.regionId() != null && entry.name() != null)
                 .map(entry -> new Region(entry.regionId(), entry.name(), entry.subName()))
                 .toList();
+    }
+
+    /**
+     * 숙소 상위 API 의 페이지는 0 부터 시작한다(이관 전 FE 어댑터 기준, 명세 §처리 규칙 "upstreamPage = page - 1").
+     * FE→BE 는 1 부터이므로 여기서 변환한다. 응답의 {@code page}는 Client 가 보낸 값을 그대로 돌려준다.
+     */
+    @Override
+    public ProductPage searchHotels(HotelSearchQuery query) {
+        Objects.requireNonNull(query, "query");
+        PartnerProductsData data = post(HOTEL_SEARCH_PATH, Map.of(
+                "regionId", query.regionId(),
+                "checkIn", query.checkIn().toString(),
+                "checkOut", query.checkOut().toString(),
+                "adultCount", query.adultCount(),
+                "page", query.page() - 1,
+                "size", ProductPage.PAGE_SIZE), PRODUCTS_TYPE);
+        return toProductPage(HOTEL_SEARCH_PATH, data, query.page());
+    }
+
+    /** 투어·티켓 상위 API 의 페이지는 FE→BE 와 같이 1 부터다. */
+    @Override
+    public ProductPage searchTickets(String keyword, int page) {
+        Objects.requireNonNull(keyword, "keyword");
+        PartnerProductsData data = post(TICKET_SEARCH_PATH,
+                Map.of("keyword", keyword, "page", page, "size", ProductPage.PAGE_SIZE), PRODUCTS_TYPE);
+        return toProductPage(TICKET_SEARCH_PATH, data, page);
+    }
+
+    /**
+     * 상품 목록 공통 변환(명세 §상품 및 페이지 필드). 상품명·검증된 원본 URL·0 이상 유한한 가격이 없는 항목은 제외하되
+     * {@code hasMore}는 필터링 전 원본 수로 판단한다. {@code items} 자체가 없으면 빈 결과로 숨기지 않고 502 다.
+     */
+    private ProductPage toProductPage(String path, PartnerProductsData data, int page) {
+        if (data.items() == null) {
+            throw invalidResponse(path, "items 배열 없음");
+        }
+        List<Product> products = data.items().stream()
+                .map(HttpMyRealTripPartnerClient::parseProduct)
+                .flatMap(Optional::stream)
+                .toList();
+        int dropped = data.items().size() - products.size();
+        if (dropped > 0) {
+            // 제외는 정상 동작이지만 "20개 중 3개만 보인다"를 진단할 단서는 남긴다. 항목 원문은 찍지 않는다.
+            log.warn("마이리얼트립 {} page={} 상품 {}건 중 {}건 제외(상품명·HTTPS myrealtrip.com URL·0 이상 가격 요건 미달)",
+                    path, page, data.items().size(), dropped);
+        }
+        return ProductPage.of(products, page, upstreamTotalCount(data.totalCount()), data.items().size());
+    }
+
+    /**
+     * 유효한 상품이면 값, 아니면 빈 값(제외). JSON 객체가 아닌 항목도 제외다. Client 가 쓰지 않는
+     * category·tags·priceDisplay 는 읽지 않는다.
+     */
+    private static Optional<Product> parseProduct(Object item) {
+        if (!(item instanceof Map<?, ?> node)) {
+            return Optional.empty();
+        }
+        String itemName = text(node, "itemName");
+        String productUrl = text(node, "productUrl");
+        BigDecimal salePrice = number(node, "salePrice");
+        if (itemName == null || !MyRealTripUrls.isProductUrl(productUrl)
+                || salePrice == null || salePrice.signum() < 0) {
+            return Optional.empty();
+        }
+        Object reviewScore = node.get("reviewScore");
+        Object score = reviewScore instanceof String || reviewScore instanceof Number ? reviewScore : null;
+        Integer count = integer(node, "reviewCount");
+        return Optional.of(new Product(itemName, productUrl, salePrice, text(node, "imageUrl"),
+                text(node, "description"), number(node, "starRating"), score, count));
+    }
+
+    /** 상위 API 가 준 전체 건수. 0 이상 정수(정수값 실수 {@code 45.0} 포함)만 믿고 그 밖은 "미제공"으로 본다. */
+    private static Long upstreamTotalCount(Object value) {
+        Long count = integral(value);
+        return count != null && count >= 0 ? count : null;
+    }
+
+    /** 정수로 읽을 수 있는 숫자면 그 값. {@code 120.0}은 120 이고 {@code 4.5}·문자열·무한대·범위 밖은 null. */
+    private static Long integral(Object value) {
+        if (value instanceof Integer || value instanceof Long) {
+            return ((Number) value).longValue();
+        }
+        BigDecimal decimal = decimal(value);
+        if (decimal == null) {
+            return null;
+        }
+        try {
+            return decimal.longValueExact();
+        } catch (ArithmeticException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 숫자를 {@link BigDecimal}로. 실수는 유한할 때만 값이며({@code 1e999}는 Jackson 이 무한대로 읽는다) 꼬리 0 을 지우되
+     * 지수 표기({@code 1.2E+7})가 되지 않게 소수 자리 0 이상으로 맞춘다 — FE 에는 {@code 12000000}으로 나가야 한다.
+     */
+    private static BigDecimal decimal(Object value) {
+        if (value instanceof BigDecimal b) {
+            return b;
+        }
+        if (value instanceof Double || value instanceof Float) {
+            double d = ((Number) value).doubleValue();
+            if (!Double.isFinite(d)) {
+                return null;
+            }
+            BigDecimal v = BigDecimal.valueOf(d).stripTrailingZeros();
+            return v.scale() < 0 ? v.setScale(0) : v;
+        }
+        return value instanceof Number n ? new BigDecimal(n.toString()) : null;
+    }
+
+    /** 문자열 필드. 없거나 공백뿐이면 null — 명세의 "string 또는 null" 에서 빈 문자열은 "없음"이다(global JsonNodes.text 와 같은 규칙). */
+    private static String text(Map<?, ?> node, String field) {
+        return node.get(field) instanceof String s && !s.isBlank() ? s : null;
+    }
+
+    /** 숫자만 값이다 — 문자열 "12000" 은 공급자 형식 변경 신호라 믿지 않는다(FE 어댑터의 Number.isFinite 와 같다). */
+    private static BigDecimal number(Map<?, ?> node, String field) {
+        return decimal(node.get(field));
+    }
+
+    /** 0 이상 int 범위의 정수만. 음수 리뷰 수는 공급자의 "모름" 표식일 수 있어 null 로 본다(전체 건수와 같은 규칙). */
+    private static Integer integer(Map<?, ?> node, String field) {
+        Long value = integral(node.get(field));
+        return value != null && value >= 0 && value <= Integer.MAX_VALUE ? value.intValue() : null;
     }
 
     private <T> T post(String path, Map<String, Object> body, ParameterizedTypeReference<PartnerEnvelope<T>> type) {
