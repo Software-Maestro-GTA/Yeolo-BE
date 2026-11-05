@@ -33,6 +33,8 @@ public class ImageMetadataPreprocessor {
         if (images == null || images.isEmpty()) {
             throw new BusinessException(ErrorCode.INSUFFICIENT_IMAGE_METADATA);
         }
+        // 사진 수를 남긴다 — provider의 실제 호출 로그와 대조해 좌표 격자 캐시의 절감률을 운영 로그로 본다.
+        log.info("취향 분석 전처리 - 사진 {}장 역지오코딩", images.size());
         List<PreprocessedImage> preprocessed = images.stream().map(this::toPreprocessed).toList();
 
         // 위치가 덜 채워진 사진은 제외한다 — AI는 location 필드를 non-nullable로 받으므로 한 장만

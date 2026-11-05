@@ -4,13 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.soma.yeolo.global.client.IntervalRateLimiter;
 import com.soma.yeolo.global.client.RetryAfterHeader;
+import com.soma.yeolo.global.client.LruCache;
 import com.soma.yeolo.global.client.NominatimProperties;
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.tasteprofile.domain.GeoLocation;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -66,7 +65,7 @@ public class OsmReverseGeocodeClient implements ReverseGeocodeClient {
         this.properties = properties;
         this.userAgent = nominatimProperties.userAgent();
         this.rateLimiter = nominatimRateLimiter;
-        this.cache = newLruCache(properties.cacheMaxSize());
+        this.cache = LruCache.newSynchronized(properties.cacheMaxSize(), "geocode.osm.cache-max-size");
     }
 
     @Override
@@ -77,6 +76,8 @@ public class OsmReverseGeocodeClient implements ReverseGeocodeClient {
             return cached;
         }
         GeoLocation location = fetch(latitude, longitude);
+        // 빈 위치도 캐시한다 — Google provider와 달리 칸이 11m라 "같은 칸의 다음 사진은 뭍"일 여지가 거의 없고,
+        // Nominatim은 1초 간격 제한이 있어 바다 사진 N장을 매번 다시 물으면 응답이 N초 늦어진다.
         cache.put(key, location);
         return location;
     }
@@ -142,16 +143,6 @@ public class OsmReverseGeocodeClient implements ReverseGeocodeClient {
             Thread.currentThread().interrupt();
             throw new BusinessException(ErrorCode.REVERSE_GEOCODE_FAILED, e);
         }
-    }
-
-    private static Map<String, GeoLocation> newLruCache(int maxSize) {
-        int capacity = Math.max(1, maxSize);
-        return Collections.synchronizedMap(new LinkedHashMap<>(16, 0.75f, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<String, GeoLocation> eldest) {
-                return size() > capacity;
-            }
-        });
     }
 
     private GeoLocation parse(String body) {
