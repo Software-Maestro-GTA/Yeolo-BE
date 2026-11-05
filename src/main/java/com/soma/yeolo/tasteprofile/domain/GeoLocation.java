@@ -34,8 +34,15 @@ public record GeoLocation(
      * 나머지 수십 장의 분석까지 죽인다. 그래서 전처리 단계에서 이 판정으로 걸러 낸다.
      */
     public boolean isAnalyzable() {
-        return isPresent(country) && isPresent(city) && isPresent(region)
-                && isPresent(district) && isPresent(placeName);
+        return hasAdminArea(country, city, region, district) && isPresent(placeName);
+    }
+
+    /**
+     * {@link #isAnalyzable}에서 장소명을 뺀 행정구역 조건. 역지오코딩 provider가 "이 좌표의 행정구역 결과를
+     * 캐시·보강할 가치가 있는가"를 판정할 때 같은 술어를 쓰게 해, 전처리 필터와 캐시 규칙이 어긋나지 않게 한다.
+     */
+    public static boolean hasAdminArea(String country, String city, String region, String district) {
+        return isPresent(country) && isPresent(city) && isPresent(region) && isPresent(district);
     }
 
     private static boolean isPresent(String value) {
