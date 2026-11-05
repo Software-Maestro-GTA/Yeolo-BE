@@ -2,7 +2,10 @@ package com.soma.yeolo.myrealtrip.service;
 
 import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
+import com.soma.yeolo.myrealtrip.domain.Airport;
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -13,6 +16,12 @@ import java.util.regex.Pattern;
  * 모든 위반은 명세의 400 한 문구({@link ErrorCode#INVALID_MYREALTRIP_REQUEST})다.
  */
 final class MyRealTripRequests {
+
+    /**
+     * 과거 날짜 판정 기준일의 시간대 (API-MRT-3 체크인, API-MRT-5 출국일 §처리 규칙 "서비스 기준일 Asia/Seoul"). 서버 시간대(UTC)로
+     * 재면 한국 자정 이후 9시간 동안 어제 날짜가 통과한다.
+     */
+    static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
 
     /** ASCII 숫자만. {@code Long.parseLong}은 선행 {@code +}·전각 숫자도 받아 "정수만" 계약보다 느슨하다. 자릿수는 long 전체 범위를 덮는다. */
     private static final Pattern INTEGER = Pattern.compile("-?[0-9]{1,19}");
@@ -87,6 +96,11 @@ final class MyRealTripRequests {
         return value == null || value.isBlank() ? defaultValue : requireInt(value, min);
     }
 
+    /** 서울 기준 오늘. 시계의 존은 무관하다(시각만 쓴다). */
+    static LocalDate today(Clock clock) {
+        return LocalDate.now(clock.withZone(SERVICE_ZONE));
+    }
+
     /** {@code YYYY-MM-DD} 형식의 유효한 날짜(2월 30일 같은 값은 400). */
     static LocalDate requireDate(String value) {
         if (value == null) {
@@ -97,6 +111,18 @@ final class MyRealTripRequests {
         } catch (DateTimeParseException e) {
             throw invalid();
         }
+    }
+
+    /** 대문자 영문 3자리 공항 코드(공항 검색이 준 값 그대로). 앞뒤 공백은 다른 필드와 같이 지우고, 소문자·다른 길이는 400 — BE 가 대문자로 보정하지 않는다. */
+    static String requireAirportCode(String value) {
+        if (value == null) {
+            throw invalid();
+        }
+        String stripped = value.strip();
+        if (!Airport.isValidCode(stripped)) {
+            throw invalid();
+        }
+        return stripped;
     }
 
     static BusinessException invalid() {

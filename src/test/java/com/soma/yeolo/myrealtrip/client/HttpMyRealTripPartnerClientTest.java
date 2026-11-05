@@ -16,6 +16,7 @@ import com.soma.yeolo.global.exception.BusinessException;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.exception.RateLimitExceededException;
 import com.soma.yeolo.myrealtrip.domain.Airport;
+import com.soma.yeolo.myrealtrip.domain.FlightSearch;
 import com.soma.yeolo.myrealtrip.domain.HotelSearchQuery;
 import com.soma.yeolo.myrealtrip.domain.Product;
 import com.soma.yeolo.myrealtrip.domain.ProductPage;
@@ -46,6 +47,10 @@ class HttpMyRealTripPartnerClientTest {
     private static final String REGIONS = BASE + HttpMyRealTripPartnerClient.REGION_AUTOCOMPLETE_PATH;
     private static final String HOTELS = BASE + HttpMyRealTripPartnerClient.HOTEL_SEARCH_PATH;
     private static final String TICKETS = BASE + HttpMyRealTripPartnerClient.TICKET_SEARCH_PATH;
+    private static final String LANDING = BASE + HttpMyRealTripPartnerClient.FLIGHT_LANDING_URL_PATH;
+    private static final String MYLINK = BASE + HttpMyRealTripPartnerClient.MYLINK_PATH;
+    private static final FlightSearch FLIGHT = new FlightSearch("ICN", "NRT",
+            LocalDate.parse("2026-12-10"), LocalDate.parse("2026-12-12"), 2);
 
     private MockRestServiceServer server;
     private HttpMyRealTripPartnerClient client;
@@ -349,6 +354,94 @@ class HttpMyRealTripPartnerClientTest {
         HotelSearchQuery query = new HotelSearchQuery(1, LocalDate.parse("2026-12-10"), LocalDate.parse("2026-12-12"), 1, 1);
         assertCode(() -> client.searchHotels(query), ErrorCode.MYREALTRIP_PARTNER_ERROR);
         assertCode(() -> client.searchTickets("도쿄", 1), ErrorCode.MYREALTRIP_PARTNER_ERROR);
+        server.verify();
+    }
+
+    @Test
+    void 항공_링크는_왕복_고정으로_랜딩_URL을_받아_mylink로_바꾼다() {
+        server.expect(once(), requestTo(LANDING))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer partner-key"))
+                .andExpect(jsonPath("$.depAirportCd").value("ICN"))
+                .andExpect(jsonPath("$.arrAirportCd").value("NRT"))
+                .andExpect(jsonPath("$.depDate").value("2026-12-10"))
+                .andExpect(jsonPath("$.arrDate").value("2026-12-12"))
+                .andExpect(jsonPath("$.adult").value(2))
+                .andExpect(jsonPath("$.tripTypeCd").value("RT"))
+                .andRespond(withSuccess("{\"result\":{\"status\":200},\"data\":\"https://flights.myrealtrip.com/search?dep=ICN&depNm=인천\"}",
+                        MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(MYLINK))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(jsonPath("$.targetUrl").value("https://flights.myrealtrip.com/search?dep=ICN&depNm=인천"))
+                .andRespond(withSuccess("{\"data\":{\"mylink\":\"https://myrealt.rip/abc123\"}}", MediaType.APPLICATION_JSON));
+
+        assertThat(client.createFlightLink(FLIGHT)).isEqualTo("https://myrealt.rip/abc123");
+        server.verify();
+    }
+
+    @Test
+    void 상품_링크는_targetUrl을_mylink_본문_값으로만_전달한다() {
+        server.expect(once(), requestTo(MYLINK))
+                .andExpect(jsonPath("$.targetUrl").value("https://experiences.myrealtrip.com/products/example"))
+                .andRespond(withSuccess("{\"data\":{\"mylink\":\"https://myrealt.rip/x\"}}", MediaType.APPLICATION_JSON));
+
+        assertThat(client.createProductLink("https://experiences.myrealtrip.com/products/example"))
+                .isEqualTo("https://myrealt.rip/x");
+        server.verify();
+    }
+
+    @Test
+    void 검증되지_않은_targetUrl은_어댑터에서도_파트너에_보내지_않고_명세의_400이다() {
+        assertCode(() -> client.createProductLink("https://evil.example/"), ErrorCode.INVALID_MYREALTRIP_REQUEST);
+        server.verify();   // 기대 호출 0건
+    }
+
+    @Test
+    void 랜딩_URL이나_mylink가_허용_호스트가_아니면_502이고_다음_단계로_넘기지_않는다() {
+        server.expect(once(), requestTo(LANDING))
+                .andRespond(withSuccess("{\"data\":\"https://evil.example/landing\"}", MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(MYLINK))
+                .andRespond(withSuccess("{\"data\":{\"mylink\":\"http://myrealt.rip/insecure\"}}", MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(MYLINK))
+                .andRespond(withSuccess("{\"data\":{\"mylink\":\"https://www.myrealt.rip/sub\"}}", MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(MYLINK))
+                .andRespond(withSuccess("{\"data\":{}}", MediaType.APPLICATION_JSON));
+
+        assertCode(() -> client.createFlightLink(FLIGHT), ErrorCode.MYREALTRIP_PARTNER_ERROR);   // mylink 호출 없음
+        assertCode(() -> client.createProductLink("https://myrealtrip.com/p"), ErrorCode.MYREALTRIP_PARTNER_ERROR);
+        assertCode(() -> client.createProductLink("https://myrealtrip.com/p"), ErrorCode.MYREALTRIP_PARTNER_ERROR);
+        assertCode(() -> client.createProductLink("https://myrealtrip.com/p"), ErrorCode.MYREALTRIP_PARTNER_ERROR);
+        server.verify();
+    }
+
+    @Test
+    void HTTP_200으로_감싼_봉투_안_거절도_항공_단계에서는_구분되는_400이고_다른_단계에서는_502다() {
+        server.expect(once(), requestTo(LANDING))
+                .andRespond(withSuccess("{\"result\":{\"status\":400,\"message\":\"unsupported\"},\"data\":null}", MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(LANDING))
+                .andRespond(withSuccess("{\"result\":{\"status\":500},\"data\":null}", MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo(MYLINK))
+                .andRespond(withSuccess("{\"result\":{\"status\":400},\"data\":null}", MediaType.APPLICATION_JSON));
+
+        assertCode(() -> client.createFlightLink(FLIGHT), ErrorCode.UNSUPPORTED_FLIGHT_SEARCH);
+        assertCode(() -> client.createFlightLink(FLIGHT), ErrorCode.MYREALTRIP_PARTNER_ERROR);
+        assertCode(() -> client.createProductLink("https://myrealtrip.com/p"), ErrorCode.MYREALTRIP_PARTNER_ERROR);
+        server.verify();
+    }
+
+    @Test
+    void 공급자가_항공_검색_조건을_거절한_4xx는_구분되는_400이고_mylink의_4xx는_여전히_502다() {
+        server.expect(once(), requestTo(LANDING)).andRespond(withStatus(HttpStatus.BAD_REQUEST).body("unsupported route"));
+        server.expect(once(), requestTo(LANDING)).andRespond(withStatus(HttpStatus.UNPROCESSABLE_CONTENT));
+        server.expect(once(), requestTo(LANDING)).andRespond(withStatus(HttpStatus.NOT_FOUND));      // 경로·호스트 설정 문제는 502
+        server.expect(once(), requestTo(LANDING)).andRespond(withStatus(HttpStatus.UNAUTHORIZED));   // 키·IP 문제는 그대로 502
+        server.expect(once(), requestTo(MYLINK)).andRespond(withStatus(HttpStatus.BAD_REQUEST));
+
+        assertCode(() -> client.createFlightLink(FLIGHT), ErrorCode.UNSUPPORTED_FLIGHT_SEARCH);
+        assertCode(() -> client.createFlightLink(FLIGHT), ErrorCode.UNSUPPORTED_FLIGHT_SEARCH);
+        assertCode(() -> client.createFlightLink(FLIGHT), ErrorCode.MYREALTRIP_PARTNER_ERROR);
+        assertCode(() -> client.createFlightLink(FLIGHT), ErrorCode.MYREALTRIP_PARTNER_ERROR);
+        assertCode(() -> client.createProductLink("https://myrealtrip.com/p"), ErrorCode.MYREALTRIP_PARTNER_ERROR);
         server.verify();
     }
 

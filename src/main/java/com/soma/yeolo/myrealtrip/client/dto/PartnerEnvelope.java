@@ -10,8 +10,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record PartnerEnvelope<T>(PartnerResult result, T data) {
 
+    /** @param message 공급자의 사유 문구. 로그에만 쓰고 응답에 싣지 않는다. */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record PartnerResult(Integer status) {
+    public record PartnerResult(Integer status, String message) {
     }
 
     /** 파트너가 성공으로 간주할 응답인가. */
