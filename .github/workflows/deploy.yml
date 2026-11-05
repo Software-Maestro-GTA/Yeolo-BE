@@ -177,7 +177,6 @@ jobs:
           GEOCODE_NEARBY_RADIUS: ${{ vars.GEOCODE_NEARBY_RADIUS }}
           GEOCODE_GOOGLE_CACHE_GRID_DECIMALS: ${{ vars.GEOCODE_GOOGLE_CACHE_GRID_DECIMALS }}
           GEOCODE_GOOGLE_CACHE_MAX_SIZE: ${{ vars.GEOCODE_GOOGLE_CACHE_MAX_SIZE }}
-          PLACE_PROVIDER: ${{ vars.PLACE_PROVIDER }}
           PROFILE_IMAGE_PROVIDER: ${{ vars.PROFILE_IMAGE_PROVIDER }}
           PROFILE_IMAGE_S3_BUCKET: ${{ vars.PROFILE_IMAGE_S3_BUCKET }}
           PROFILE_IMAGE_S3_REGION: ${{ vars.PROFILE_IMAGE_S3_REGION }}
@@ -207,7 +206,7 @@ jobs:
                    AI_BASE_URL INTERNAL_API_KEY AI_COURSE_PROVIDER \
                    JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT \
                    GEOCODE_SEARCH_NEARBY_URL GEOCODE_NEARBY_RADIUS \
-                   GEOCODE_GOOGLE_CACHE_GRID_DECIMALS GEOCODE_GOOGLE_CACHE_MAX_SIZE PLACE_PROVIDER \
+                   GEOCODE_GOOGLE_CACHE_GRID_DECIMALS GEOCODE_GOOGLE_CACHE_MAX_SIZE \
                    PROFILE_IMAGE_PROVIDER PROFILE_IMAGE_S3_BUCKET PROFILE_IMAGE_S3_REGION \
                    PROFILE_IMAGE_BASE_URL SHARE_LINK_BASE_URL SHARE_LINK_TTL; do
             v="${!k}"
@@ -224,14 +223,12 @@ jobs:
           # 정상인데 기능만 죽는다(2026-08-27 prod 인시던트). 그래서 여기서 끊는다.
           missing=""
           required_secrets="DB_URL JWT_SECRET INTERNAL_API_KEY"
-          # 한 키를 두 곳이 쓴다 — geocode.google.api-key 와 place.google.api-key 가 모두
-          # ${GOOGLE_MAPS_API_KEY} 다. 그래서 둘 중 하나라도 google 이면 필수다.
-          # PLACE_PROVIDER 쪽이 오히려 더 나쁘다: GooglePlaceLookupClient 는 조회 실패를
-          # 예외가 아니라 빈 값으로 돌려주므로(포트 계약), 키가 없으면 403 을 삼킨 채 장소가
-          # 가짜 좌표로 **DB 에 저장**되고 provider 를 고쳐도 복구되지 않는다.
+          # GOOGLE_MAPS_API_KEY 를 쓰는 곳은 취향 분석의 역지오코딩(geocode.google.*)뿐이다 — 코스
+          # 생성의 장소 조회(PLACE_PROVIDER / place.google.*)는 2026-11 에 제거됐다(BE 는 코스
+          # 생성에서 지도 API 를 부르지 않는다). 그래서 PLACE_PROVIDER 변수는 더 이상 읽지 않는다.
           # if 문으로 감싼다. `grep && x=y` 로 쓰면 provider 가 google 이 아닐 때 AND 리스트가
           # 비0으로 끝나고, GitHub Actions 의 기본 셸이 `bash -e` 라 그 자리에서 스텝이 죽는다.
-          if grep -q '^GEOCODE_PROVIDER=google$' was.env || grep -q '^PLACE_PROVIDER=google$' was.env; then
+          if grep -q '^GEOCODE_PROVIDER=google$' was.env; then
             required_secrets="$required_secrets GOOGLE_MAPS_API_KEY"
           fi
           for req in $required_secrets; do
@@ -249,11 +246,9 @@ jobs:
           #   PROFILE_IMAGE_* 앱 기본 provider=stub → 프로필 이미지가 열리지 않는 합성 URL 로
           #                    '저장'되고, 사용자가 다시 올리기 전까지 복구되지 않는다.
           #                    s3 로 쓰려면 버킷·공개 base URL 이 함께 있어야 한다.
-          #   PLACE_PROVIDER   앱 기본 stub → 코스 장소가 가짜 좌표로 '저장'된다(지오코딩과
-          #                    달리 DB에 남고 재조회하지 않아 provider를 바꿔도 복구되지 않는다)
           # 워크플로가 기본값을 지어내는 대신, 없으면 배포를 끊는다.
           missing_vars=""
-          for req in JPA_DDL_AUTO AI_BASE_URL GEOCODE_PROVIDER PLACE_PROVIDER \
+          for req in JPA_DDL_AUTO AI_BASE_URL GEOCODE_PROVIDER \
                      PROFILE_IMAGE_PROVIDER PROFILE_IMAGE_S3_BUCKET PROFILE_IMAGE_BASE_URL; do
             grep -q "^${req}=" was.env || missing_vars="$missing_vars $req"
           done
@@ -392,7 +387,6 @@ jobs:
           GEOCODE_NEARBY_RADIUS: ${{ vars.GEOCODE_NEARBY_RADIUS }}
           GEOCODE_GOOGLE_CACHE_GRID_DECIMALS: ${{ vars.GEOCODE_GOOGLE_CACHE_GRID_DECIMALS }}
           GEOCODE_GOOGLE_CACHE_MAX_SIZE: ${{ vars.GEOCODE_GOOGLE_CACHE_MAX_SIZE }}
-          PLACE_PROVIDER: ${{ vars.PLACE_PROVIDER }}
           PROFILE_IMAGE_PROVIDER: ${{ vars.PROFILE_IMAGE_PROVIDER }}
           PROFILE_IMAGE_S3_BUCKET: ${{ vars.PROFILE_IMAGE_S3_BUCKET }}
           PROFILE_IMAGE_S3_REGION: ${{ vars.PROFILE_IMAGE_S3_REGION }}
@@ -422,7 +416,7 @@ jobs:
                    AI_BASE_URL INTERNAL_API_KEY AI_COURSE_PROVIDER \
                    JPA_DDL_AUTO GEOCODE_PROVIDER GEOCODE_OSM_USER_AGENT \
                    GEOCODE_SEARCH_NEARBY_URL GEOCODE_NEARBY_RADIUS \
-                   GEOCODE_GOOGLE_CACHE_GRID_DECIMALS GEOCODE_GOOGLE_CACHE_MAX_SIZE PLACE_PROVIDER \
+                   GEOCODE_GOOGLE_CACHE_GRID_DECIMALS GEOCODE_GOOGLE_CACHE_MAX_SIZE \
                    PROFILE_IMAGE_PROVIDER PROFILE_IMAGE_S3_BUCKET PROFILE_IMAGE_S3_REGION \
                    PROFILE_IMAGE_BASE_URL SHARE_LINK_BASE_URL SHARE_LINK_TTL; do
             v="${!k}"
@@ -435,14 +429,12 @@ jobs:
           # 빈 값이면 배포는 통과하는데 취향 분석·코스 생성이 REQUEST_DENIED 로 전부 죽는다.
           missing=""
           required_secrets="DB_URL JWT_SECRET INTERNAL_API_KEY"
-          # 한 키를 두 곳이 쓴다 — geocode.google.api-key 와 place.google.api-key 가 모두
-          # ${GOOGLE_MAPS_API_KEY} 다. 그래서 둘 중 하나라도 google 이면 필수다.
-          # PLACE_PROVIDER 쪽이 오히려 더 나쁘다: GooglePlaceLookupClient 는 조회 실패를
-          # 예외가 아니라 빈 값으로 돌려주므로(포트 계약), 키가 없으면 403 을 삼킨 채 장소가
-          # 가짜 좌표로 **DB 에 저장**되고 provider 를 고쳐도 복구되지 않는다.
+          # GOOGLE_MAPS_API_KEY 를 쓰는 곳은 취향 분석의 역지오코딩(geocode.google.*)뿐이다 — 코스
+          # 생성의 장소 조회(PLACE_PROVIDER / place.google.*)는 2026-11 에 제거됐다(BE 는 코스
+          # 생성에서 지도 API 를 부르지 않는다). 그래서 PLACE_PROVIDER 변수는 더 이상 읽지 않는다.
           # if 문으로 감싼다. `grep && x=y` 로 쓰면 provider 가 google 이 아닐 때 AND 리스트가
           # 비0으로 끝나고, GitHub Actions 의 기본 셸이 `bash -e` 라 그 자리에서 스텝이 죽는다.
-          if grep -q '^GEOCODE_PROVIDER=google$' was.env || grep -q '^PLACE_PROVIDER=google$' was.env; then
+          if grep -q '^GEOCODE_PROVIDER=google$' was.env; then
             required_secrets="$required_secrets GOOGLE_MAPS_API_KEY"
           fi
           for req in $required_secrets; do
@@ -461,10 +453,8 @@ jobs:
           #   PROFILE_IMAGE_* 앱 기본 provider=stub → 프로필 이미지가 열리지 않는 합성 URL 로
           #                    '저장'되고, 사용자가 다시 올리기 전까지 복구되지 않는다.
           #                    s3 로 쓰려면 버킷·공개 base URL 이 함께 있어야 한다.
-          #   PLACE_PROVIDER   앱 기본 stub → 코스 장소가 가짜 좌표로 '저장'된다(지오코딩과
-          #                    달리 DB에 남고 재조회하지 않아 provider를 바꿔도 복구되지 않는다)
           missing_vars=""
-          for req in JPA_DDL_AUTO AI_BASE_URL GEOCODE_PROVIDER PLACE_PROVIDER \
+          for req in JPA_DDL_AUTO AI_BASE_URL GEOCODE_PROVIDER \
                      PROFILE_IMAGE_PROVIDER PROFILE_IMAGE_S3_BUCKET PROFILE_IMAGE_BASE_URL; do
             grep -q "^${req}=" was.env || missing_vars="$missing_vars $req"
           done

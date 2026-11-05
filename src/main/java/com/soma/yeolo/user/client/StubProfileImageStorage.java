@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>{@code profile-image.provider=s3}로 설정하면 실 저장소 구현이 대신 활성화된다. 스텁은 AWS
  * 자격증명·버킷 없이도 "업로드 → 검증 → profileImageUrl 갱신 → 응답" 전체 흐름을 로컬에서
- * 검증할 수 있게 한다({@code place.provider=stub}과 같은 방식).
+ * 검증할 수 있게 한다({@code geocode.provider=stub}과 같은 방식).
  *
  * <p>반환 URL은 실제로 열리지 않는다 — 그림이 보여야 하는 화면 검증에는 쓸 수 없다.
  */

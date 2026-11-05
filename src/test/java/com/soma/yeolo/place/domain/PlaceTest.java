@@ -15,8 +15,8 @@ class PlaceTest {
     }
 
     @Test
-    void 조회_결과를_그대로_유지한다() {
-        Place place = found("tourist_attraction").withCategory(null);
+    void AI가_준_장소_정보를_그대로_유지한다() {
+        Place place = found("tourist_attraction");
 
         assertThat(place.providerPlaceId()).isEqualTo("google:ChIJ123");
         assertThat(place.placeName()).isEqualTo("성산일출봉");
@@ -28,22 +28,6 @@ class PlaceTest {
         assertThat(place.placeEngName()).isEqualTo("Seongsan Ilchulbong");
         assertThat(place.photoUrl()).isEqualTo("https://cdn.example.com/seongsan.jpg");
         assertThat(place.openingHours()).containsExactly("월요일: 07:00~20:00");
-    }
-
-    @Test
-    void AI가_준_분류가_있으면_provider_분류보다_우선한다() {
-        Place place = found("tourist_attraction").withCategory("nature");
-
-        assertThat(place.category()).isEqualTo("nature");
-        // 나머지 값은 그대로 유지된다.
-        assertThat(place.providerPlaceId()).isEqualTo("google:ChIJ123");
-        assertThat(place.latitude()).isEqualTo(33.4581);
-    }
-
-    @Test
-    void AI_분류가_비어있으면_provider_분류를_유지한다() {
-        assertThat(found("tourist_attraction").withCategory("  ").category())
-                .isEqualTo("tourist_attraction");
     }
 
     @Test

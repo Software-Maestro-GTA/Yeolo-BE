@@ -90,6 +90,8 @@ class GoogleReverseGeocodeClientTest {
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(GEOCODE_OK, MediaType.APPLICATION_JSON));
         // 신 API는 POST + 헤더 키 + FieldMask, 반경은 body의 locationRestriction으로 간다.
+        // FieldMask는 정확히 일치해야 한다 — 과금 티어 가드다. Nearby Search (New)는 Essentials 없이
+        // Pro가 최저 티어이고(displayName·types는 Pro), rating·운영시간 등을 섞으면 Enterprise가 된다.
         server.expect(requestTo(NEARBY_URL))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Goog-Api-Key", "test-key"))

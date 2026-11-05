@@ -84,7 +84,7 @@ public class CourseCreationService {
 
             // 클라이언트가 이미 떠났어도 생성은 끝났으므로 저장은 진행한다(목록 조회로 확인 가능).
             // AI가 준 외부 장소 식별자를 내부 placeId로 치환해 저장한다(DOM-3).
-            itineraryPlaceNormalizer.normalize(courseNode, condition);
+            itineraryPlaceNormalizer.normalize(courseNode);
             Course course = courseAssembler.toDomain(userId, courseNode);
             UUID courseId = courseRepository.save(course);
 
