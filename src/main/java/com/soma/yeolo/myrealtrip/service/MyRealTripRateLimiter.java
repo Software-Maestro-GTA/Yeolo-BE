@@ -14,11 +14,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * 마이리얼트립 API 의 사용자별 요청 제한 (API-MRT-1~6 §작성 상태 "Server 에서 사용자별 요청 제한을 적용한다").
+ * 마이리얼트립 API 의 사용자별 요청 제한 (API-MRT-1~7 §작성 상태 "Server 에서 사용자별 요청 제한을 적용한다").
  *
  * <p>사용자(userId)마다 고정 창(fixed window)을 둔다 — 창 안에서 {@code maxRequests}를 넘으면 429 이고
- * {@code Retry-After}는 창이 끝나기까지 남은 초다. 파트너 호출 전에 거는 것이 목적이라(파트너 쿼터·요금 보호)
- * 메모리 안에서만 센다. 인스턴스가 여러 개면 인스턴스마다 따로 세어 실제 한도가 인스턴스 수만큼 느슨해지는데,
+ * {@code Retry-After}는 창이 끝나기까지 남은 초다. 주 목적은 파트너 호출 전에 거는 것(파트너 쿼터·요금 보호)이고,
+ * 파트너를 부르지 않는 쿠폰 목록(API-MRT-7)도 명세 결정(2026-11-05, MRT-7 Error Codes 에 429 추가)에 따라 같은 한도를
+ * 공유한다 — 그래서 쿠폰 조회도 한도 1을 쓴다. 수치를 파트너 쿼터에서 역산할 때 이 몫을 감안한다. 메모리 안에서만 센다. 인스턴스가 여러 개면 인스턴스마다 따로 세어 실제 한도가 인스턴스 수만큼 느슨해지는데,
  * 지금은 파드 하나이고 한도도 남용 차단용 여유값이라 공유 저장소를 두지 않았다.
  *
  * <p>만료된 창은 호출 때마다 지우지 않는다. 항목 수가 {@link #PURGE_THRESHOLD}를 넘었고 마지막 정리로부터 창 하나가
@@ -37,6 +38,11 @@ public class MyRealTripRateLimiter {
     private final Map<UUID, Window> windows = new ConcurrentHashMap<>();
     private final AtomicReference<Instant> lastPurge = new AtomicReference<>(Instant.EPOCH);
 
+    /**
+     * 시계는 {@code ClockConfig} 빈이 아니라 항상 흐르는 시스템 시계다 — 그 빈은 날짜 규칙을 고정하려고 테스트가
+     * {@code Clock.fixed}로 바꿔 끼우는데, 고정된 시계에서는 창이 끝나지 않아 한도가 영원히 닫힌다. 창 경계 검증은
+     * 패키지 생성자에 가변 시계를 넘겨 한다({@code MyRealTripRateLimiterTest}).
+     */
     @Autowired
     public MyRealTripRateLimiter(MyRealTripProperties properties) {
         this(properties.rateLimitMaxRequests(), properties.rateLimitWindow(), Clock.systemUTC(), PURGE_THRESHOLD);

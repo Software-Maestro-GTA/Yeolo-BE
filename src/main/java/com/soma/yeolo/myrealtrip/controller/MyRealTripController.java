@@ -3,6 +3,7 @@ package com.soma.yeolo.myrealtrip.controller;
 import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.response.ApiResponse;
 import com.soma.yeolo.myrealtrip.dto.AirportSearchResponse;
+import com.soma.yeolo.myrealtrip.dto.CouponListResponse;
 import com.soma.yeolo.myrealtrip.dto.FlightLinkRequest;
 import com.soma.yeolo.myrealtrip.dto.HotelSearchResponse;
 import com.soma.yeolo.myrealtrip.dto.LinkResponse;
@@ -10,6 +11,7 @@ import com.soma.yeolo.myrealtrip.dto.ProductLinkRequest;
 import com.soma.yeolo.myrealtrip.dto.ProductPageResponse;
 import com.soma.yeolo.myrealtrip.dto.RegionSearchResponse;
 import com.soma.yeolo.myrealtrip.dto.TicketSearchResponse;
+import com.soma.yeolo.myrealtrip.service.MyRealTripCouponService;
 import com.soma.yeolo.myrealtrip.service.MyRealTripLinkService;
 import com.soma.yeolo.myrealtrip.service.MyRealTripProductService;
 import com.soma.yeolo.myrealtrip.service.MyRealTripSearchService;
@@ -30,7 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 마이리얼트립 제휴 연동 API (API-MRT-1 공항 검색 / API-MRT-2 숙박 지역 검색 / API-MRT-3 숙소 조회 /
- * API-MRT-4 투어·티켓 검색 / API-MRT-5 항공 검색 제휴 링크 / API-MRT-6 상품 제휴 링크).
+ * API-MRT-4 투어·티켓 검색 / API-MRT-5 항공 검색 제휴 링크 / API-MRT-6 상품 제휴 링크 / API-MRT-7 쿠폰 목록).
  *
  * <p>FE 가 파트너 키를 들고 직접 호출하던 것을 BE 가 대신 호출한다(2026-11 명세 개정, SPEC {@code a816a75}).
  * 모든 엔드포인트는 로그인 필수이며({@code SecurityConfig}의 {@code anyRequest().authenticated()}) 미인증은 401 봉투다.
@@ -60,6 +62,7 @@ public class MyRealTripController {
     private final MyRealTripSearchService searchService;
     private final MyRealTripProductService productService;
     private final MyRealTripLinkService linkService;
+    private final MyRealTripCouponService couponService;
 
     @GetMapping("/airports")
     public ApiResponse<AirportSearchResponse> searchAirports(@AuthenticationPrincipal UUID userId,
@@ -97,6 +100,12 @@ public class MyRealTripController {
     public ApiResponse<LinkResponse> createFlightLink(@AuthenticationPrincipal UUID userId,
                                                       @RequestBody(required = false) FlightLinkRequest request) {
         return ApiResponse.success("항공 검색 링크 생성 성공", linkService.createFlightLink(userId, request));
+    }
+
+    /** 파트너 호출 없이 BE 가 관리하는 활성 쿠폰만 돌려준다. 파라미터·본문 없음. */
+    @GetMapping("/coupons")
+    public ApiResponse<CouponListResponse> listCoupons(@AuthenticationPrincipal UUID userId) {
+        return ApiResponse.success("쿠폰 정보 조회 성공", couponService.list(userId));
     }
 
     @PostMapping("/links")

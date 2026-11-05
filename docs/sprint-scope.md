@@ -24,7 +24,7 @@
 | [#131](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/131) | — | 마이리얼트립 파트너 연동 기반 + 공항·숙박 지역 검색 (+ `X-App-Version` 접근 로그) | API-MRT-1, API-MRT-2 | — | REQ-4 | — | In progress |
 | [#132](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/132) | — | 마이리얼트립 숙소·투어 티켓 목록 조회 | API-MRT-3, API-MRT-4 | — | REQ-4 | — | In progress |
 | [#133](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/133) | — | 마이리얼트립 항공 검색·상품 제휴 링크 생성 | API-MRT-5, API-MRT-6 | — | REQ-4 | — | In progress |
-| [#134](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/134) | — | 마이리얼트립 쿠폰 목록 | API-MRT-7 | — | REQ-4 | — | Backlog |
+| [#134](https://github.com/Software-Maestro-GTA/Yeolo-BE/issues/134) | — | 마이리얼트립 쿠폰 목록 | API-MRT-7 | — | REQ-4 | — | In progress |
 
 > ⚠️ **명세 ID 재편:** SPEC 저장소가 갱신되며 API·DOM ID 체계가 바뀌었다
 > (`API-FB-*` → `API-AUTH-*`/`API-COURSE-*`/`API-PREF-*`/`API-USER-*`, DOM 번호도 이동 —

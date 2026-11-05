@@ -16,7 +16,7 @@ import com.soma.yeolo.myrealtrip.dto.ProductLinkRequest;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
@@ -31,23 +31,14 @@ import org.springframework.stereotype.Service;
  * 남용 차단이고 수치가 여유값이라 호출 수로 환산하지 않았다(설정 {@code myrealtrip.rate-limit-*} 주석).
  */
 @Service
+@RequiredArgsConstructor
 public class MyRealTripLinkService {
 
     private final MyRealTripPartnerClient partnerClient;
     private final MyRealTripRateLimiter rateLimiter;
+    /** 시각만 쓴다 — 기준일의 시간대는 {@link MyRealTripRequests#today}가 고정한다({@code ClockConfig}). */
     private final Clock clock;
 
-    @Autowired
-    public MyRealTripLinkService(MyRealTripPartnerClient partnerClient, MyRealTripRateLimiter rateLimiter) {
-        this(partnerClient, rateLimiter, Clock.systemUTC());
-    }
-
-    /** @param clock 시각만 쓴다 — 기준일의 시간대는 {@link MyRealTripRequests#today}가 고정한다. */
-    MyRealTripLinkService(MyRealTripPartnerClient partnerClient, MyRealTripRateLimiter rateLimiter, Clock clock) {
-        this.partnerClient = partnerClient;
-        this.rateLimiter = rateLimiter;
-        this.clock = clock;
-    }
 
     /**
      * 왕복 항공 검색 제휴 링크. 과거 출국일·날짜 역전·동일 공항·잘못된 인원·코드 형식은 400 이고, 공급자가 노선·조건을
