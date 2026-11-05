@@ -17,7 +17,7 @@ import com.soma.yeolo.myrealtrip.dto.TicketSearchResponse;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
@@ -28,25 +28,16 @@ import org.springframework.stereotype.Service;
  * 예약 가능 여부는 이관 범위 밖이다.
  */
 @Service
+@RequiredArgsConstructor
 public class MyRealTripProductService {
 
     private static final int FIRST_PAGE = 1;
 
     private final MyRealTripPartnerClient partnerClient;
     private final MyRealTripRateLimiter rateLimiter;
+    /** 시각만 쓴다 — 기준일의 시간대는 {@link MyRealTripRequests#today}가 고정한다({@code ClockConfig}). */
     private final Clock clock;
 
-    @Autowired
-    public MyRealTripProductService(MyRealTripPartnerClient partnerClient, MyRealTripRateLimiter rateLimiter) {
-        this(partnerClient, rateLimiter, Clock.systemUTC());
-    }
-
-    /** @param clock 시각만 쓴다 — 기준일의 시간대는 {@link MyRealTripRequests#today}가 고정하므로 시계의 존은 무관하다. */
-    MyRealTripProductService(MyRealTripPartnerClient partnerClient, MyRealTripRateLimiter rateLimiter, Clock clock) {
-        this.partnerClient = partnerClient;
-        this.rateLimiter = rateLimiter;
-        this.clock = clock;
-    }
 
     /**
      * 숙소 조회. 모든 파라미터는 쿼리 문자열 그대로다 — 과거 체크인·날짜 역전·성인 0명·소수 인원·0 페이지는 400.

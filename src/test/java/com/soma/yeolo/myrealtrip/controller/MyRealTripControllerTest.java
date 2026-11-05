@@ -27,12 +27,14 @@ import com.soma.yeolo.myrealtrip.domain.Region;
 import com.soma.yeolo.myrealtrip.domain.Product;
 import com.soma.yeolo.myrealtrip.domain.ProductPage;
 import com.soma.yeolo.myrealtrip.dto.AirportSearchResponse;
+import com.soma.yeolo.myrealtrip.dto.CouponListResponse;
 import com.soma.yeolo.myrealtrip.dto.FlightLinkRequest;
 import com.soma.yeolo.myrealtrip.dto.HotelSearchResponse;
 import com.soma.yeolo.myrealtrip.dto.LinkResponse;
 import com.soma.yeolo.myrealtrip.dto.ProductLinkRequest;
 import com.soma.yeolo.myrealtrip.dto.RegionSearchResponse;
 import com.soma.yeolo.myrealtrip.dto.TicketSearchResponse;
+import com.soma.yeolo.myrealtrip.service.MyRealTripCouponService;
 import com.soma.yeolo.myrealtrip.service.MyRealTripLinkService;
 import com.soma.yeolo.myrealtrip.service.MyRealTripProductService;
 import com.soma.yeolo.myrealtrip.service.MyRealTripSearchService;
@@ -50,7 +52,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * API-MRT-1~6 — 경로·인증·봉투·메시지·에러 코드를 명세대로 고정한다. 429 는 {@code Retry-After} 헤더까지 본다
+ * API-MRT-1~7 — 경로·인증·봉투·메시지·에러 코드를 명세대로 고정한다. 429 는 {@code Retry-After} 헤더까지 본다
  * (전역 핸들러의 {@code RateLimitExceededException} 처리).
  */
 @WebMvcTest(MyRealTripController.class)
@@ -71,6 +73,9 @@ class MyRealTripControllerTest {
 
     @MockitoBean
     private MyRealTripLinkService linkService;
+
+    @MockitoBean
+    private MyRealTripCouponService couponService;
 
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
@@ -260,6 +265,39 @@ class MyRealTripControllerTest {
                 .andExpect(jsonPath("$.message").value("요청 값을 확인해주세요."));
         verify(linkService, never()).createFlightLink(any(), any());
         verify(linkService, never()).createProductLink(any(), any());
+    }
+
+    @Test
+    void 쿠폰_목록_성공_봉투는_code_minimumPrice_discount만_내리고_없으면_빈_배열이다() throws Exception {
+        when(couponService.list(userId)).thenReturn(new CouponListResponse(List.of(
+                new CouponListResponse.Entry("EXAMPLE1000", 50000, 1000))));
+
+        mockMvc.perform(get("/api/myrealtrip/coupons").header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("쿠폰 정보 조회 성공"))
+                .andExpect(jsonPath("$.data.coupons[0].code").value("EXAMPLE1000"))
+                .andExpect(jsonPath("$.data.coupons[0].minimumPrice").value(50000))
+                .andExpect(jsonPath("$.data.coupons[0].discount").value(1000))
+                .andExpect(jsonPath("$.data.coupons[0].active").doesNotExist())
+                .andExpect(jsonPath("$.data.coupons[0].startsOn").doesNotExist());
+
+        when(couponService.list(userId)).thenReturn(new CouponListResponse(List.of()));
+        mockMvc.perform(get("/api/myrealtrip/coupons").header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.coupons").isEmpty());
+    }
+
+    @Test
+    void 쿠폰_목록은_미인증_401이고_저장소_실패는_명세_문구의_500이다() throws Exception {
+        mockMvc.perform(get("/api/myrealtrip/coupons")).andExpect(status().isUnauthorized());
+        verify(couponService, never()).list(any());
+
+        when(couponService.list(userId)).thenThrow(new BusinessException(ErrorCode.MYREALTRIP_COUPON_LOAD_FAILED));
+        mockMvc.perform(get("/api/myrealtrip/coupons").header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.message").value("쿠폰 정보를 불러오지 못했습니다."))
+                .andExpect(jsonPath("$.data").value((Object) null));
     }
 
     @Test

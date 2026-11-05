@@ -101,7 +101,7 @@ prod 도 쓰려면 `Yeolo-BE-Prod.postman_collection.json` 을 같은 방식으�
 04. Taste Profile   성향 분석(SSE) → 조회
 05. Course          코스 생성(SSE) → 목록 → 상세   ← courseId 자동 저장
 08. Share           공유 링크 생성 → 조회 → 수락    ← 저장된 courseId 사용, shareToken 자동 저장
-09. MyRealTrip      공항 → 숙박 지역 → 숙소 → 티켓 → 항공 링크 → 상품 링크   ← 지역 검색이 mrtRegionId, 티켓 검색이 mrtProductUrl 자동 저장
+09. MyRealTrip      공항 → 숙박 지역 → 숙소 → 티켓 → 항공 링크 → 상품 링크 → 쿠폰   ← 지역 검색이 mrtRegionId, 티켓 검색이 mrtProductUrl 자동 저장
 ```
 
 - `03`의 **사진 분석 동의**를 안 하면 `04`의 성향 분석이 403으로 막힙니다.
@@ -109,11 +109,13 @@ prod 도 쓰려면 `Yeolo-BE-Prod.postman_collection.json` 을 같은 방식으�
 - `08`은 `05`가 저장한 `courseId`가 있어야 합니다. `05` 끝의 코스 삭제를 이미 돌렸다면 코스를
   다시 만들어야 합니다.
 - `02. Location`은 인증이 필요 없어 아무 때나 호출 가능합니다.
-- `09. MyRealTrip`(API-MRT-1~6, #131~#133)은 BE 가 마이리얼트립 파트너 API 를 대신 부릅니다. 로그인만 있으면
+- `09. MyRealTrip`(API-MRT-1~7, #131~#134)은 BE 가 마이리얼트립 파트너 API 를 대신 부릅니다. 로그인만 있으면
   되지만 **dev 서버에 `MY_REAL_TRIP_API_KEY` 가 있고 송신 IP 가 파트너에 등록돼 있어야** 200 이 납니다 —
   키가 없으면 500, IP 미등록이면 502 입니다(로그인 만료 401 이 아닙니다). 숙소 조회는 `mrtCheckIn`
   이 **서울 기준 오늘 이후**여야 하므로 날짜가 지나면 변수 값을 올려 줍니다. 모든 FE→BE 요청에는
   `X-App-Version: {{appVersion}}` 헤더가 들어 있습니다(SPEC a816a75 공통 헤더, BE 는 로그에만 남깁니다).
+  쿠폰 목록(API-MRT-7)은 파트너 호출 없이 `myrealtrip_coupons` 테이블을 읽습니다 — 행은 운영이
+  `docs/ddl/myrealtrip_coupons.sql`로 넣고 `active`를 켜야 보이며, 켜기 전에는 200 + 빈 배열이 정상입니다.
 
 ### `08. Share` — 친구 초대 공유 링크 (API-SHARE-1/2/3)
 

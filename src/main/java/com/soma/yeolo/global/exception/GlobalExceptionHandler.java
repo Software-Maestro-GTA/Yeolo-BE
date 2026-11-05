@@ -49,7 +49,7 @@ public class GlobalExceptionHandler {
 
     /**
      * 요청 한도 초과(429). {@link BusinessException}보다 구체적인 타입이라 이 핸들러가 먼저 잡힌다.
-     * 재시도 시점을 알면 {@code Retry-After}(초)를 함께 내린다 — 명세(API-MRT-1~6 §실패 응답)가
+     * 재시도 시점을 알면 {@code Retry-After}(초)를 함께 내린다 — 명세(API-MRT-1~7 §실패 응답)가
      * "재시도 시점을 알 수 있으면 Retry-After 헤더를 반환한다"고 정했고, 봉투만으로는 클라이언트가
      * 얼마나 기다릴지 알 수 없다.
      */

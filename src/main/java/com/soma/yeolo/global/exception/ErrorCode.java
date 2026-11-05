@@ -84,7 +84,7 @@ public enum ErrorCode {
     COUNTRY_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 국가를 찾을 수 없습니다."),
     INVALID_SEARCH_KEYWORD(HttpStatus.BAD_REQUEST, "검색 키워드를 입력해주세요."),
 
-    // 마이리얼트립 파트너 연동 (API-MRT-1~6). 400·401 문구는 명세 예시 그대로, 429·500·502·504 는 명세가
+    // 마이리얼트립 연동 (API-MRT-1~7). 429 는 쿠폰(MRT-7)도 낸다. 400·401 문구는 명세 예시 그대로, 429·500·502·504 는 명세가
     // 사유만 적고 문구를 주지 않아 BE 에서 정했다. 파트너의 401·403 은 "BE 의 파트너 키·등록 IP 문제"라
     // 사용자의 로그인 만료로 오인되지 않도록 401 이 아니라 502 로 낸다(명세 §실패 응답).
     INVALID_MYREALTRIP_REQUEST(HttpStatus.BAD_REQUEST, "요청 값을 확인해주세요."),
@@ -94,6 +94,8 @@ public enum ErrorCode {
     MYREALTRIP_NOT_CONFIGURED(HttpStatus.INTERNAL_SERVER_ERROR, "파트너 연동 설정이 없습니다."),
     MYREALTRIP_PARTNER_ERROR(HttpStatus.BAD_GATEWAY, "파트너 서비스 호출에 실패했습니다."),
     MYREALTRIP_PARTNER_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "파트너 서비스 응답이 지연되고 있습니다."),
+    // API-MRT-7 §실패 응답 문구 그대로. 쿠폰은 파트너 호출 없이 BE 저장소에서 읽으므로 실패는 DB 접근뿐이다.
+    MYREALTRIP_COUPON_LOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "쿠폰 정보를 불러오지 못했습니다."),
 
     // Common
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "내부 처리 오류가 발생했습니다."),
