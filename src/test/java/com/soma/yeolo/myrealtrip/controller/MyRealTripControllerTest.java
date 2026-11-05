@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -26,9 +27,13 @@ import com.soma.yeolo.myrealtrip.domain.Region;
 import com.soma.yeolo.myrealtrip.domain.Product;
 import com.soma.yeolo.myrealtrip.domain.ProductPage;
 import com.soma.yeolo.myrealtrip.dto.AirportSearchResponse;
+import com.soma.yeolo.myrealtrip.dto.FlightLinkRequest;
 import com.soma.yeolo.myrealtrip.dto.HotelSearchResponse;
+import com.soma.yeolo.myrealtrip.dto.LinkResponse;
+import com.soma.yeolo.myrealtrip.dto.ProductLinkRequest;
 import com.soma.yeolo.myrealtrip.dto.RegionSearchResponse;
 import com.soma.yeolo.myrealtrip.dto.TicketSearchResponse;
+import com.soma.yeolo.myrealtrip.service.MyRealTripLinkService;
 import com.soma.yeolo.myrealtrip.service.MyRealTripProductService;
 import com.soma.yeolo.myrealtrip.service.MyRealTripSearchService;
 import java.math.BigDecimal;
@@ -45,7 +50,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * API-MRT-1/2/3/4 — 경로·인증·봉투·메시지·에러 코드를 명세대로 고정한다. 429 는 {@code Retry-After} 헤더까지 본다
+ * API-MRT-1~6 — 경로·인증·봉투·메시지·에러 코드를 명세대로 고정한다. 429 는 {@code Retry-After} 헤더까지 본다
  * (전역 핸들러의 {@code RateLimitExceededException} 처리).
  */
 @WebMvcTest(MyRealTripController.class)
@@ -63,6 +68,9 @@ class MyRealTripControllerTest {
 
     @MockitoBean
     private MyRealTripProductService productService;
+
+    @MockitoBean
+    private MyRealTripLinkService linkService;
 
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
@@ -181,6 +189,77 @@ class MyRealTripControllerTest {
         mockMvc.perform(get("/api/myrealtrip/tickets").param("keyword", "도쿄"))
                 .andExpect(status().isUnauthorized());
         verify(productService, never()).searchTickets(any(), any(), any());
+    }
+
+    @Test
+    void 항공_검색_링크_생성_성공_봉투_숫자_인원은_문자열로_받는다() throws Exception {
+        when(linkService.createFlightLink(userId, new FlightLinkRequest("ICN", "NRT", "2026-12-10", "2026-12-12", "2")))
+                .thenReturn(new LinkResponse("https://myrealt.rip/example"));
+
+        mockMvc.perform(post("/api/myrealtrip/flights/link")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"depAirportCd":"ICN","arrAirportCd":"NRT","depDate":"2026-12-10","arrDate":"2026-12-12","adult":2}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("항공 검색 링크 생성 성공"))
+                .andExpect(jsonPath("$.data.url").value("https://myrealt.rip/example"));
+    }
+
+    @Test
+    void 상품_제휴_링크_생성_성공_봉투() throws Exception {
+        when(linkService.createProductLink(userId, new ProductLinkRequest("https://experiences.myrealtrip.com/products/example")))
+                .thenReturn(new LinkResponse("https://myrealt.rip/example"));
+
+        mockMvc.perform(post("/api/myrealtrip/links")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetUrl\":\"https://experiences.myrealtrip.com/products/example\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("상품 제휴 링크 생성 성공"))
+                .andExpect(jsonPath("$.data.url").value("https://myrealt.rip/example"));
+    }
+
+    @Test
+    void 링크_생성의_본문_누락은_명세_400이고_지원하지_않는_항공_조건은_구분되는_400이다() throws Exception {
+        when(linkService.createProductLink(eq(userId), any()))
+                .thenThrow(new BusinessException(ErrorCode.INVALID_MYREALTRIP_REQUEST));
+        when(linkService.createFlightLink(eq(userId), any()))
+                .thenThrow(new BusinessException(ErrorCode.UNSUPPORTED_FLIGHT_SEARCH));
+
+        mockMvc.perform(post("/api/myrealtrip/links").header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("요청 값을 확인해주세요."));
+        mockMvc.perform(post("/api/myrealtrip/flights/link")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"depAirportCd\":\"ICN\",\"arrAirportCd\":\"XXX\",\"depDate\":\"2026-12-10\",\"arrDate\":\"2026-12-12\",\"adult\":1}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("지원하지 않는 항공 검색 조건입니다."));
+        mockMvc.perform(post("/api/myrealtrip/links").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetUrl\":\"https://myrealtrip.com/\"}"))
+                .andExpect(status().isUnauthorized());
+        verify(linkService, never()).createProductLink(eq(null), any());
+    }
+
+    @Test
+    void 깨진_JSON과_비스칼라_필드도_전역_문구가_아니라_명세의_400_문구다() throws Exception {
+        mockMvc.perform(post("/api/myrealtrip/flights/link")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"depAirportCd\":\"ICN\",\"arrAirportCd\":\"NRT\",\"depDate\":\"2026-12-10\",\"arrDate\":\"2026-12-12\",\"adult\":[2]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("요청 값을 확인해주세요."))
+                .andExpect(jsonPath("$.data").value((Object) null));
+        mockMvc.perform(post("/api/myrealtrip/links")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetUrl\": "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("요청 값을 확인해주세요."));
+        verify(linkService, never()).createFlightLink(any(), any());
+        verify(linkService, never()).createProductLink(any(), any());
     }
 
     @Test

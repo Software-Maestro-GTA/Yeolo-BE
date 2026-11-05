@@ -6,9 +6,11 @@ import com.soma.yeolo.global.exception.RateLimitExceededException;
 import com.soma.yeolo.global.client.RetryAfterHeader;
 import com.soma.yeolo.myrealtrip.client.dto.PartnerAirportsData;
 import com.soma.yeolo.myrealtrip.client.dto.PartnerEnvelope;
+import com.soma.yeolo.myrealtrip.client.dto.PartnerMylinkData;
 import com.soma.yeolo.myrealtrip.client.dto.PartnerProductsData;
 import com.soma.yeolo.myrealtrip.client.dto.PartnerRegionsData;
 import com.soma.yeolo.myrealtrip.domain.Airport;
+import com.soma.yeolo.myrealtrip.domain.FlightSearch;
 import com.soma.yeolo.myrealtrip.domain.HotelSearchQuery;
 import com.soma.yeolo.myrealtrip.domain.MyRealTripUrls;
 import com.soma.yeolo.myrealtrip.domain.Product;
@@ -51,6 +53,10 @@ public class HttpMyRealTripPartnerClient implements MyRealTripPartnerClient {
     static final String REGION_AUTOCOMPLETE_PATH = "/v1/products/accommodation/region-autocomplete";
     static final String HOTEL_SEARCH_PATH = "/v1/products/accommodation/search";
     static final String TICKET_SEARCH_PATH = "/v1/products/tna/search";
+    static final String FLIGHT_LANDING_URL_PATH = "/v1/products/flight/fare-query-landing-url";
+    static final String MYLINK_PATH = "/v1/mylink";
+    /** 왕복 고정 (API-MRT-5 §처리 규칙). 편도·다구간은 별도 요구사항. */
+    static final String ROUND_TRIP = "RT";
     /** 공항 자동완성 결과 수. Client 에서 받지 않고 서버가 고정한다(API-MRT-1 §처리 규칙). */
     static final int AIRPORT_RESULT_SIZE = 10;
     /** 파트너 오류 본문은 로그에만 남기되 길이를 자른다 — 장애 중 자동완성이 입력마다 HTML 페이지를 통째로 찍지 않게. */
@@ -63,6 +69,13 @@ public class HttpMyRealTripPartnerClient implements MyRealTripPartnerClient {
             new ParameterizedTypeReference<>() {
             };
     private static final ParameterizedTypeReference<PartnerEnvelope<PartnerProductsData>> PRODUCTS_TYPE =
+            new ParameterizedTypeReference<>() {
+            };
+    /** 랜딩 URL API 의 {@code data}는 객체가 아니라 URL 문자열 하나다(이관 전 FE 어댑터 {@code post<string>}). */
+    private static final ParameterizedTypeReference<PartnerEnvelope<String>> LANDING_URL_TYPE =
+            new ParameterizedTypeReference<>() {
+            };
+    private static final ParameterizedTypeReference<PartnerEnvelope<PartnerMylinkData>> MYLINK_TYPE =
             new ParameterizedTypeReference<>() {
             };
 
@@ -234,7 +247,58 @@ public class HttpMyRealTripPartnerClient implements MyRealTripPartnerClient {
         return value != null && value >= 0 && value <= Integer.MAX_VALUE ? value.intValue() : null;
     }
 
+    /**
+     * 랜딩 URL → mylink 2단계. 랜딩 URL 은 HTTPS 의 myrealtrip.com(서브도메인 포함)이어야 하고, 그래야 mylink 의
+     * {@code targetUrl}로 넘긴다 — 공급자가 준 값이라도 검증 없이 다음 호출의 입력으로 쓰지 않는다(명세 §처리 규칙).
+     * 공급자가 조건·노선을 거절한 400·422 는 사용자가 고칠 수 있는 입력 문제라 400 으로 구분해 낸다(명세 §처리 규칙).
+     * 404 는 경로·호스트 설정 문제일 수 있어 다른 경로와 같이 502 로 둔다 — 사용자 입력 오류로 숨기면 운영이 못 본다.
+     */
+    @Override
+    public String createFlightLink(FlightSearch search) {
+        Objects.requireNonNull(search, "search");
+        String landingUrl = post(FLIGHT_LANDING_URL_PATH, Map.of(
+                "depAirportCd", search.depAirportCd(),
+                "arrAirportCd", search.arrAirportCd(),
+                "depDate", search.depDate().toString(),
+                "arrDate", search.arrDate().toString(),
+                "adult", search.adult(),
+                "tripTypeCd", ROUND_TRIP), LANDING_URL_TYPE, ErrorCode.UNSUPPORTED_FLIGHT_SEARCH);
+        if (!MyRealTripUrls.isProductUrl(landingUrl)) {
+            throw invalidResponse(FLIGHT_LANDING_URL_PATH, "랜딩 URL 이 HTTPS myrealtrip.com 이 아님: " + truncate(landingUrl));
+        }
+        return mylink(landingUrl);
+    }
+
+    @Override
+    public String createProductLink(String targetUrl) {
+        Objects.requireNonNull(targetUrl, "targetUrl");
+        if (!MyRealTripUrls.isProductUrl(targetUrl)) {
+            // 서비스가 같은 판정으로 400 을 먼저 내지만, 검증되지 않은 URL 을 파트너 본문에 싣는 일은 어댑터에서도 막는다.
+            // 두 판정이 어긋나도 500 이 아니라 명세의 400 이어야 하므로 BusinessException 이다.
+            throw new BusinessException(ErrorCode.INVALID_MYREALTRIP_REQUEST);
+        }
+        return mylink(targetUrl);
+    }
+
+    /** 고정된 mylink API 에 {@code targetUrl}을 본문 값으로만 전달한다. 결과는 HTTPS 의 myrealt.rip 만 믿는다. */
+    private String mylink(String targetUrl) {
+        PartnerMylinkData data = post(MYLINK_PATH, Map.of("targetUrl", targetUrl), MYLINK_TYPE);
+        if (!MyRealTripUrls.isShortLink(data.mylink())) {
+            throw invalidResponse(MYLINK_PATH, "mylink 가 HTTPS myrealt.rip 이 아님: " + truncate(data.mylink()));
+        }
+        return data.mylink();
+    }
+
     private <T> T post(String path, Map<String, Object> body, ParameterizedTypeReference<PartnerEnvelope<T>> type) {
+        return post(path, body, type, null);
+    }
+
+    /**
+     * @param rejectedInputCode 공급자가 요청 내용을 거절한 400·422 를 이 코드(400)로 낼 때 지정. null 이면 502.
+     *                          BE 가 입력을 전부 검증한 뒤의 거절이므로 계약 변경일 수도 있다 — WARN 에 본문을 남긴다.
+     */
+    private <T> T post(String path, Map<String, Object> body, ParameterizedTypeReference<PartnerEnvelope<T>> type,
+                       ErrorCode rejectedInputCode) {
         String apiKey = properties.apiKey();
         if (!StringUtils.hasText(apiKey)) {
             log.error("마이리얼트립 파트너 키가 설정되지 않았다(MY_REAL_TRIP_API_KEY)");
@@ -252,13 +316,21 @@ public class HttpMyRealTripPartnerClient implements MyRealTripPartnerClient {
                 throw invalidResponse(path, "본문 없음");
             }
             if (!envelope.isSuccess()) {
+                Integer partnerStatus = envelope.result() == null ? null : envelope.result().status();
+                if (rejectedInputCode != null && partnerStatus != null && (partnerStatus == 400 || partnerStatus == 422)) {
+                    // 봉투 안의 status 는 공급자 자체 상태다 — HTTP 200 으로 감싼 거절도 같은 400 으로 가른다.
+                    log.warn("마이리얼트립 {} 요청 조건 거절(봉투 result.status={}, message={})",
+                            path, partnerStatus, truncate(envelope.result().message()));
+                    throw new BusinessException(rejectedInputCode);
+                }
                 // FE 어댑터와 같은 판정 — data 가 null 인 것도 실패다(결과 없음은 data.airports: [] 로 온다).
-                throw invalidResponse(path, envelope.data() == null ? "data 없음"
-                        : "result.status=" + envelope.result().status());
+                String partnerMessage = envelope.result() == null ? null : envelope.result().message();
+                throw invalidResponse(path, (envelope.data() == null ? "data 없음, " : "")
+                        + "result.status=" + partnerStatus + (partnerMessage == null ? "" : ", message=" + truncate(partnerMessage)));
             }
             return envelope.data();
         } catch (RestClientResponseException e) {
-            throw fromHttpError(path, e);
+            throw fromHttpError(path, e, rejectedInputCode);
         } catch (ResourceAccessException e) {
             if (isReadTimeout(e)) {
                 log.error("마이리얼트립 {} 응답 시간 초과", path, e);
@@ -276,8 +348,13 @@ public class HttpMyRealTripPartnerClient implements MyRealTripPartnerClient {
         }
     }
 
-    private BusinessException fromHttpError(String path, RestClientResponseException e) {
+    private BusinessException fromHttpError(String path, RestClientResponseException e, ErrorCode rejectedInputCode) {
         int status = e.getStatusCode().value();
+        if (rejectedInputCode != null && (status == 400 || status == 422)) {
+            log.warn("마이리얼트립 {} 요청 조건 거절(지원하지 않는 조건이거나 파트너 계약 변경): {} {}",
+                    path, status, truncate(e.getResponseBodyAsString()));
+            return new BusinessException(rejectedInputCode, e);
+        }
         if (status == 401 || status == 403) {
             // BE 의 파트너 키 또는 등록 IP 문제. 사용자의 로그인 만료가 아니므로 401 로 내지 않는다.
             log.error("마이리얼트립 {} 인증/IP 거절: {} (파트너 키·송신 IP 등록을 확인)", path, status);

@@ -8,6 +8,7 @@ import com.soma.yeolo.global.exception.ErrorCode;
 import com.soma.yeolo.global.exception.RateLimitExceededException;
 import com.soma.yeolo.myrealtrip.client.MyRealTripPartnerClient;
 import com.soma.yeolo.myrealtrip.domain.Airport;
+import com.soma.yeolo.myrealtrip.domain.FlightSearch;
 import com.soma.yeolo.myrealtrip.domain.HotelSearchQuery;
 import com.soma.yeolo.myrealtrip.domain.Product;
 import com.soma.yeolo.myrealtrip.domain.ProductPage;
@@ -177,6 +178,16 @@ class MyRealTripProductServiceTest {
         public ProductPage searchTickets(String keyword, int page) {
             ticketCalls.add(keyword + "|" + page);
             return this.page;
+        }
+
+        @Override
+        public String createFlightLink(FlightSearch search) {
+            throw new UnsupportedOperationException("링크 생성은 MyRealTripLinkServiceTest 가 검증한다");
+        }
+
+        @Override
+        public String createProductLink(String targetUrl) {
+            throw new UnsupportedOperationException("링크 생성은 MyRealTripLinkServiceTest 가 검증한다");
         }
     }
 }

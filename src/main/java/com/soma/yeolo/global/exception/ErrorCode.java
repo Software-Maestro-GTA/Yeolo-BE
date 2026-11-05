@@ -88,6 +88,8 @@ public enum ErrorCode {
     // 사유만 적고 문구를 주지 않아 BE 에서 정했다. 파트너의 401·403 은 "BE 의 파트너 키·등록 IP 문제"라
     // 사용자의 로그인 만료로 오인되지 않도록 401 이 아니라 502 로 낸다(명세 §실패 응답).
     INVALID_MYREALTRIP_REQUEST(HttpStatus.BAD_REQUEST, "요청 값을 확인해주세요."),
+    // API-MRT-5: 공급자가 지원하지 않는 검색 조건·노선은 "사용자에게 구분 가능한 메시지의 400". 문구는 BE 가 정했다.
+    UNSUPPORTED_FLIGHT_SEARCH(HttpStatus.BAD_REQUEST, "지원하지 않는 항공 검색 조건입니다."),
     MYREALTRIP_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요."),
     MYREALTRIP_NOT_CONFIGURED(HttpStatus.INTERNAL_SERVER_ERROR, "파트너 연동 설정이 없습니다."),
     MYREALTRIP_PARTNER_ERROR(HttpStatus.BAD_GATEWAY, "파트너 서비스 호출에 실패했습니다."),
