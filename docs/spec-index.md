@@ -27,6 +27,13 @@
 | API-LOC-2 | `API-LOC-2.md` | `GET /api/locations/cities` — 국가별 도시 전체 목록 조회 | #46, #97 |
 | API-LOC-3 | `API-LOC-3.md` | `GET /api/locations/search` — 국가·도시 키워드 검색 | #97 |
 | ~~API-PLACE-1~~ | `~~API-PLACE-1~~.md` | ~~`GET /api/places/{placeId}` — 여행 장소 조회~~ **폐기(2026-10)** | #48, #96 |
+| API-MRT-1 | `API-MRT-1.md` | `GET /api/myrealtrip/airports` — 공항 검색 | #131 |
+| API-MRT-2 | `API-MRT-2.md` | `GET /api/myrealtrip/regions` — 숙박 지역 검색 | #131 |
+| API-MRT-3 | `API-MRT-3.md` | `GET /api/myrealtrip/hotels` — 숙소 조회 | #132 |
+| API-MRT-4 | `API-MRT-4.md` | `GET /api/myrealtrip/tickets` — 투어·티켓 검색 | #132 |
+| API-MRT-5 | `API-MRT-5.md` | `POST /api/myrealtrip/flights/link` — 항공 검색 제휴 링크 생성 | #133 |
+| API-MRT-6 | `API-MRT-6.md` | `POST /api/myrealtrip/links` — 상품 제휴 링크 생성 | #133 |
+| API-MRT-7 | `API-MRT-7.md` | `GET /api/myrealtrip/coupons` — 쿠폰 목록 | #134 |
 | API-PREF-1 | `API-PREF-1.md` | `PATCH /api/users/me/preferences` — 사용자 MBTI 등록/수정 | #51 |
 | API-SHARE-1 | `API-SHARE-1.md` | `POST /api/courses/{courseId}/share-links` — 공유 링크 생성 | #49 |
 | API-SHARE-2 | `API-SHARE-2.md` | `GET /api/share-links/{shareToken}` — 공유 링크 조회(미리보기) | #49 |
@@ -38,6 +45,41 @@
 | API-USER-2 | `API-USER-2.md` | `DELETE /api/users/me` — 회원탈퇴 | #78 |
 | API-USER-3 | `API-USER-3.md` | `GET /api/users/me/language` — 내 언어 설정 조회 | #99 |
 | API-USER-4 | `API-USER-4.md` | `POST /api/users/me/language` — 내 언어 설정 변경 | #99 |
+
+## 2026-11-05 명세 개정 반영 (pin `0bd2d08` → `a816a75`)
+
+SPEC `a816a75`("header app version 및 myrealtrip api 서버 분리 api 추가")는 두 가지다.
+
+**1. 마이리얼트립 제휴 연동이 FE 직접 호출 → BE 프록시로 바뀌었다(API-MRT-1~7 신설).** 2026-08 개정에서
+"제휴는 Trip.com 클라이언트 상수 방식, BE 대응 없음"으로 정리했던 결정(아래 2026-08-13 절)을 뒤집는다.
+파트너 키를 앱 번들에서 빼고 BE 환경변수(`MY_REAL_TRIP_API_KEY`)로만 두며, BE 가 파트너 API
+(`https://partner-ext-api.myrealtrip.com`)를 대신 호출한다. 명세는 파트너 **경로만** 적고 요청·응답 본문은
+"현재 FE 어댑터"(Yeolo-FE `packages/common/src/api/myrealtrip.ts`)를 가리키므로, 본문 형식·성공 판정
+(`data` 존재, `result.status`가 있으면 200)은 그 파일을 근거로 옮겼다. 구현은 #131~#134 네 이슈로 나눴다.
+
+| 명세 | 내용 | BE 대응 |
+| :--- | :--- | :--- |
+| API-MRT-1/2 | 공항·숙박 지역 자동완성 | #131 — `myrealtrip` 패키지. 포트 `MyRealTripPartnerClient` ← `HttpMyRealTripPartnerClient`. 실패 매핑: 키 미설정 500, 파트너 401/403·호출 실패·잘못된 응답 502, 응답 시간 초과 504, 파트너 429 → 429(+`Retry-After` 숫자면 전달). 사용자별 고정 창 요청 제한(`MyRealTripRateLimiter`, 기본 60회/1분, 초과 429 + `Retry-After`). 검색 결과 없음은 200 + 빈 배열 |
+| API-MRT-3/4 | 숙소·투어 티켓 목록(페이지 20 고정, `totalCount` nullable, `hasMore`) | #132 — 같은 포트·어댑터에 `searchHotels`/`searchTickets` 추가, `MyRealTripProductService`. 숙소 상위 API 는 page 0 시작이라 `page - 1` 로 변환(응답 `page`는 Client 값), 티켓은 1 시작 — 명세는 "상위 계약 확인 후 구현"이라 했는데, 확인 근거는 **운영 중인 FE 어댑터**다(`searchHotels`가 `page ?? 0`을 보내고 `hasMore`를 `(page+1)*size`로 계산, 티켓은 `page=1`). 파트너 문서로 재확인된 것은 아니므로 숙소 2페이지가 1페이지와 같은 상품을 돌려주면 이 변환을 의심한다. 상품명·HTTPS myrealtrip.com(서브도메인) 원본 URL(`MyRealTripUrls` — 스킴·authority 만 엄격히 분해하고 경로·쿼리의 한글·공백은 허용, 제어 문자는 거절. `java.net.URI` 는 공급자 URL 의 비인코딩 문자를 예외로 버려 쓰지 않는다)·0 이상 숫자 가격이 없는 항목은 제외하되 `hasMore`는 필터링 전 원본 수 기준. 상위 `totalCount`가 0 이상 정수가 아니면 null + 원본 20개면 `hasMore: true`. `items` 배열이 없으면 502. 과거 체크인 판정은 Asia/Seoul. 파트너 항목은 `JsonNode`가 아니라 `Object`(Map)로 받는다 — RestClient 변환기는 Jackson 3, 프로젝트 `JsonNode`는 Jackson 2 라 트리 모델로 역직렬화할 수 없다 |
+| API-MRT-5/6 | 항공 검색·상품 제휴 링크(mylink) 생성, URL 파서 검증 | #133 — `MyRealTripLinkService`, 포트에 `createFlightLink`/`createProductLink`. 항공은 랜딩 URL(`/v1/products/flight/fare-query-landing-url`, 서버가 `tripTypeCd: RT` 추가, 응답 `data`는 URL 문자열) → `/v1/mylink` 2단계이며 랜딩 URL 도 HTTPS myrealtrip.com 검증을 통과해야 다음 단계 본문에 싣는다. 결과는 HTTPS 의 `myrealt.rip` 호스트(서브도메인 불허, `MyRealTripUrls.isShortLink`)만 돌려주고 그 밖은 502. 입력 `targetUrl`은 URL 파서로 HTTPS myrealtrip.com(서브도메인 포함)만 400 통과. **공급자가 조건·노선을 거절한 400·422 는 랜딩 URL 단계에서만 `UNSUPPORTED_FLIGHT_SEARCH`(400 "지원하지 않는 항공 검색 조건입니다.")**, 404(경로·호스트 설정 문제 가능)와 mylink 단계의 4xx 는 502. 요청 제한은 BE 요청 단위라 항공 링크(파트너 호출 2회)도 1회로 센다. 본문 필드는 문자열로 받아 `MyRealTripRequests`가 해석(JSON 숫자 `adult: 2`는 Jackson 스칼라 강제 변환으로 `"2"`) — 본문 누락은 서비스가, 깨진 JSON·비스칼라 필드는 컨트롤러 안의 `HttpMessageNotReadableException` 핸들러가 같은 명세 400 문구로 낸다(전역 핸들러의 "요청이 유효하지 않습니다."가 아니다). JSON 문자열 `"2"`는 통과한다. 과거 출국일은 Asia/Seoul, 당일 왕복 허용 |
+| API-MRT-7 | 쿠폰 목록(파트너 호출 없음, BE 관리 데이터) | #134 — 저장 방식은 명세에 없어 **DB 테이블 `myrealtrip_coupons`**(사용자 결정 2026-11-05, 설정 파일 안 대신). 컬럼 `code`(UNIQUE)·`minimum_price`·`discount`·`active`·`starts_on`/`ends_on`(날짜, 양 끝 포함, NULL=무제한)·`display_order`. 포트 `CouponRepository` ← `CouponRepositoryImpl`(DB 실패를 명세 500 문구 `MYREALTRIP_COUPON_LOAD_FAILED`로 번역), 저장소가 `active` 를 거르고 `MyRealTripCouponService`가 Asia/Seoul 기준일로 기간 필터. 규칙을 깨는 행(DDL CHECK 가 1차 방어)은 그 행만 빼고 WARN. 등록·수정 API 는 명세에 없어 운영이 SQL 로 관리(`docs/ddl/myrealtrip_coupons.sql` — CREATE + 앱 상수 3개의 INSERT, **`active=FALSE`로 넣고 운영 확인 후 UPDATE**). 사용자별 요청 제한은 다른 MRT API 와 같이 건다(명세 공통 문구). **해소된 명세 모순(2026-11-05):** API-MRT-7 §작성 상태는 "사용자별 요청 제한을 적용한다"인데 §Error Codes 에는 429 가 없었다. 명세 담당이 Notion 원본 MRT-7 Error Codes 에 429 를 추가해 "쿠폰도 공유 한도 적용"으로 확정했다 — 쿠폰 조회가 파트너 보호용 한도를 1씩 쓰는 것은 이 결정의 수용된 비용이다. GitHub Yeolo-SPEC 동기화 후 pin 을 올린다. `docs/ddl/*.sql` 은 `.gitignore` 의 `docs` 때문에 **`git add -f`** 로만 추적된다 |
+
+**BE 가 정한 것(명세 미규정):** 429·500·502·504 의 응답 문구(`ErrorCode.MYREALTRIP_*`), 요청 제한 수치
+(설정 `myrealtrip.rate-limit-*`), `isDomestic`은 `true`/`false` 문자열만 허용(스프링 Boolean 변환의 `1`/`on`은 400).
+MRT-3/4 의 `reviewScore`는 명세가 "string, number 또는 null — 현재 Client 타입 유지"라 공급자 값을 타입 그대로 넘긴다
+(`Object`, String 또는 Number 만). 모든 쿼리 파라미터는 문자열로 받아 `MyRealTripRequests`가 엄격히 해석한다(정수는
+소수·문자열 거부, 날짜는 `YYYY-MM-DD` 만). `imageUrl`·`totalCount` 미제공은 생략이 아니라 명시적 `null` 이다.
+**미해소 명세 모순 — 401 문구.** API-MRT-1~7 은 401 본문을 `"인증이 필요합니다."`로 적었는데, 보호 리소스 전체의 401 은
+`RestAuthenticationEntryPoint` 한 곳에서 `"인증이 필요하거나 토큰이 만료되었습니다."`로 나간다(다른 API 명세와 같은 문구).
+MRT 만 바꾸면 FE 가 엔드포인트별로 두 문구를 알아야 하므로 **일단 공통 문구를 유지**했고, 명세 쪽을 공통 문구로
+맞출지 MRT 전용 문구를 둘지는 명세 담당(사용자) 확인 대기다.
+**선행 조건:** 파트너 API 는 등록된 공인 IP 에서만 호출을 받는다. BE 송신 IP(NAT) 등록은 인프라 담당이며
+미등록이면 파트너 401/403 → BE 502 로 드러난다.
+
+**2. FE→BE 전 API 의 공통 요청 헤더에 `X-App-Version: {appVersion}`이 추가됐다(#130).** 명세는 헤더의 존재만
+정하고 서버의 용도는 정하지 않았다. BE 는 **선택 헤더**로 받아 접근 로그(`RequestLoggingFilter`의 진입 줄
+`app=`)에만 남긴다 — 없다고 거절하면 구버전 앱·Postman 요청이 끊기고, 강제 업데이트 판정은 별도 요구사항이다.
+기존 24개 문서의 diff 는 이 헤더 한 줄뿐이며 요청·응답 필드 변경은 없다.
 
 ## 2026-10-25 명세 개정 반영 (pin `5a3d421` → `0bd2d08`)
 
@@ -183,7 +225,7 @@ Error Codes에 `401: 인증 실패`가 있었다.
 | API-LOC-2 | `country` 선택 쿼리 파라미터 추가 | 국가로 좁힌 질의 2종 추가. `country`는 ISO alpha-2와 국가 한국어명을 모두 받는다(명세 미규정 → BE 결정) |
 | API-PLACE-1(현재 폐기) | `placeEngName` 추가, `photoUrls[]` → `photoUrl` | 장소 도메인·엔티티·응답 반영(`docs/ddl/places.sql`) |
 | API-USER-1 | 요청에서 `email` 삭제 | 프로필 수정에서 이메일 제거. 이메일은 이제 OAuth 제공자 값만 따른다 |
-| API-BOOKING-1 / DOM-7 | 예약 API 삭제, 제휴가 Trip.com **클라이언트 상수** 방식으로 변경 | BE 대응 없음(구현한 적 없음) |
+| API-BOOKING-1 / DOM-7 | 예약 API 삭제, 제휴가 Trip.com **클라이언트 상수** 방식으로 변경 | BE 대응 없음(구현한 적 없음). **2026-11 개정으로 뒤집혔다** — 제휴처가 마이리얼트립이고 BE 프록시(API-MRT-1~7)다(위 2026-11-05 절) |
 
 **남은 명세 모순:** API-USER-1의 Error Codes에는 `409: 이미 사용 중인 이메일`이 그대로 있으나,
 요청에서 `email`이 빠져 **발생시킬 입력이 없다**. 구현하지 않았고 `ErrorCode`에서도 지웠다.

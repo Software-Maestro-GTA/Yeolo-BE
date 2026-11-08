@@ -3,6 +3,7 @@ package com.soma.yeolo.tasteprofile.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.soma.yeolo.global.client.IntervalRateLimiter;
+import com.soma.yeolo.global.client.RetryAfterHeader;
 import com.soma.yeolo.global.client.LruCache;
 import com.soma.yeolo.global.client.NominatimProperties;
 import com.soma.yeolo.global.exception.BusinessException;
@@ -126,17 +127,10 @@ public class OsmReverseGeocodeClient implements ReverseGeocodeClient {
         return Math.round(latitude * COORD_SCALE) + "," + Math.round(longitude * COORD_SCALE);
     }
 
-    /** {@code Retry-After}(초 단위)가 있으면 ms로 환산해 백오프에 사용한다. */
+    /** 초 단위 {@code Retry-After}만 쓴다. HTTP-date 형식 등은 기본 백오프로 폴백한다({@link RetryAfterHeader}). */
     private OptionalLong retryAfterMillis(RestClientResponseException e) {
-        String header = e.getResponseHeaders() != null ? e.getResponseHeaders().getFirst("Retry-After") : null;
-        if (header != null) {
-            try {
-                return OptionalLong.of(Long.parseLong(header.trim()) * 1000L);
-            } catch (NumberFormatException ignored) {
-                // HTTP-date 형식 등은 무시하고 기본 백오프로 폴백한다.
-            }
-        }
-        return OptionalLong.empty();
+        OptionalLong seconds = RetryAfterHeader.seconds(e.getResponseHeaders());
+        return seconds.isPresent() ? OptionalLong.of(seconds.getAsLong() * 1000L) : OptionalLong.empty();
     }
 
     private void sleep(long millis) {
